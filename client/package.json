@@ -1,5 +1,5 @@
 {
-  "name": "final-project-client",
+  "name": "emberary-client",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,8 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

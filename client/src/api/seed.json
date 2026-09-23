@@ -1,8 +1,49 @@
-[
-  { "id": "seed-1", "place": "Library, third floor", "description": "Chairs rearranged overnight, every time. The night guard says he locks the room himself.", "spookiness": 3, "reported_at": "2026-08-01T14:20:00.000Z" },
-  { "id": "seed-2", "place": "Old gym", "description": "Lights flicker in a fixed pattern after 9pm, always three short and one long.", "spookiness": 4, "reported_at": "2026-08-03T11:05:00.000Z" },
-  { "id": "seed-3", "place": "Parking basement", "description": "Footsteps with no one there. Reported separately by three different people in one week, which is what makes this one hard to dismiss. Two of them were alone at the time and did not know about the others. This entry is deliberately long, because a seed row of four words hides every text-wrapping bug you have.", "spookiness": 5, "reported_at": "2026-08-05T22:40:00.000Z" },
-  { "id": "seed-4", "place": "Canteen", "description": "A cold spot near the back door, every morning before seven.", "spookiness": 1, "reported_at": "2026-08-06T07:15:00.000Z" },
-  { "id": "seed-5", "place": "AB Building stairwell", "description": "", "spookiness": 2, "reported_at": "2026-08-08T18:30:00.000Z" },
-  { "id": "seed-6", "place": "Chapel garden", "description": "Someone humming. Stops the moment you turn around.", "spookiness": 3, "reported_at": "2026-08-10T05:50:00.000Z" }
-]
+{
+  "books": [
+    { "id": "b01", "title": "Pride and Prejudice", "author": "Jane Austen", "genre": "Romance", "pages": 432, "year": 1813, "color": "#7a2e3b", "description": "Elizabeth Bennet spars with the proud Mr. Darcy while her family's future hangs on who marries whom. Sharp, funny, and still the template for a slow-burn love story." },
+    { "id": "b02", "title": "Dracula", "author": "Bram Stoker", "genre": "Horror", "pages": 418, "year": 1897, "color": "#3b1620", "description": "A solicitor's trip to Transylvania unleashes an ancient count on London. Told entirely through letters, diaries and clippings, which is what makes it so unsettling." },
+    { "id": "b03", "title": "The Hobbit", "author": "J.R.R. Tolkien", "genre": "Fantasy", "pages": 310, "year": 1937, "color": "#2f5d3a", "description": "Bilbo Baggins would rather stay home, but a wizard and thirteen dwarves have other plans. A quest, a dragon, and one very good riddle contest." },
+    { "id": "b04", "title": "Frankenstein", "author": "Mary Shelley", "genre": "Horror", "pages": 280, "year": 1818, "color": "#39485c", "description": "A young scientist builds a living creature and then refuses to take responsibility for it. A book about ambition, loneliness and what we owe the things we make." },
+    { "id": "b05", "title": "1984", "author": "George Orwell", "genre": "Science Fiction", "pages": 328, "year": 1949, "color": "#8a2b22", "description": "Winston Smith works at rewriting history for a government that watches everything. A bleak, precise warning about surveillance and the control of language." },
+    { "id": "b06", "title": "Jane Eyre", "author": "Charlotte Brontë", "genre": "Romance", "pages": 500, "year": 1847, "color": "#4a3a5e", "description": "An orphan becomes a governess at Thornfield Hall and finds a secret in the attic. Gothic atmosphere, a stubborn heroine, and a very unusual proposal." },
+    { "id": "b07", "title": "The Great Gatsby", "author": "F. Scott Fitzgerald", "genre": "Classic", "pages": 180, "year": 1925, "color": "#1f5f63", "description": "Nick Carraway watches his mysterious neighbour throw lavish parties in the hope of winning back one woman. A short, glittering book about wanting the past back." },
+    { "id": "b08", "title": "Dune", "author": "Frank Herbert", "genre": "Science Fiction", "pages": 612, "year": 1965, "color": "#a8722c", "description": "Paul Atreides inherits a desert planet that is the only source of the most valuable substance in the universe. Politics, ecology and prophecy on a huge scale." },
+    { "id": "b09", "title": "Little Women", "author": "Louisa May Alcott", "genre": "Classic", "pages": 449, "year": 1868, "color": "#8c4d5f", "description": "Four sisters grow up in New England during the Civil War. Jo March wants to be a writer, and the book knows exactly how much that costs her." },
+    { "id": "b10", "title": "The Picture of Dorian Gray", "author": "Oscar Wilde", "genre": "Horror", "pages": 254, "year": 1890, "color": "#5c4a1f", "description": "A beautiful young man stays unchanged while his portrait absorbs every consequence of his choices. Witty on the surface, genuinely dark underneath." },
+    { "id": "b11", "title": "The Time Machine", "author": "H.G. Wells", "genre": "Science Fiction", "pages": 118, "year": 1895, "color": "#2b4a6b", "description": "An inventor travels to the year 802,701 and finds humanity split into two very different species. A quick read with a long shadow." },
+    { "id": "b12", "title": "Emma", "author": "Jane Austen", "genre": "Romance", "pages": 474, "year": 1815, "color": "#b06a4f", "description": "Emma Woodhouse is sure she is an excellent matchmaker, and is wrong about almost everyone, including herself. Austen's most playful heroine." },
+    { "id": "b13", "title": "A Study in Scarlet", "author": "Arthur Conan Doyle", "genre": "Mystery", "pages": 160, "year": 1887, "color": "#7d1f1f", "description": "The first meeting of Sherlock Holmes and Dr. Watson, and the first case they solve together. A body, a single word written in blood, and a long flashback." },
+    { "id": "b14", "title": "The Hound of the Baskervilles", "author": "Arthur Conan Doyle", "genre": "Mystery", "pages": 256, "year": 1902, "color": "#34493a", "description": "A family curse, a phantom dog on the moor, and Holmes working out which of those is real. The best atmosphere of any Holmes story." },
+    { "id": "b15", "title": "Alice's Adventures in Wonderland", "author": "Lewis Carroll", "genre": "Fantasy", "pages": 200, "year": 1865, "color": "#3d6a8a", "description": "Alice follows a white rabbit down a hole into a world where the rules of logic have been quietly removed. Funnier and stranger than its reputation." },
+    { "id": "b16", "title": "Wuthering Heights", "author": "Emily Brontë", "genre": "Classic", "pages": 416, "year": 1847, "color": "#4d4d57", "description": "Heathcliff and Catherine's doomed attachment on the Yorkshire moors, told by two unreliable narrators. Nobody in it is likeable, which is the point." },
+    { "id": "b17", "title": "The Adventures of Sherlock Holmes", "author": "Arthur Conan Doyle", "genre": "Mystery", "pages": 307, "year": 1892, "color": "#5f3b1f", "description": "Twelve short cases, including \"A Scandal in Bohemia\" and \"The Speckled Band\". The easiest way into the detective genre, and still one of the best." },
+    { "id": "b18", "title": "The Lion, the Witch and the Wardrobe", "author": "C.S. Lewis", "genre": "Fantasy", "pages": 208, "year": 1950, "color": "#2f6f7a", "description": "Four siblings step through a wardrobe into a land stuck in endless winter. A children's book that adults keep returning to." }
+  ],
+  "userBooks": [
+    { "bookId": "b08", "status": "currently-reading", "currentPage": 240, "rating": null, "review": "", "addedAt": "2026-08-30T09:00:00.000Z", "updatedAt": "2026-09-20T21:10:00.000Z" },
+    { "bookId": "b12", "status": "currently-reading", "currentPage": 95, "rating": null, "review": "", "addedAt": "2026-09-10T12:00:00.000Z", "updatedAt": "2026-09-18T19:30:00.000Z" },
+    { "bookId": "b01", "status": "read", "currentPage": 432, "rating": 5, "review": "Every re-read finds a new joke. The first proposal scene is perfect.", "addedAt": "2026-06-02T10:00:00.000Z", "updatedAt": "2026-06-24T20:00:00.000Z" },
+    { "bookId": "b03", "status": "read", "currentPage": 310, "rating": 4, "review": "Cosy and adventurous in equal measure. The riddle chapter is the best part.", "addedAt": "2026-07-01T10:00:00.000Z", "updatedAt": "2026-07-12T18:00:00.000Z" },
+    { "bookId": "b02", "status": "read", "currentPage": 418, "rating": 4, "review": "The epistolary format makes the dread build slowly. Renfield steals every scene.", "addedAt": "2026-07-14T10:00:00.000Z", "updatedAt": "2026-08-04T22:00:00.000Z" },
+    { "bookId": "b07", "status": "read", "currentPage": 180, "rating": 3, "review": "Beautifully written, but I never warmed to anyone in it.", "addedAt": "2026-08-05T10:00:00.000Z", "updatedAt": "2026-08-09T17:00:00.000Z" },
+    { "bookId": "b05", "status": "read", "currentPage": 328, "rating": 5, "review": "", "addedAt": "2026-08-10T10:00:00.000Z", "updatedAt": "2026-08-27T23:00:00.000Z" },
+    { "bookId": "b16", "status": "did-not-finish", "currentPage": 120, "rating": 2, "review": "Could not get past the second narrator. Might try again in winter.", "addedAt": "2026-07-20T10:00:00.000Z", "updatedAt": "2026-07-28T16:00:00.000Z" },
+    { "bookId": "b06", "status": "want-to-read", "currentPage": 0, "rating": null, "review": "", "addedAt": "2026-09-01T10:00:00.000Z", "updatedAt": "2026-09-01T10:00:00.000Z" },
+    { "bookId": "b13", "status": "want-to-read", "currentPage": 0, "rating": null, "review": "", "addedAt": "2026-09-05T10:00:00.000Z", "updatedAt": "2026-09-05T10:00:00.000Z" },
+    { "bookId": "b04", "status": "want-to-read", "currentPage": 0, "rating": null, "review": "", "addedAt": "2026-09-12T10:00:00.000Z", "updatedAt": "2026-09-12T10:00:00.000Z" }
+  ],
+  "profile": {
+    "displayName": "Ember Reader",
+    "bio": "Reads classics in the evening and sci-fi on the weekend. Always one book behind on the reading goal.",
+    "yearlyGoal": 24,
+    "joinedAt": "2026-06-01T00:00:00.000Z"
+  },
+  "room": {
+    "wallColor": "#6b3f2a",
+    "floorColor": "#3a2a1e",
+    "shelfColor": "#5a3a22",
+    "rug": true,
+    "plant": true,
+    "lamp": true
+  }
+}
