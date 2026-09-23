@@ -1,7 +1,7 @@
-// The real client. Every function here talks to YOUR Express API.
+// The real client. Every function here talks to the Emberary Express API.
 //
-// This is the file that matters for your finals project. mockApi.js exists so
-// you can build the interface before this has anywhere to point.
+// Same names and return shapes as mockApi.js. The endpoints below are the
+// contract the Week 2 server implements; until then the app runs on the mock.
 
 const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -26,15 +26,37 @@ async function request(path, options) {
   return response.status === 204 ? null : response.json()
 }
 
-export const listSightings = () => request('/api/sightings')
+const json = (method, body) => ({ method, body: JSON.stringify(body) })
 
-export const getSighting = (id) => request(`/api/sightings/${id}`)
+// catalogue
+export const listBooks = ({ query = '', genre = '' } = {}) =>
+  request(`/api/books?${new URLSearchParams({ q: query, genre })}`)
 
-export const createSighting = (input) =>
-  request('/api/sightings', { method: 'POST', body: JSON.stringify(input) })
+export const getBook = (id) => request(`/api/books/${encodeURIComponent(id)}`)
 
-export const updateSighting = (id, input) =>
-  request(`/api/sightings/${id}`, { method: 'PUT', body: JSON.stringify(input) })
+// my books
+export const listMyBooks = () => request('/api/my-books')
 
-export const deleteSighting = (id) =>
-  request(`/api/sightings/${id}`, { method: 'DELETE' })
+export const addToCollection = (bookId, status = 'want-to-read') =>
+  request('/api/my-books', json('POST', { bookId, status }))
+
+export const updateMyBook = (bookId, patch) =>
+  request(`/api/my-books/${encodeURIComponent(bookId)}`, json('PATCH', patch))
+
+export const removeFromCollection = (bookId) =>
+  request(`/api/my-books/${encodeURIComponent(bookId)}`, { method: 'DELETE' })
+
+// insights
+export const getReadingStats = () => request('/api/stats')
+
+export const getRecommendations = (limit = 4) => request(`/api/recommendations?limit=${limit}`)
+
+// profile
+export const getProfile = () => request('/api/profile')
+
+export const updateProfile = (patch) => request('/api/profile', json('PATCH', patch))
+
+// library room
+export const getRoom = () => request('/api/room')
+
+export const updateRoom = (patch) => request('/api/room', json('PATCH', patch))
