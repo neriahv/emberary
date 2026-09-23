@@ -1,10 +1,7 @@
-# Your Project Name
+# Emberary
 
-> **Replace this whole file.** It is a worked example of the README your project
-> will be graded from, not a file to leave as it is. Start with
-> [START-HERE.md](START-HERE.md).
-
-One sentence saying what this does and who it is for.
+A personal reading space for leisure readers to discover, organize and track
+their books, with a 3D Library Room where their collection sits on real shelves.
 
 **Live site:** https://yourusername.github.io/your-repo-name/
 **API:** https://your-api.onrender.com/healthz
@@ -18,14 +15,27 @@ One sentence saying what this does and who it is for.
 
 ## What it does
 
-- Report a sighting with a place, a description and a spookiness rating
-- Browse everything reported, newest first
-- Delete a report
+Version 1 (Week 1) is the complete front end, running in demo mode.
+
+- **Home.** A dashboard with your Currently Reading books and their progress,
+  library stats, recently updated books and recommendations
+- **Discover.** Search the catalogue by title or author, filter by genre, read a
+  book's details and add it to your collection with a reading status
+- **My Books.** Your collection sorted into Currently Reading, Want to Read, Read
+  and Did Not Finish. Change a book's status, update your page, rate it, review
+  it, or remove it
+- **Library Room.** A 3D room with one bookcase shelf per reading status. Click a
+  book to pull it out and edit it. Change the wall, floor and bookcase colours and
+  turn the rug, plant and lamp on or off
+- **Profile.** Your profile, and insights worked out from your shelves: counts,
+  average rating, favourite genres and authors, a yearly goal and monthly activity
 
 ## Built with
 
-React and Vite on the front end, Express and PostgreSQL on the back end. The
-client is on GitHub Pages, the API on (host), the database on (host).
+React 18 and Vite, with React Router for navigation and React Three Fiber
+(three.js) for the Library Room. Express and PostgreSQL are the back end, which
+arrives in Week 2. The client is on GitHub Pages; the API and database hosts are
+not chosen yet.
 
 ## Demo mode
 
@@ -66,7 +76,9 @@ Page 10 is the decision page if you do not know which to pick.
     cp .env.example .env        # VITE_USE_MOCK_API stays true
     npm run dev                 # http://localhost:5173
 
-**The whole stack.** Needs a PostgreSQL, either local or hosted.
+**The whole stack.** Needs a PostgreSQL, either local or hosted. In version 1
+`server/` is still the starter API and does not serve Emberary's endpoints yet,
+so the client only works in demo mode. The steps below apply from Week 2.
 
     # 1. the database
     docker run --name my-pg -e POSTGRES_PASSWORD=devpassword \
@@ -90,7 +102,7 @@ Check the API on its own before you blame the client:
 
     curl http://localhost:3000/healthz     # is the process alive
     curl http://localhost:3000/readyz      # is the database reachable
-    curl http://localhost:3000/api/sightings
+    curl http://localhost:3000/api/books   # from Week 2
 
 ## Environment variables
 
@@ -132,20 +144,34 @@ once against the hosted database.
 
     client/          React front end, built by Vite
       src/api/       ONE interface, two implementations, chosen by a variable
-      src/components/
-    server/          Express API
+        mockApi.js   the demo backend, stored in localStorage
+        httpApi.js   the same functions, calling the Express API
+        seed.json    demo books, reading history, profile and room
+      src/pages/     Home, Discover, Library Room, My Books, Profile
+      src/components/  shared pieces: BookCard, BookCover, BookDetailPanel...
+        room/        the 3D scene and the room customizer
+      src/hooks/     useAsync, the loading/error/ready state every screen uses
+    server/          Express API (starter code until Week 2)
       db/            pool, schema.sql, seed.sql, and a runner for them
     compose.yml      only if you self-host
-    docs/            your planning documents and weekly reports
+    docs/            planning documents and weekly reports
 
 ## Architecture
 
-Three or four sentences, or a small diagram. Which piece talks to which, and
-where each one is hosted.
+The React client is the only piece running in version 1. Every screen imports
+its data functions from `src/api/index.js`, which picks `mockApi.js` or
+`httpApi.js` at build time from `VITE_USE_MOCK_API`. In demo mode all data stays
+in the browser's `localStorage`. From Week 2 the client calls the Express API,
+which reads and writes PostgreSQL, and the screens do not change. The Library
+Room page loads only when opened, because three.js is most of the app's size.
 
 ## What I would do next
 
-Three honest bullets. This paragraph is worth more than it looks.
+- Build the Express API and PostgreSQL schema for books, user books, reviews,
+  stats, recommendations and room settings, then switch off demo mode
+- Save each book's position in the Library Room and finish the customization
+  interface
+- Add accounts, so each reader's shelves are their own
 
 ## Author
 
