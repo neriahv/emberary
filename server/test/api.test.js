@@ -56,6 +56,23 @@ test('healthz and readyz report the process and the database', async () => {
   assert.deepEqual((await call('GET', '/readyz')).body, { ok: true, db: 'up' })
 })
 
+test('responses do not announce the framework', async () => {
+  const response = await fetch(base + '/healthz')
+  assert.equal(response.headers.get('x-powered-by'), null)
+})
+
+test('CORS answers named origins only', async () => {
+  const preflight = (origin) =>
+    fetch(base + '/api/my-books', {
+      method: 'OPTIONS',
+      headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+    })
+  const allowed = await preflight('http://localhost:5173')
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173')
+  const refused = await preflight('https://evil.example')
+  assert.equal(refused.headers.get('access-control-allow-origin'), null)
+})
+
 // ------------------------------------------------------------ catalogue
 
 test('lists the whole catalogue', async () => {

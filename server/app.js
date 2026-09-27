@@ -31,6 +31,10 @@ const badRequest = (response, errors) => response.status(400).json({ error: erro
 export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}) {
   const app = express()
 
+  // Express announces itself in an X-Powered-By header on every response. It
+  // helps nobody but someone looking for a known Express vulnerability.
+  app.disable('x-powered-by')
+
   // CORS before the routes. Middleware registered after a route never sees
   // that route's requests.
   //

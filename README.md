@@ -158,6 +158,10 @@ cover, or whose image fails to load, gets a drawn cover instead.
 Get a key in the Google Cloud console under **APIs & Services > Credentials**,
 enable the Books API, and restrict the key to it.
 
+The cover images belong to their publishers and are served by Google Books; the
+site credits Google Books in its footer. None of them are stored in this
+repository.
+
 ## The API
 
 JSON in, JSON out. Errors come back as `{ "error": "..." }` with a 400 (bad

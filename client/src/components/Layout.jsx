@@ -41,6 +41,15 @@ export default function Layout() {
         <DemoNotice />
         <Outlet />
       </main>
+
+      <footer className="site-footer">
+        {/* The covers are not ours: they are served by Google Books. */}
+        Book covers courtesy of{' '}
+        <a href="https://books.google.com/" target="_blank" rel="noopener noreferrer">
+          Google Books
+        </a>
+        .
+      </footer>
     </>
   )
 }

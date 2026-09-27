@@ -19,6 +19,10 @@ name: Deploy client to GitHub Pages
 # Never put an API key, a password or a database URL in a VITE_ variable. Those
 # belong in your SERVER's environment, and the server is not built here. See
 # page 2 and page 16 of content/extending-your-app.
+#
+# Every action is pinned to a full commit SHA, with its version in a comment. A
+# tag like v4 can be moved to different code at any time; a SHA cannot. To
+# upgrade, look up the new release's commit and change both together.
 
 on:
   push:
@@ -44,7 +48,7 @@ jobs:
     outputs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # A fresh copy of the template already has a client, but you may well
       # restructure. Skip quietly rather than failing, so your repository is not
@@ -66,7 +70,7 @@ jobs:
           fi
 
       - if: steps.check.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -93,7 +97,7 @@ jobs:
         run: npm run build
 
       - if: steps.check.outputs.ready == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: client/dist
 
@@ -107,4 +111,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
