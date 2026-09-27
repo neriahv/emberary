@@ -9,9 +9,22 @@
 
 import seed from './seed.json'
 
-const KEY = 'emberary:v1'
+// v3: the Library Room became a larger diorama, so v2 room positions no longer
+// fit. A new key means a returning visitor starts again from the seed instead
+// of finding their furniture in the walls.
+const KEY = 'emberary:v3'
 
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
+
+export const ROOM_ITEM_KINDS = [
+  'rug', 'plant', 'lamp', 'armchair', 'side-table', 'cushion',
+  'desk', 'rocking-chair', 'globe', 'dresser', 'lantern',
+]
+
+// The floor an item may stand on, in metres. The same limits as the server.
+export const ROOM_BOUNDS = { x: [-2.2, 2.2], z: [-2.2, 2.2] }
+
+const MAX_ROOM_ITEMS = 30
 
 // A real network is not instant. Keeping this delay is what forces every screen
 // to have a loading state now, rather than the day the real API goes in.
@@ -23,7 +36,10 @@ function read() {
   const stored = localStorage.getItem(KEY)
   if (stored) {
     try {
-      return JSON.parse(stored)
+      // The catalogue always comes from the seed: nothing in the demo edits it,
+      // and a returning visitor should see new books and covers without losing
+      // their own shelves, profile and room.
+      return { ...JSON.parse(stored), books: clone(seed.books) }
     } catch {
       // Corrupted storage. Start again rather than crashing the app.
       localStorage.removeItem(KEY)
@@ -47,7 +63,7 @@ function findBook(db, id) {
 // A collection entry joined with its catalogue book, the shape the Week 2
 // "SELECT ... FROM user_books JOIN books" query will return.
 function withBook(db, entry) {
-  return { ...entry, book: findBook(db, entry.bookId) }
+  return { ...entry, shelfPosition: entry.shelfPosition ?? null, book: findBook(db, entry.bookId) }
 }
 
 // The same rules the server will enforce. The client is not trusted in
@@ -71,6 +87,12 @@ function validateEntryPatch(patch, book) {
   }
   if ('review' in patch && String(patch.review).length > 2000) {
     errors.push('review must be 2000 characters or fewer')
+  }
+  if ('shelfPosition' in patch && patch.shelfPosition !== null) {
+    const position = Number(patch.shelfPosition)
+    if (!Number.isInteger(position) || position < 0 || position > 999) {
+      errors.push('shelfPosition must be a whole number from 0 to 999, or null')
+    }
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
 }
@@ -138,8 +160,16 @@ export async function updateMyBook(bookId, patch) {
   const next = { ...entry, ...patch }
   if ('currentPage' in patch) next.currentPage = Number(patch.currentPage)
   if ('rating' in patch && patch.rating !== null) next.rating = Number(patch.rating)
+  if ('shelfPosition' in patch && patch.shelfPosition !== null) {
+    next.shelfPosition = Number(patch.shelfPosition)
+  }
   // Marking a book read means you reached the last page.
   if (patch.status === 'read') next.currentPage = book.pages
+  // A new status is a different Library Room shelf, where the old place along
+  // the shelf means nothing. The book goes to the end instead.
+  if ('status' in patch && patch.status !== entry.status && !('shelfPosition' in patch)) {
+    next.shelfPosition = null
+  }
   next.updatedAt = new Date().toISOString()
 
   Object.assign(entry, next)
@@ -150,7 +180,26 @@ export async function updateMyBook(bookId, patch) {
 export async function removeFromCollection(bookId) {
   await delay()
   const db = read()
+  if (!db.userBooks.some((entry) => entry.bookId === bookId)) {
+    throw new Error('That book is not in your collection')
+  }
   db.userBooks = db.userBooks.filter((entry) => entry.bookId !== bookId)
+  write(db)
+}
+
+// Save the left-to-right order of one Library Room shelf. Like the server, it
+// leaves updatedAt alone: tidying a shelf is not reading activity.
+export async function reorderShelf(bookIds) {
+  await delay()
+  if (!Array.isArray(bookIds) || bookIds.length === 0 || bookIds.length > 500) {
+    throw new Error('bookIds must be a list of 1 to 500 book ids')
+  }
+  if (new Set(bookIds).size !== bookIds.length) throw new Error('bookIds must not repeat a book')
+  const db = read()
+  bookIds.forEach((bookId, position) => {
+    const entry = db.userBooks.find((e) => e.bookId === bookId)
+    if (entry) entry.shelfPosition = position
+  })
   write(db)
 }
 
@@ -266,16 +315,98 @@ export async function getRoom() {
   return read().room
 }
 
+// Colours only. Items have their own functions below.
 export async function updateRoom(patch) {
   await delay()
   const db = read()
   const hex = /^#[0-9a-f]{6}$/i
+  const colours = {}
   for (const key of ['wallColor', 'floorColor', 'shelfColor']) {
-    if (key in patch && !hex.test(patch[key])) throw new Error(`${key} must be a hex colour`)
+    if (!(key in patch)) continue
+    if (!hex.test(patch[key])) throw new Error(`${key} must be a hex colour`)
+    colours[key] = patch[key]
   }
-  db.room = { ...db.room, ...patch }
+  if (Object.keys(colours).length === 0) {
+    throw new Error('send at least one of wallColor, floorColor, shelfColor')
+  }
+  db.room = { ...db.room, ...colours }
   write(db)
   return db.room
+}
+
+// The same checks as validateRoomItem on the server. Returns the clean fields.
+function validateRoomItem(fields, { creating = false } = {}) {
+  const errors = []
+  const value = {}
+  if (creating) {
+    if (!ROOM_ITEM_KINDS.includes(fields.kind)) {
+      errors.push('kind must be one of ' + ROOM_ITEM_KINDS.join(', '))
+    }
+    value.kind = fields.kind
+  }
+  for (const axis of ['x', 'z']) {
+    if (!(axis in fields)) continue
+    const [min, max] = ROOM_BOUNDS[axis]
+    const n = Number(fields[axis])
+    if (fields[axis] === null || !Number.isFinite(n) || n < min || n > max) {
+      errors.push(`${axis} must be a number from ${min} to ${max}`)
+    }
+    value[axis] = Math.round(n * 100) / 100
+  }
+  if ('rotation' in fields) {
+    const rotation = Number(fields.rotation)
+    if (fields.rotation === null || !Number.isInteger(rotation) || rotation < 0 || rotation > 359) {
+      errors.push('rotation must be a whole number of degrees from 0 to 359')
+    }
+    value.rotation = rotation
+  }
+  if (!creating && errors.length === 0 && Object.keys(value).length === 0) {
+    errors.push('send at least one of x, z, rotation')
+  }
+  if (errors.length > 0) throw new Error(errors.join('; '))
+  return value
+}
+
+function findItem(db, id) {
+  const item = db.room.items.find((i) => i.id === id)
+  if (!item) throw new Error('Room item not found')
+  return item
+}
+
+// Placement is optional; without one the item appears mid-floor.
+export async function addRoomItem(kind, placement = {}) {
+  await delay()
+  const db = read()
+  const value = validateRoomItem({ ...placement, kind }, { creating: true })
+  if (db.room.items.length >= MAX_ROOM_ITEMS) {
+    throw new Error(`The room already holds ${MAX_ROOM_ITEMS} items`)
+  }
+  const id = Math.max(0, ...db.room.items.map((i) => i.id)) + 1
+  const item = { id, kind: value.kind, x: value.x ?? 0, z: value.z ?? 0.5, rotation: value.rotation ?? 0 }
+  db.room.items.push(item)
+  write(db)
+  return item
+}
+
+// Move and/or turn an item: any of { x, z, rotation }.
+export async function updateRoomItem(id, patch) {
+  await delay()
+  const db = read()
+  const item = findItem(db, id)
+  const { x, z, rotation } = validateRoomItem(patch)
+  if (x !== undefined) item.x = x
+  if (z !== undefined) item.z = z
+  if (rotation !== undefined) item.rotation = rotation
+  write(db)
+  return item
+}
+
+export async function removeRoomItem(id) {
+  await delay()
+  const db = read()
+  findItem(db, id)
+  db.room.items = db.room.items.filter((i) => i.id !== id)
+  write(db)
 }
 
 // Put the demo back to its seed state. Only the mock has this; there is no

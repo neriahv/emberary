@@ -1,14 +1,18 @@
 {
-  "name": "final-project-server",
+  "name": "emberary-server",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "node --env-file=.env --watch server.js",
+    "db:local": "node db/local.js",
     "db:schema": "node --env-file=.env db/run.js db/schema.sql",
     "db:seed": "node --env-file=.env db/run.js db/seed.sql",
-    "db:reset": "npm run db:schema && npm run db:seed"
+    "db:reset": "npm run db:schema && npm run db:seed",
+    "test": "node --env-file=.env --test test/api.test.js",
+    "db:seed:build": "node db/build-seed.js",
+    "covers:fetch": "node --env-file=.env db/fetch-covers.js"
   },
   "engines": {
     "node": ">=20"
@@ -17,5 +21,9 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "embedded-postgres": "17.10.0-beta.17",
+    "jpeg-js": "^0.4.4"
   }
 }

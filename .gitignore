@@ -20,3 +20,6 @@ backup*.sql
 # Logs
 *.log
 npm-debug.log*
+
+# Local PostgreSQL data from "npm run db:local"
+.pgdata/

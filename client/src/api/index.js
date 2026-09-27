@@ -20,6 +20,22 @@ export const USING_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const implementation = USING_MOCK_API ? mockApi : httpApi
 
 export const STATUSES = mockApi.STATUSES
+export const ROOM_ITEM_KINDS = mockApi.ROOM_ITEM_KINDS
+export const ROOM_BOUNDS = mockApi.ROOM_BOUNDS
+
+export const ROOM_ITEM_LABELS = {
+  rug: 'Rug',
+  plant: 'Plant',
+  lamp: 'Reading lamp',
+  armchair: 'Armchair',
+  'side-table': 'Side table',
+  cushion: 'Floor cushion',
+  desk: 'Writing desk',
+  'rocking-chair': 'Rocking chair',
+  globe: 'Globe',
+  dresser: 'Dresser',
+  lantern: 'Lantern',
+}
 
 export const STATUS_LABELS = {
   'currently-reading': 'Currently Reading',
@@ -35,12 +51,16 @@ export const {
   addToCollection,
   updateMyBook,
   removeFromCollection,
+  reorderShelf,
   getReadingStats,
   getRecommendations,
   getProfile,
   updateProfile,
   getRoom,
   updateRoom,
+  addRoomItem,
+  updateRoomItem,
+  removeRoomItem,
 } = implementation
 
 // Demo only. Undefined when the real API is in use, so check before calling.

@@ -3,6 +3,7 @@ import { listMyBooks, getReadingStats, getRecommendations, getProfile } from '..
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
 import BookCover from '../components/BookCover.jsx'
+import BookTile from '../components/BookTile.jsx'
 import ProgressBar from '../components/ProgressBar.jsx'
 import StatCard from '../components/StatCard.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
@@ -85,12 +86,11 @@ export default function HomePage() {
             <p className="empty">No books yet.</p>
           )}
           {books.status === 'ready' && recent.length > 0 && (
-            <ul className="compact-list">
+            <ul className="book-tiles">
               {recent.map((entry) => (
-                <li key={entry.bookId}>
-                  <Link to={`/my-books?book=${entry.bookId}`}>{entry.book.title}</Link>
+                <BookTile key={entry.bookId} book={entry.book} to={`/my-books?book=${entry.bookId}`}>
                   <StatusBadge status={entry.status} />
-                </li>
+                </BookTile>
               ))}
             </ul>
           )}
@@ -106,15 +106,11 @@ export default function HomePage() {
             <p className="empty">No recommendations right now.</p>
           )}
           {recs.status === 'ready' && recs.data.length > 0 && (
-            <ul className="compact-list">
+            <ul className="book-tiles">
               {recs.data.map(({ book, reason }) => (
-                <li key={book.id}>
-                  <span>
-                    <Link to={`/discover?q=${encodeURIComponent(book.title)}`}>{book.title}</Link>
-                    <span className="muted"> · {book.author}</span>
-                  </span>
+                <BookTile key={book.id} book={book} to={`/discover?q=${encodeURIComponent(book.title)}`}>
                   <span className="rec-reason">{reason}</span>
-                </li>
+                </BookTile>
               ))}
             </ul>
           )}

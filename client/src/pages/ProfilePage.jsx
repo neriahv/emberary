@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { getProfile, updateProfile, getReadingStats } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
-import ProgressBar from '../components/ProgressBar.jsx'
 import StatCard from '../components/StatCard.jsx'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -97,10 +96,7 @@ function Insights({ stats, goal }) {
       {goal && (
         <div className="card goal">
           <h3>{year} reading goal</h3>
-          <ProgressBar value={readThisYear} max={goal} label={`${year} reading goal`} unit="books" />
-          <p className="muted goal-caption">
-            {readThisYear} of {goal} books finished this year.
-          </p>
+          <GoalRing done={readThisYear} goal={goal} year={year} />
         </div>
       )}
 
@@ -140,6 +136,61 @@ function Insights({ stats, goal }) {
         </p>
       </div>
     </>
+  )
+}
+
+// The yearly goal as a ring: the full circle is the goal, the coloured arc the
+// books finished. The number in the middle carries the meaning, so the chart
+// never depends on telling colours apart.
+function GoalRing({ done, goal, year }) {
+  const share = Math.min(done / goal, 1)
+  const left = Math.max(goal - done, 0)
+  const percent = Math.round((done / goal) * 100)
+  const summary = `${done} of ${goal} books finished in ${year} (${percent}%)`
+
+  return (
+    <div className="goal-ring">
+      <svg viewBox="0 0 120 120" role="img" aria-label={summary}>
+        <circle className="goal-ring-track" cx="60" cy="60" r="48" pathLength="100" />
+        {done > 0 && (
+          <circle
+            className="goal-ring-fill"
+            cx="60"
+            cy="60"
+            r="48"
+            pathLength="100"
+            strokeDasharray={`${share * 100} 100`}
+          >
+            <title>{summary}</title>
+          </circle>
+        )}
+        <text x="60" y="58" className="goal-ring-number">
+          {done}
+        </text>
+        <text x="60" y="76" className="goal-ring-unit">
+          of {goal} books
+        </text>
+      </svg>
+      <dl className="goal-ring-legend">
+        <div>
+          <dt>
+            <span className="goal-key goal-key-done" aria-hidden="true" /> Finished
+          </dt>
+          <dd>{done}</dd>
+        </div>
+        <div>
+          <dt>
+            <span className="goal-key goal-key-left" aria-hidden="true" /> To go
+          </dt>
+          <dd>{left}</dd>
+        </div>
+        <p className="muted goal-caption">
+          {done >= goal
+            ? `Goal reached${done > goal ? `, and ${done - goal} more` : ''}.`
+            : `${percent}% of the way there.`}
+        </p>
+      </dl>
+    </div>
   )
 }
 

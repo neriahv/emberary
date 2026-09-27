@@ -15,27 +15,39 @@ their books, with a 3D Library Room where their collection sits on real shelves.
 
 ## What it does
 
-Version 1 (Week 1) is the complete front end, running in demo mode.
+Week 1 built the complete front end, running in demo mode. Week 2 added the
+Express API and PostgreSQL database behind it (see [The API](#the-api)). The
+live site stays in demo mode until the API is deployed.
 
 - **Home.** A dashboard with your Currently Reading books and their progress,
-  library stats, recently updated books and recommendations
+  library stats, and rows of covers for recently updated books and
+  recommendations
 - **Discover.** Search the catalogue by title or author, filter by genre, read a
   book's details and add it to your collection with a reading status
 - **My Books.** Your collection sorted into Currently Reading, Want to Read, Read
   and Did Not Finish. Change a book's status, update your page, rate it, review
   it, or remove it
-- **Library Room.** A 3D room with one bookcase shelf per reading status. Click a
-  book to pull it out and edit it. Change the wall, floor and bookcase colours and
-  turn the rug, plant and lamp on or off
+- **Library Room.** A full-screen 3D diorama of a reading room: a round window,
+  a tall bookcase with one shelf per reading status, and your books on it with
+  their titles on the spines. Click a book and it slides off the shelf and opens
+  into a two-page spread, the book on the left and your notes on the right; close
+  it and it goes back. **Edit room** lets you change the colours and furnish the
+  room (desk, rocking chair, globe, dresser, lanterns and more), dragging each
+  piece across the floor. Everything you arrange is saved
 - **Profile.** Your profile, and insights worked out from your shelves: counts,
-  average rating, favourite genres and authors, a yearly goal and monthly activity
+  average rating, favourite genres and authors, a ring chart of your yearly goal
+  and monthly activity
+
+Every book shows its real cover where one was found (see
+[Book covers](#book-covers)), and a drawn cover in its colour otherwise.
 
 ## Built with
 
 React 18 and Vite, with React Router for navigation and React Three Fiber
-(three.js) for the Library Room. Express and PostgreSQL are the back end, which
-arrives in Week 2. The client is on GitHub Pages; the API and database hosts are
-not chosen yet.
+(three.js) for the Library Room. Express 4 and PostgreSQL (through `pg`, with
+parameterised queries only) are the back end, tested with Node's built-in test
+runner. The client is on GitHub Pages; the API and database hosts are not chosen
+yet.
 
 ## Demo mode
 
@@ -76,19 +88,23 @@ Page 10 is the decision page if you do not know which to pick.
     cp .env.example .env        # VITE_USE_MOCK_API stays true
     npm run dev                 # http://localhost:5173
 
-**The whole stack.** Needs a PostgreSQL, either local or hosted. In version 1
-`server/` is still the starter API and does not serve Emberary's endpoints yet,
-so the client only works in demo mode. The steps below apply from Week 2.
+**The whole stack.** Needs a PostgreSQL, either local or hosted.
 
-    # 1. the database
+    # 1. the database: EITHER with nothing installed
+    cd server
+    npm install
+    npm run db:local            # real PostgreSQL 17 on localhost:5432; leave it running
+
+    #    OR with Docker
     docker run --name my-pg -e POSTGRES_PASSWORD=devpassword \
-      -e POSTGRES_DB=haunted -p 5432:5432 -d postgres:17
+      -e POSTGRES_DB=emberary -p 5432:5432 -d postgres:17
 
     # 2. the API
     cd server
     npm install
     cp .env.example .env        # check DATABASE_URL
-    npm run db:reset            # creates the tables and adds sample rows
+    npm run db:reset            # creates the tables and adds the demo's books
+    npm test                    # optional: resets the database, then tests every endpoint
     npm run dev                 # http://localhost:3000
 
     # 3. the client, in another terminal
@@ -102,7 +118,85 @@ Check the API on its own before you blame the client:
 
     curl http://localhost:3000/healthz     # is the process alive
     curl http://localhost:3000/readyz      # is the database reachable
-    curl http://localhost:3000/api/books   # from Week 2
+    curl http://localhost:3000/api/books   # the catalogue
+
+`npm run db:local` downloads the official PostgreSQL binaries into
+`node_modules` (the `embedded-postgres` package) and keeps its data in
+`server/.pgdata`, which is git-ignored. Delete that folder to start from nothing.
+It uses the same address and password as `.env.example`, so the default
+`DATABASE_URL` works unchanged.
+
+`npm test` refuses to run unless `DATABASE_URL` points at `localhost`, because it
+empties the tables before every test.
+
+The demo data lives in `client/src/api/seed.json`. After changing it, run
+`npm run db:seed:build` in `server/` to regenerate `db/seed.sql`, so both modes
+keep starting from the same books, shelves and room.
+
+## Book covers
+
+Covers come from the Google Books API, looked up **once** by a script rather
+than on every page load:
+
+    cd server
+    # put your key in .env:  GOOGLE_BOOKS_API_KEY=...
+    npm run covers:fetch          # books without a cover yet
+    npm run covers:fetch -- --all # look every book up again
+    npm run covers:fetch -- --db  # also write them into the database DATABASE_URL names
+
+For each catalogue book it finds the edition whose title and author match, and
+saves that cover's public image link to `seed.json` (and so `seed.sql`). It also
+works out the cover's main colour, which becomes the book's spine colour in the
+Library Room. `--db` updates an existing database in place without touching
+anyone's shelves, which is how a hosted database gets covers.
+
+The key is only ever read by this script. The API never calls Google, the key is
+never in a `VITE_` variable, and it is never committed. The saved image links load
+without a key, so covers work in demo mode on GitHub Pages too. A book with no
+cover, or whose image fails to load, gets a drawn cover instead.
+
+Get a key in the Google Cloud console under **APIs & Services > Credentials**,
+enable the Books API, and restrict the key to it.
+
+## The API
+
+JSON in, JSON out. Errors come back as `{ "error": "..." }` with a 400 (bad
+input), 404 (no such book or entry), 409 (already on your shelves) or 500.
+`client/src/api/httpApi.js` calls each of these under the same function name as
+the mock.
+
+| Method and path | What it does |
+| --- | --- |
+| `GET /api/books?q=&genre=` | Search the catalogue by title or author, and filter by genre |
+| `GET /api/books/:id` | One catalogue book |
+| `GET /api/my-books` | Your shelves, newest change first, each entry with its book |
+| `GET /api/my-books/:bookId` | One entry on your shelves |
+| `POST /api/my-books` | Add `{ bookId, status }`. `status` defaults to `want-to-read` |
+| `PATCH /api/my-books/:bookId` | Change any of `status`, `currentPage`, `rating`, `review`, `shelfPosition` |
+| `PUT /api/my-books/order` | Save one shelf's left-to-right order: `{ bookIds: [...] }` |
+| `DELETE /api/my-books/:bookId` | Take a book off your shelves |
+| `GET /api/stats` | Counts by status, average rating, pages read, top genres and authors, books finished per month |
+| `GET /api/recommendations?limit=4` | Books you do not own, scored against what you read and rated |
+| `GET /api/profile` · `PATCH /api/profile` | `displayName`, `bio`, `yearlyGoal` |
+| `GET /api/room` | The Library Room: its colours and every item in it |
+| `PATCH /api/room` | Change any of `wallColor`, `floorColor`, `shelfColor` |
+| `POST /api/room/items` | Add `{ kind, x?, z?, rotation? }`. Without a placement it appears mid-floor |
+| `PATCH /api/room/items/:id` | Move or turn an item: any of `x`, `z`, `rotation` |
+| `DELETE /api/room/items/:id` | Take an item out of the room |
+
+The statuses are `currently-reading`, `want-to-read`, `read` and
+`did-not-finish`. Marking a book Read moves it to its last page and records when
+it was finished, which is what the activity chart counts. A book that changes
+status moves to the end of its new shelf.
+
+Room item kinds are `rug`, `plant`, `lamp`, `armchair`, `side-table`,
+`cushion`, `desk`, `rocking-chair`, `globe`, `dresser` and `lantern`, at most 30
+per room. The floor is 5 by 5 metres centred on 0: `x` runs from -2.2 (the window
+wall) to 2.2, and `z` from -2.2 (the bookcase wall) to 2.2; `rotation` is whole
+degrees from 0 to 359.
+
+Every book includes `coverUrl`, the link to its real cover, or `null` when none
+was found.
 
 ## Environment variables
 
@@ -115,6 +209,7 @@ placeholder values.
 | `CORS_ORIGINS` | server | comma-separated origins allowed to call the API |
 | `NODE_ENV` | server | `production` on your host |
 | `PORT` | server | **set by the host**, do not set it yourself |
+| `GOOGLE_BOOKS_API_KEY` | server `.env`, your laptop only | used only by `npm run covers:fetch`; the API does not need it, so do not set it on the host |
 | `VITE_USE_MOCK_API` | client, at build time | only `false` turns demo mode off; unset means on |
 | `VITE_API_BASE_URL` | client, at build time | your API's public URL, no trailing slash |
 
@@ -138,7 +233,9 @@ The repository must be **public** for Pages to serve it on a free account.
 **API and database.** Not automated here, because most hosts deploy straight from
 your repository with no workflow at all. Point your host at the `server/` folder,
 set the environment variables in its dashboard, and run `server/db/schema.sql`
-once against the hosted database.
+against the hosted database. Run `server/db/seed.sql` once as well, on first
+setup only, because the catalogue of books lives there. It starts with
+`TRUNCATE`, so running it again wipes every reader's shelves.
 
 ## Project structure
 
@@ -148,29 +245,52 @@ once against the hosted database.
         httpApi.js   the same functions, calling the Express API
         seed.json    demo books, reading history, profile and room
       src/pages/     Home, Discover, Library Room, My Books, Profile
-      src/components/  shared pieces: BookCard, BookCover, BookDetailPanel...
-        room/        the 3D scene and the room customizer
-      src/hooks/     useAsync, the loading/error/ready state every screen uses
-    server/          Express API (starter code until Week 2)
-      db/            pool, schema.sql, seed.sql, and a runner for them
+      src/components/  shared pieces: BookCard, BookCover, BookTile, BookEditForm...
+        room/        the 3D diorama (LibraryScene), its furniture (models) and
+                     canvas-drawn spines and floor (textures), the opening book
+                     (BookModal) and the edit panel (RoomCustomizer)
+      src/hooks/     useAsync, the loading/error/ready state every screen uses;
+                     useRoomSaver, which saves room changes after a pause
+    server/          Express API
+      app.js         every route, built without listening so tests can run it
+      server.js      reads the environment and starts app.js
+      validation.js  the same input rules as mockApi.js
+      repos/         the SQL, one file per area: books, myBooks, insights,
+                     profile, room
+      db/            pool, schema.sql, seed.sql and a runner for them;
+                     local.js (npm run db:local), build-seed.js and
+                     fetch-covers.js (npm run covers:fetch)
+      test/          endpoint tests against a real PostgreSQL
     compose.yml      only if you self-host
     docs/            planning documents and weekly reports
 
 ## Architecture
 
-The React client is the only piece running in version 1. Every screen imports
-its data functions from `src/api/index.js`, which picks `mockApi.js` or
-`httpApi.js` at build time from `VITE_USE_MOCK_API`. In demo mode all data stays
-in the browser's `localStorage`. From Week 2 the client calls the Express API,
-which reads and writes PostgreSQL, and the screens do not change. The Library
-Room page loads only when opened, because three.js is most of the app's size.
+Every screen imports its data functions from `src/api/index.js`, which picks
+`mockApi.js` or `httpApi.js` at build time from `VITE_USE_MOCK_API`. In demo mode
+all data stays in the browser's `localStorage`. With the mock off, the client
+calls the Express API, which reads and writes PostgreSQL, and the screens do not
+change. The Library Room page loads only when opened, because three.js is most of
+the app's size.
+
+In the API, each route validates its input (`validation.js`) and then calls a
+repository function in `repos/`, which runs one parameterised query. Stats and
+recommendations are computed in SQL rather than in JavaScript.
+
+The database has five tables: `books` (the shared catalogue), `readers`,
+`user_books` (one row per reader per book: status, page, rating, review, shelf
+position and when it was finished), `room_settings` (the room's colours) and
+`room_items` (each piece of furniture, with its position and rotation). There
+are no accounts
+yet, so the API always acts as reader 1. Every reader-owned row already carries a
+`reader_id`, so adding accounts later will not need a migration of every table.
 
 ## What I would do next
 
-- Build the Express API and PostgreSQL schema for books, user books, reviews,
-  stats, recommendations and room settings, then switch off demo mode
-- Save each book's position in the Library Room and finish the customization
-  interface
+- Deploy the database and the API, seed the hosted catalogue, then switch off
+  demo mode on the live site
+- Test the deployed version end to end and fix whatever production changes
+- Drag furniture around the room with the mouse, as well as with the sliders
 - Add accounts, so each reader's shelves are their own
 
 ## Author

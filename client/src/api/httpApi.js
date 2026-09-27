@@ -1,7 +1,7 @@
 // The real client. Every function here talks to the Emberary Express API.
 //
-// Same names and return shapes as mockApi.js. The endpoints below are the
-// contract the Week 2 server implements; until then the app runs on the mock.
+// Same names and return shapes as mockApi.js. The endpoints below are served
+// by server/app.js; set VITE_USE_MOCK_API=false to use them.
 
 const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -46,6 +46,8 @@ export const updateMyBook = (bookId, patch) =>
 export const removeFromCollection = (bookId) =>
   request(`/api/my-books/${encodeURIComponent(bookId)}`, { method: 'DELETE' })
 
+export const reorderShelf = (bookIds) => request('/api/my-books/order', json('PUT', { bookIds }))
+
 // insights
 export const getReadingStats = () => request('/api/stats')
 
@@ -60,3 +62,12 @@ export const updateProfile = (patch) => request('/api/profile', json('PATCH', pa
 export const getRoom = () => request('/api/room')
 
 export const updateRoom = (patch) => request('/api/room', json('PATCH', patch))
+
+export const addRoomItem = (kind, placement = {}) =>
+  request('/api/room/items', json('POST', { ...placement, kind }))
+
+export const updateRoomItem = (id, patch) =>
+  request(`/api/room/items/${encodeURIComponent(id)}`, json('PATCH', patch))
+
+export const removeRoomItem = (id) =>
+  request(`/api/room/items/${encodeURIComponent(id)}`, { method: 'DELETE' })
