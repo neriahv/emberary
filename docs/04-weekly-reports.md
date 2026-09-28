@@ -8,62 +8,98 @@ needs.
 
 ---
 
-## Week 2
+## Week 1 (Sept 14–23)
 
-**Done.** Works locally against a real PostgreSQL. Not deployed yet, so the live
-site is still in demo mode.
+**Done.** The complete frontend, in demo mode, with mock data standing in for
+a database that didn't exist yet.
 
-- Set up the Express backend and prepared the project to use a real API instead
-  of only the Week 1 mock API. The routes are in `server/app.js`, and
-  `server/server.js` only starts them.
-- Set up PostgreSQL for Emberary and connected the backend to it. The database
-  is now called `emberary`, not the starter's `haunted`. `npm run db:local` runs
-  a real PostgreSQL 17 from `node_modules`, so development needs neither Docker
-  nor an installer.
-- Reworked the starter `sightings` table into an Emberary schema: `books`,
-  `readers`, `user_books`, `room_settings` and `room_items`, with CHECK
-  constraints for statuses, ratings, lengths, colours and room positions.
-  `seed.sql` is generated from the demo's `seed.json` (`npm run db:seed:build`),
-  so both modes start with the same data.
-- Wrote the repository queries in `server/repos/`. Every one is parameterised,
-  and search uses `position()` rather than `LIKE`, so `%` and `_` typed into the
-  search box are treated as ordinary characters.
-- Built the REST endpoints for adding, retrieving, updating and deleting books on
-  the reader's shelves, plus searching the catalogue.
-- Statuses: Currently Reading, Want to Read, Read and Did Not Finish. Marking a
-  book Read moves it to its last page and records `finished_at`.
-- Reading progress, ratings (1 to 5, or cleared with null) and reviews (up to
-  2000 characters), validated with the same rules as the mock.
-- Reading statistics and recommendations for the Home Dashboard and Profile /
-  Reading Insights, now computed in SQL.
-- Library Room, finished locally:
-  - Furniture is now saved items (rug, plant, lamp, armchair, side table,
-    cushion) that can be added, moved, turned and removed, replacing the Week 1
-    on/off switches. Items can be picked from a list or by clicking them in 3D.
-  - Books keep their place along a shelf. Move left and Move right save the
-    whole shelf's order in one query (`PUT /api/my-books/order`).
-  - The room has skirting boards, a window and a picture.
-- Frontend connected to the real API: `mockApi.js` and `httpApi.js` have the same
-  new functions, and every screen works with `VITE_USE_MOCK_API=false`.
-- Tested it:
-  - `npm test` runs 36 endpoint tests against real PostgreSQL.
-  - Every read endpoint returns exactly what the mock returns for the same seed
-    data.
-  - A browser script ran the app against the local API: adding a book, progress,
-    rating, review, status, profile, room colours, furniture and shelf order,
-    each checked after a page refresh. It also covered the loading,
-    slow-server, error, validation and empty states.
-- Kept the Week 1 mock working, so the frontend runs with or without the server.
-  Demo data moved to a new storage key, so Week 1 visitors start fresh instead
-  of loading an old room shape.
-- Added a favicon, which removed a 404 logged on every page load.
+- Reworked the starter demo into Emberary: replaced the seed data and
+  `mockApi.js`, and rebuilt `App.jsx`'s routing around Home, Discover,
+  Library Room, My Books and Profile.
+- Built My Books around the four reading statuses (Currently Reading, Want
+  to Read, Read, Did Not Finish), with adding, viewing, updating and removing
+  books, plus progress, rating and review.
+- Built Discover (search, genre filter, recommendations), Home (progress,
+  library stats, recent books, recommendations) and Profile (reading
+  statistics, favourite genres/authors).
+- Started the Library Room: a first, simpler 3D scene with book selection
+  and basic room customization.
+- Set up shared components and one styling pattern so every screen would
+  look like it belonged to the same app.
 
 **Stuck.**
 
-**Hours.**
+- The starter's own demo structure and terminology had to be pulled out
+  first, before Emberary's could go in — more restructuring than writing.
+- The Library Room took longer than the flat screens: it's interactive 3D,
+  not a form.
+- Nothing was checked against a real database yet, so recommendations and
+  insights were only as good as the mock data made them look.
 
-**Next.** Week 3: deploy the API and database, seed the hosted catalogue, switch
-the live site off demo mode, and test everything again in production.
+**Hours.** Roughly around 5-6 hours of developing and coding.
+
+**Next.** Week 2: the real Express API and PostgreSQL database behind the
+same interface, then connect every screen to it and test the whole thing
+end to end.
+
+---
+
+## Week 2 (Sept 21–27)
+
+**Done.** The real backend, working locally against a real PostgreSQL; still
+not deployed, so the live site stays in demo mode.
+
+- Replaced the starter `sightings` server with an Express API and a
+  five-table PostgreSQL schema (`books`, `readers`, `user_books`,
+  `room_settings`, `room_items`), with CHECK constraints for statuses,
+  ratings, text lengths, colours and room positions, and parameterised
+  queries throughout `server/repos/`.
+- Built the REST endpoints: catalogue search, adding/updating/removing books
+  on a reader's shelves, statuses, progress, ratings, reviews, shelf
+  position, statistics, recommendations, and the Library Room's colours and
+  furniture.
+- Added `npm run db:local` (PostgreSQL 17 via `embedded-postgres`), so the
+  project runs with neither Docker nor a separate install.
+- Added real book covers from the Google Books API, with each cover's
+  dominant colour reused as that book's spine colour.
+- Connected the frontend to the real API behind the same interface the mock
+  already used: Home's recent/recommended lists became cover rows, Discover
+  and My Books show real covers with a drawn fallback, and Profile's yearly
+  goal became a donut chart.
+- Rebuilt the Library Room as a full-screen isometric room: cut-away walls, a
+  round window, categorised bookshelves, warm lighting, books that open with
+  a page-turn animation, an edit mode for furniture (add, move, rotate,
+  remove, colour), and shelf reordering — all saved.
+- Expanded the backend to 37 endpoint tests against real PostgreSQL, plus a
+  mock-vs-API comparison confirming matching results, plus a full browser
+  pass in Edge (book management, statuses, progress, ratings, reviews,
+  profile edits, room customization, shelf order, refresh persistence,
+  loading/slow-server/error/validation/empty states, demo mode, CORS).
+- Added a favicon (fixed a 404 on every page load), and ran the course's
+  security checklist: pinned GitHub Actions to commit SHAs, removed the
+  `X-Powered-By` header, added a CORS test, and rewrote three commits that
+  carried my personal email.
+
+**Stuck.**
+
+- No PostgreSQL or Docker installed locally — solved with `embedded-postgres`.
+- Furniture placed exactly against a wall caused a 500: PostgreSQL's `REAL`
+  storage made 2.2 slightly different internally than the value the API had
+  just accepted. Fixed by casting the constraint's limits to `REAL` too.
+- A CORS error on an allowed port, caused by a leftover `node --watch`
+  process from earlier testing restarting the server with default CORS.
+  Found by tracing the process on port 3000 back to its parent.
+- Four Google Books results were scanned title pages, not covers. Fixed by
+  checking each candidate image before accepting it. Also hit a path bug
+  (`%20` from the space in my folder name) fixed with `fileURLToPath`.
+- Found, but did not yet fix: 3D shelf labels could appear above the edit
+  panel, and the opened book had a duplicated title `id`.
+
+**Hours.** Roughly around 4-5 hours of developing and coding.
+
+**Next.** Deploy the Express API and PostgreSQL database, seed the hosted
+catalogue, and switch the live frontend off demo mode. Add the access gate
+the security checklist flagged as still missing before the API goes public.
 
 ---
 
@@ -78,9 +114,3 @@ mounted above cors" is.
 **Hours.** Roughly. You will need this to estimate anything, ever.
 
 **Next.** One or two things, not a wish list.
-
----
-
-## Week of YYYY-MM-DD
-
-...
