@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { listMyBooks, getRoom, reorderShelf, STATUS_LABELS, USING_MOCK_API } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
+import { useEmber } from '../hooks/useEmber.js'
 import { useRoomSaver } from '../hooks/useRoomSaver.js'
 import AsyncState from '../components/AsyncState.jsx'
-import LibraryScene, { shelfOrder } from '../components/room/LibraryScene.jsx'
+import { EmberIcon } from '../components/EmberBadge.jsx'
+import LibraryScene, { bookcasesIn, layoutBookcases, shelfOrder } from '../components/room/LibraryScene.jsx'
 import RoomCustomizer from '../components/room/RoomCustomizer.jsx'
 import BookModal from '../components/room/BookModal.jsx'
 
@@ -13,17 +15,19 @@ const PULL_MS = 420
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-// Emberary's 3D room, full screen, with a game-style overlay: leave, find a
-// book, and an Edit button that turns the room into a place to rearrange.
-// This page is loaded lazily (see App.jsx) because three.js is most of the
-// app's JavaScript and no other screen needs it.
+// Emberary's 3D room, filling the window below the site's navigation bar, with
+// a game-style overlay: find a book, the reader's Ember, and an Edit button
+// that opens the shop and turns the room into a place to rearrange. This page
+// is loaded lazily (see App.jsx) because three.js is most of the app's
+// JavaScript and no other screen needs it.
 export default function LibraryRoomPage() {
-  const navigate = useNavigate()
   const books = useAsync(listMyBooks)
   const room = useAsync(getRoom)
   const saver = useRoomSaver()
+  const wallet = useEmber()
 
   const [editing, setEditing] = useState(false)
+  const [drawerTab, setDrawerTab] = useState('room')
   const [selectedItemId, setSelectedItemId] = useState(null)
   // The book off the shelf, and whether it has opened yet.
   const [pulledId, setPulledId] = useState(null)
@@ -32,9 +36,10 @@ export default function LibraryRoomPage() {
   const openTimer = useRef(null)
 
   const entries = books.data ?? []
+  const shelved = shelfOrder(entries)
   const openEntry = entries.find((e) => e.bookId === openId)
 
-  // The room covers the whole window, so the page underneath must not scroll.
+  // The room fills the window, so the page underneath must not scroll.
   useEffect(() => {
     document.body.classList.add('room-open')
     return () => {
@@ -43,12 +48,6 @@ export default function LibraryRoomPage() {
       clearTimeout(openTimer.current)
     }
   }, [])
-
-  function leave() {
-    // Back where they came from, or Home if they arrived straight here.
-    if (window.history.state?.idx > 0) navigate(-1)
-    else navigate('/')
-  }
 
   // Click a book: it slides out, then opens.
   function pickBook(bookId) {
@@ -73,10 +72,10 @@ export default function LibraryRoomPage() {
     bookClosed()
   }
 
-  // Move the open book one place along its shelf. The whole shelf's order is
-  // saved, because most books on it may never have had a saved place.
+  // Move the open book one place along the shelves. The whole order is saved,
+  // because most books on them may never have had a saved place.
   async function moveOnShelf(step) {
-    const order = shelfOrder(entries, openEntry.status).map((e) => e.bookId)
+    const order = shelved.map((e) => e.bookId)
     const index = order.indexOf(openEntry.bookId)
     const next = [...order]
     ;[next[index], next[index + step]] = [next[index + step], next[index]]
@@ -96,7 +95,7 @@ export default function LibraryRoomPage() {
     }
   }
 
-  const changeColour = (patch) => {
+  const changeRoom = (patch) => {
     room.setData((prev) => ({ ...prev, ...patch }))
     saver.queue('room', patch)
   }
@@ -105,6 +104,12 @@ export default function LibraryRoomPage() {
     saver.queue(id, patch)
   }
   const changeItems = (update) => room.setData((prev) => ({ ...prev, items: update(prev.items) }))
+  const unlock = (ids) => room.setData((prev) => ({ ...prev, unlocks: [...prev.unlocks, ...ids] }))
+
+  function openShop() {
+    setDrawerTab('shop')
+    setEditing(true)
+  }
 
   function toggleEditing() {
     if (editing) {
@@ -117,10 +122,12 @@ export default function LibraryRoomPage() {
   const ready = books.status === 'ready' && room.status === 'ready'
   const loading = books.status !== 'ready' ? books : room
   const shelf = openEntry && {
-    index: shelfOrder(entries, openEntry.status).findIndex((e) => e.bookId === openEntry.bookId),
-    count: shelfOrder(entries, openEntry.status).length,
+    index: shelved.findIndex((e) => e.bookId === openEntry.bookId),
+    count: shelved.length,
     ...shelfMove,
   }
+  // Books that do not fit on any bookcase; the answer is another bookcase.
+  const overflow = ready ? layoutBookcases(entries, bookcasesIn(room.data)).overflow : 0
 
   return (
     <div className={`room-screen${editing ? ' is-editing' : ''}`}>
@@ -147,14 +154,17 @@ export default function LibraryRoomPage() {
 
       {/* the overlay, like a game's HUD */}
       <div className="hud hud-top">
-        <button type="button" className="hud-button" onClick={leave}>
-          ← Leave room
-        </button>
         <span className="hud-title" aria-hidden="true">
           Library Room
         </span>
         {USING_MOCK_API && <span className="hud-chip">Demo mode</span>}
         <span className="hud-spacer" />
+        {wallet.data && (
+          <button type="button" className="hud-button hud-ember" onClick={openShop}>
+            <EmberIcon /> {wallet.data.balance}
+            <span className="visually-hidden"> Ember. Open the shop</span>
+          </button>
+        )}
         {ready && (
           <button
             type="button"
@@ -169,7 +179,15 @@ export default function LibraryRoomPage() {
 
       {ready && !editing && (
         <div className="hud hud-bottom">
-          {entries.length > 0 ? (
+          {overflow > 0 && (
+            <p className="hud-notice">
+              {overflow} {overflow === 1 ? 'book does' : 'books do'} not fit on your shelves.{' '}
+              <button type="button" className="button-link" onClick={openShop}>
+                Buy another bookcase
+              </button>
+            </p>
+          )}
+          {shelved.length > 0 ? (
             <>
               {/* The canvas cannot be used with a keyboard or a screen reader,
                   so every book in it can also be opened from this list. */}
@@ -183,7 +201,7 @@ export default function LibraryRoomPage() {
                 onChange={(event) => pickBook(event.target.value)}
               >
                 <option value="">Choose...</option>
-                {entries.map((entry) => (
+                {shelved.map((entry) => (
                   <option key={entry.bookId} value={entry.bookId}>
                     {entry.book.title} ({STATUS_LABELS[entry.status]})
                   </option>
@@ -193,7 +211,8 @@ export default function LibraryRoomPage() {
             </>
           ) : (
             <p className="hud-hint">
-              Your shelves are empty. <Link to="/discover">Add a book from Discover</Link>.
+              Your shelves are empty. Books appear here once you start reading them.{' '}
+              <Link to="/my-books">Go to My Books</Link>.
             </p>
           )}
         </div>
@@ -203,12 +222,16 @@ export default function LibraryRoomPage() {
         <aside className="edit-drawer">
           <RoomCustomizer
             room={room.data}
+            wallet={wallet}
             saver={saver}
+            tab={drawerTab}
+            onTab={setDrawerTab}
             selectedItemId={selectedItemId}
             onSelectItem={setSelectedItemId}
-            onColourChange={changeColour}
+            onRoomChange={changeRoom}
             onItemChange={changeItem}
             onItemsChange={changeItems}
+            onUnlock={unlock}
           />
         </aside>
       )}

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { STATUS_LABELS } from '../../api'
 import BookCover from '../BookCover.jsx'
 import BookEditForm from '../BookEditForm.jsx'
 import ProgressBar from '../ProgressBar.jsx'
@@ -102,34 +101,37 @@ export default function BookModal({ entry, shelf, onSaved, onRemoved, onMove, on
             <div className="page-details-narrow">{details()}</div>
             <h3 className="page-heading">Your notes</h3>
             <BookEditForm key={entry.bookId} entry={entry} onSaved={onSaved} onRemoved={handleRemoved} heading={null} />
-            <div className="page-shelf">
-              <p className="muted">
-                {STATUS_LABELS[entry.status]} shelf, {shelf.index + 1} of {shelf.count} from the left
-              </p>
-              <div className="detail-actions">
-                <button
-                  type="button"
-                  className="button-quiet button-small"
-                  onClick={() => onMove(-1)}
-                  disabled={shelf.busy || shelf.index <= 0}
-                >
-                  ← Move left
-                </button>
-                <button
-                  type="button"
-                  className="button-quiet button-small"
-                  onClick={() => onMove(1)}
-                  disabled={shelf.busy || shelf.index >= shelf.count - 1}
-                >
-                  Move right →
-                </button>
-              </div>
-              {shelf.error && (
-                <p className="error" role="alert">
-                  Could not move the book: {shelf.error.message}
+            {/* Gone if the book is changed to Want to Read here: it leaves the shelves. */}
+            {shelf.index >= 0 && (
+              <div className="page-shelf">
+                <p className="muted">
+                  Book {shelf.index + 1} of {shelf.count} on your shelves
                 </p>
-              )}
-            </div>
+                <div className="detail-actions">
+                  <button
+                    type="button"
+                    className="button-quiet button-small"
+                    onClick={() => onMove(-1)}
+                    disabled={shelf.busy || shelf.index <= 0}
+                  >
+                    ← Move left
+                  </button>
+                  <button
+                    type="button"
+                    className="button-quiet button-small"
+                    onClick={() => onMove(1)}
+                    disabled={shelf.busy || shelf.index >= shelf.count - 1}
+                  >
+                    Move right →
+                  </button>
+                </div>
+                {shelf.error && (
+                  <p className="error" role="alert">
+                    Could not move the book: {shelf.error.message}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <span className="page-number" aria-hidden="true">
             2

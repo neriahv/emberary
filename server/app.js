@@ -5,8 +5,10 @@ import * as myBooks from './repos/myBooks.js'
 import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
+import * as ember from './repos/ember.js'
+import { MAX_PLACED_ITEMS } from './catalog.js'
 import {
-  MAX_ROOM_ITEMS,
+  validateCheckout,
   validateStatus,
   validateEntryPatch,
   validateProfile,
@@ -27,8 +29,27 @@ const route = (handler) => (request, response, next) =>
 
 const badRequest = (response, errors) => response.status(400).json({ error: errors.join('; ') })
 
+// Run `work` on one connection inside BEGIN ... COMMIT, rolling back if it
+// throws. Used wherever Ember changes hands, so a reward or a purchase is
+// recorded together with the change that caused it, or not at all.
+async function transaction(pool, work) {
+  const db = await pool.connect()
+  try {
+    await db.query('BEGIN')
+    const result = await work(db)
+    await db.query('COMMIT')
+    return result
+  } catch (error) {
+    await db.query('ROLLBACK')
+    throw error
+  } finally {
+    db.release()
+  }
+}
+
 // Build the app without starting it, so the tests can run it on a spare port.
-export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}) {
+// timezone decides when "today" starts for the daily check-in and reading goal.
+export function createApp(pool, { corsOrigins = ['http://localhost:5173'], timezone = 'Asia/Manila' } = {}) {
   const app = express()
 
   // Express announces itself in an X-Powered-By header on every response. It
@@ -98,7 +119,13 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}
     const book = await books.getById(pool, bookId)
     if (!book) return response.status(404).json({ error: 'Book not found' })
 
-    const entry = await myBooks.add(pool, READER_ID, bookId, status)
+    // A book added as Read has been finished, and earns what finishing earns.
+    const entry = await transaction(pool, async (db) => {
+      const added = await myBooks.add(db, READER_ID, bookId, status)
+      if (!added) return null
+      const rewards = await ember.rewardReading(db, READER_ID, bookId, null, added, timezone)
+      return { ...added, rewards }
+    })
     if (!entry) {
       return response.status(409).json({ error: `"${book.title}" is already in your collection` })
     }
@@ -122,7 +149,17 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}
     const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
     if (errors.length > 0) return badRequest(response, errors)
 
-    response.json(await myBooks.update(pool, READER_ID, request.params.bookId, value))
+    // The reply carries the Ember this save earned, as `rewards` (often []).
+    const bookId = request.params.bookId
+    const entry = await transaction(pool, async (db) => {
+      const before = await myBooks.lock(db, READER_ID, bookId)
+      if (!before) return null
+      const after = await myBooks.update(db, READER_ID, bookId, value)
+      const rewards = await ember.rewardReading(db, READER_ID, bookId, before, after, timezone)
+      return { ...after, rewards }
+    })
+    if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
+    response.json(entry)
   }))
 
   app.delete('/api/my-books/:bookId', route(async (request, response) => {
@@ -164,32 +201,57 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}
     response.json(await profile.update(pool, READER_ID, value))
   }))
 
+  // ------------------------------------------------------------ ember
+
+  // The wallet: balance, today's check-in and reading, and recent changes.
+  app.get('/api/ember', route(async (request, response) => {
+    response.json(await ember.summary(pool, READER_ID, timezone))
+  }))
+
+  app.post('/api/ember/check-in', route(async (request, response) => {
+    const reward = await ember.checkIn(pool, READER_ID, timezone)
+    if (!reward) return response.status(409).json({ error: 'You already checked in today' })
+    response.status(201).json({ reward, ...(await ember.summary(pool, READER_ID, timezone)) })
+  }))
+
   // ------------------------------------------------------------ library room
 
-  // The room's colours and the items standing in it. The books on its shelves
-  // are GET /api/my-books, whose status picks the shelf and shelfPosition the
-  // place along it.
+  // The room's colours, finishes and furniture. The books on its shelves are
+  // GET /api/my-books: every book the reader has started, in shelfPosition order.
   app.get('/api/room', route(async (request, response) => {
     response.json(await room.get(pool, READER_ID))
   }))
 
-  // Body: any of { wallColor, floorColor, shelfColor }.
+  // Body: any of { wallColor, floorColor, shelfColor, wallpaper, floor }.
   app.patch('/api/room', route(async (request, response) => {
     const { errors, value } = validateRoom(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
+
+    const owned = await room.unlocks(pool, READER_ID)
+    const locked = [value.wallpaper, value.floor].find((id) => id && !owned.includes(id))
+    if (locked) return response.status(409).json({ error: 'Buy that in the shop first' })
+
     response.json(await room.update(pool, READER_ID, value))
   }))
 
-  // Body: { kind, x?, z?, rotation? }.
-  app.post('/api/room/items', route(async (request, response) => {
-    const { errors, value } = validateRoomItem(request.body ?? {}, { creating: true })
+  // Body: { items: [catalogue id, ...] }. Everything is bought, or nothing.
+  app.post('/api/shop/checkout', route(async (request, response) => {
+    const { errors, value } = validateCheckout(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    const item = await room.addItem(pool, READER_ID, value, MAX_ROOM_ITEMS)
-    if (!item) {
-      return response.status(409).json({ error: `The room already holds ${MAX_ROOM_ITEMS} items` })
+    const result = await transaction(pool, (db) => room.checkout(db, READER_ID, value))
+    if (result.error === 'funds') {
+      return response.status(409).json({
+        error: `That costs ${result.cost} Ember and you have ${result.balance}`,
+      })
     }
-    response.status(201).json(item)
+    if (result.error === 'owned') {
+      return response.status(409).json({ error: `You already own ${result.entry.name}` })
+    }
+    if (result.error === 'full') {
+      return response.status(409).json({ error: 'You own as much furniture as a room can keep' })
+    }
+    response.status(201).json(result)
   }))
 
   // Item ids are integers. Anything else cannot match a row, so it is a 404
@@ -199,24 +261,23 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'] } = {}
     return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null
   }
 
-  // Body: any of { x, z, rotation }.
+  // Body: any of { x, z, rotation, placed }. placed: false puts the item in
+  // storage; nothing a reader bought is ever thrown away.
   app.patch('/api/room/items/:id', route(async (request, response) => {
     const id = itemId(request)
-    if (!id) return response.status(404).json({ error: 'Room item not found' })
+    const current = id && (await room.getItem(pool, READER_ID, id))
+    if (!current) return response.status(404).json({ error: 'Room item not found' })
 
     const { errors, value } = validateRoomItem(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    const item = await room.updateItem(pool, READER_ID, id, value)
-    if (!item) return response.status(404).json({ error: 'Room item not found' })
-    response.json(item)
-  }))
+    if (value.placed && !current.placed && (await room.countPlaced(pool, READER_ID)) >= MAX_PLACED_ITEMS) {
+      return response.status(409).json({
+        error: `The room already holds ${MAX_PLACED_ITEMS} things. Store something first`,
+      })
+    }
 
-  app.delete('/api/room/items/:id', route(async (request, response) => {
-    const id = itemId(request)
-    const removed = id && (await room.removeItem(pool, READER_ID, id))
-    if (!removed) return response.status(404).json({ error: 'Room item not found' })
-    response.status(204).end()
+    response.json(await room.updateItem(pool, READER_ID, id, value))
   }))
 
   app.use((request, response) => {

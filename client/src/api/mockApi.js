@@ -8,23 +8,23 @@
 // switch to PostgreSQL is VITE_USE_MOCK_API=false rather than a rewrite.
 
 import seed from './seed.json'
+import {
+  EMBER_RULES,
+  FREE_FINISHES,
+  MAX_OWNED_ITEMS,
+  MAX_PLACED_ITEMS,
+  catalogEntry,
+} from './catalog.js'
 
-// v3: the Library Room became a larger diorama, so v2 room positions no longer
-// fit. A new key means a returning visitor starts again from the seed instead
-// of finding their furniture in the walls.
-const KEY = 'emberary:v3'
+// v4: Ember and the Library Room shop arrived, and a v3 room has no wallet,
+// finishes or storage. A new key means a returning visitor starts again from
+// the seed rather than loading a room shape the app no longer reads.
+const KEY = 'emberary:v4'
 
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
 
-export const ROOM_ITEM_KINDS = [
-  'rug', 'plant', 'lamp', 'armchair', 'side-table', 'cushion',
-  'desk', 'rocking-chair', 'globe', 'dresser', 'lantern',
-]
-
 // The floor an item may stand on, in metres. The same limits as the server.
 export const ROOM_BOUNDS = { x: [-2.2, 2.2], z: [-2.2, 2.2] }
-
-const MAX_ROOM_ITEMS = 30
 
 // A real network is not instant. Keeping this delay is what forces every screen
 // to have a loading state now, rather than the day the real API goes in.
@@ -45,9 +45,40 @@ function read() {
       localStorage.removeItem(KEY)
     }
   }
-  const fresh = clone(seed)
+  const fresh = freshDb()
   localStorage.setItem(KEY, JSON.stringify(fresh))
   return fresh
+}
+
+// The demo reader's Ember history, worked out from their reading exactly as
+// seedLedger() in server/db/build-seed.js does, so both modes start with the
+// same balance.
+function seedLedger() {
+  const rows = [{ amount: EMBER_RULES.welcome, reason: 'welcome', ref: '', createdAt: seed.profile.joinedAt }]
+  const byDate = [...seed.userBooks].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+  for (const e of byDate) {
+    const pages = Math.floor(e.currentPage / EMBER_RULES.pagesPerEmber)
+    if (pages > 0) rows.push({ amount: pages, reason: 'pages-read', ref: e.bookId, createdAt: e.updatedAt })
+    if (e.status === 'read') {
+      rows.push({ amount: EMBER_RULES.bookFinished, reason: 'book-finished', ref: e.bookId, createdAt: e.updatedAt })
+    }
+  }
+  const bought = [...seed.room.items.map((i) => i.kind), ...(seed.room.unlocks ?? [])]
+  const cost = bought.reduce((sum, id) => sum + catalogEntry(id).price, 0)
+  if (cost > 0) {
+    const last = rows.map((r) => r.createdAt).sort().at(-1)
+    rows.push({ amount: -cost, reason: 'purchase', ref: bought.join(', '), createdAt: last })
+  }
+  return rows.map((row, index) => ({ id: index + 1, ...row }))
+}
+
+function freshDb() {
+  const db = clone(seed)
+  db.room.items = db.room.items.map((item) => ({ ...item, placed: item.placed ?? true }))
+  db.room.unlocks = db.room.unlocks ?? []
+  db.ledger = seedLedger()
+  db.readingDays = {}
+  return db
 }
 
 function write(db) {
@@ -145,8 +176,9 @@ export async function addToCollection(bookId, status = 'want-to-read') {
     updatedAt: now,
   }
   db.userBooks.push(entry)
+  const rewards = rewardReading(db, bookId, null, entry)
   write(db)
-  return withBook(db, entry)
+  return { ...withBook(db, entry), rewards }
 }
 
 export async function updateMyBook(bookId, patch) {
@@ -157,6 +189,7 @@ export async function updateMyBook(bookId, patch) {
   if (!entry) throw new Error('That book is not in your collection')
   validateEntryPatch(patch, book)
 
+  const before = { status: entry.status, currentPage: entry.currentPage }
   const next = { ...entry, ...patch }
   if ('currentPage' in patch) next.currentPage = Number(patch.currentPage)
   if ('rating' in patch && patch.rating !== null) next.rating = Number(patch.rating)
@@ -165,16 +198,19 @@ export async function updateMyBook(bookId, patch) {
   }
   // Marking a book read means you reached the last page.
   if (patch.status === 'read') next.currentPage = book.pages
-  // A new status is a different Library Room shelf, where the old place along
-  // the shelf means nothing. The book goes to the end instead.
-  if ('status' in patch && patch.status !== entry.status && !('shelfPosition' in patch)) {
+  // A book joining or leaving the Library Room shelves (Want to Read is not
+  // on them) arrives at the end; moving between the started statuses keeps
+  // its place.
+  const joinsOrLeaves = [patch.status, entry.status].includes('want-to-read')
+  if ('status' in patch && patch.status !== entry.status && joinsOrLeaves && !('shelfPosition' in patch)) {
     next.shelfPosition = null
   }
   next.updatedAt = new Date().toISOString()
 
   Object.assign(entry, next)
+  const rewards = rewardReading(db, bookId, before, entry)
   write(db)
-  return withBook(db, entry)
+  return { ...withBook(db, entry), rewards }
 }
 
 export async function removeFromCollection(bookId) {
@@ -308,42 +344,187 @@ export async function updateProfile(patch) {
   return db.profile
 }
 
+// ---------------------------------------------------------------- ember
+
+// The visitor's own calendar day, as YYYY-MM-DD.
+const localDay = () => new Date().toLocaleDateString('en-CA')
+
+// One-off rewards, recorded at most once each, like the server's unique index.
+const ONCE = ['welcome', 'daily-check-in', 'daily-goal', 'book-finished']
+
+const emberBalance = (db) => db.ledger.reduce((sum, row) => sum + row.amount, 0)
+
+function record(db, amount, reason, ref) {
+  if (ONCE.includes(reason) && db.ledger.some((r) => r.reason === reason && r.ref === ref)) return null
+  const id = Math.max(0, ...db.ledger.map((r) => r.id)) + 1
+  db.ledger.push({ id, amount, reason, ref, createdAt: new Date().toISOString() })
+  return { amount, reason, ref }
+}
+
+// The same rules as rewardReading() in server/repos/ember.js.
+function rewardReading(db, bookId, before, after) {
+  const earned = []
+
+  if (after.status === 'read' && before?.status !== 'read') {
+    const row = record(db, EMBER_RULES.bookFinished, 'book-finished', bookId)
+    if (row) earned.push(row)
+  }
+
+  const paid = db.ledger
+    .filter((r) => r.reason === 'pages-read' && r.ref === bookId)
+    .reduce((sum, r) => sum + r.amount, 0)
+  const due = Math.floor(after.currentPage / EMBER_RULES.pagesPerEmber) - paid
+  if (due > 0) earned.push(record(db, due, 'pages-read', bookId))
+
+  const forward = after.currentPage - (before?.currentPage ?? 0)
+  if (forward > 0) {
+    const day = localDay()
+    const pages = (db.readingDays[day] ?? 0) + forward
+    db.readingDays[day] = pages
+    const goal = EMBER_RULES.dailyPageGoal
+    if (pages - forward < goal && pages >= goal) {
+      const row = record(db, EMBER_RULES.dailyGoalReward, 'daily-goal', day)
+      if (row) earned.push(row)
+    }
+  }
+
+  return earned
+}
+
+function emberSummary(db) {
+  const day = localDay()
+  return {
+    balance: emberBalance(db),
+    today: day,
+    checkedInToday: db.ledger.some((r) => r.reason === 'daily-check-in' && r.ref === day),
+    pagesToday: db.readingDays[day] ?? 0,
+    dailyPageGoal: EMBER_RULES.dailyPageGoal,
+    rules: EMBER_RULES,
+    history: [...db.ledger].sort((a, b) => b.id - a.id).slice(0, 8),
+  }
+}
+
+export async function getEmber() {
+  await delay()
+  return emberSummary(read())
+}
+
+export async function checkIn() {
+  await delay()
+  const db = read()
+  const reward = record(db, EMBER_RULES.dailyCheckIn, 'daily-check-in', localDay())
+  if (!reward) throw new Error('You already checked in today')
+  write(db)
+  return { reward, ...emberSummary(db) }
+}
+
 // ---------------------------------------------------------------- library room
+
+// The room as the server sends it: the free finishes count as owned.
+function roomView(db) {
+  return { ...db.room, unlocks: [...FREE_FINISHES, ...db.room.unlocks] }
+}
 
 export async function getRoom() {
   await delay()
-  return read().room
+  return roomView(read())
 }
 
-// Colours only. Items have their own functions below.
+// Colours and finishes. A wallpaper or floor has to be owned first.
 export async function updateRoom(patch) {
   await delay()
   const db = read()
   const hex = /^#[0-9a-f]{6}$/i
-  const colours = {}
+  const errors = []
+  const value = {}
   for (const key of ['wallColor', 'floorColor', 'shelfColor']) {
     if (!(key in patch)) continue
-    if (!hex.test(patch[key])) throw new Error(`${key} must be a hex colour`)
-    colours[key] = patch[key]
+    if (!hex.test(patch[key])) errors.push(`${key} must be a hex colour`)
+    value[key] = patch[key]
   }
-  if (Object.keys(colours).length === 0) {
-    throw new Error('send at least one of wallColor, floorColor, shelfColor')
+  for (const key of ['wallpaper', 'floor']) {
+    if (!(key in patch)) continue
+    if (catalogEntry(patch[key])?.type !== key) errors.push(`${key} must be one of the shop's ${key} finishes`)
+    value[key] = patch[key]
   }
-  db.room = { ...db.room, ...colours }
+  if (errors.length === 0 && Object.keys(value).length === 0) {
+    errors.push('send at least one of wallColor, floorColor, shelfColor, wallpaper, floor')
+  }
+  if (errors.length > 0) throw new Error(errors.join('; '))
+
+  const owned = roomView(db).unlocks
+  if ([value.wallpaper, value.floor].some((id) => id && !owned.includes(id))) {
+    throw new Error('Buy that in the shop first')
+  }
+  db.room = { ...db.room, ...value }
   write(db)
-  return db.room
+  return roomView(db)
+}
+
+// New furniture arrives near the middle of the floor, side by side; a bookcase
+// against the back wall behind the desk, if that spot is free. The same as
+// the server.
+const DROP_X = [0, 0.7, -0.7, 1.4, -1.4, 2.1, -2.1]
+const dropPoint = (n) => ({ x: DROP_X[n % DROP_X.length], z: n < DROP_X.length ? 0.9 : 1.6 })
+const WALL_SLOT = { x: -0.85, z: -2.2 }
+const slotTaken = (items) =>
+  items.some((i) => i.placed && Math.abs(i.x - WALL_SLOT.x) < 0.8 && Math.abs(i.z - WALL_SLOT.z) < 0.6)
+
+// Buy everything in the cart, or nothing. The same checks, in the same order
+// and with the same messages, as room.checkout() on the server.
+export async function checkout(ids) {
+  await delay()
+  if (
+    !Array.isArray(ids) ||
+    ids.length === 0 ||
+    ids.length > 20 ||
+    !ids.every((id) => typeof id === 'string' && catalogEntry(id))
+  ) {
+    throw new Error('items must be a list of 1 to 20 things from the shop')
+  }
+  const entries = ids.map(catalogEntry)
+  const finishes = entries.filter((e) => e.type !== 'item')
+  const furniture = entries.filter((e) => e.type === 'item')
+  if (new Set(finishes.map((e) => e.id)).size !== finishes.length) {
+    throw new Error('a wallpaper or floor can only be bought once')
+  }
+
+  const db = read()
+  const owned = roomView(db).unlocks
+  const already = finishes.find((e) => owned.includes(e.id))
+  if (already) throw new Error(`You already own ${already.name}`)
+  if (db.room.items.length + furniture.length > MAX_OWNED_ITEMS) {
+    throw new Error('You own as much furniture as a room can keep')
+  }
+  const cost = entries.reduce((sum, e) => sum + e.price, 0)
+  const funds = emberBalance(db)
+  if (funds < cost) throw new Error(`That costs ${cost} Ember and you have ${funds}`)
+
+  record(db, -cost, 'purchase', ids.join(', '))
+  db.room.unlocks.push(...finishes.map((e) => e.id))
+  const placedCount = db.room.items.filter((i) => i.placed).length
+  let id = Math.max(0, ...db.room.items.map((i) => i.id))
+  let wallFree = !slotTaken(db.room.items)
+  const items = furniture.map((entry, n) => {
+    const toWall = wallFree && entry.category === 'bookshelves'
+    if (toWall) wallFree = false
+    return {
+      id: ++id,
+      kind: entry.id,
+      ...(toWall ? WALL_SLOT : dropPoint(n)),
+      rotation: 0,
+      placed: placedCount + n < MAX_PLACED_ITEMS,
+    }
+  })
+  db.room.items.push(...items)
+  write(db)
+  return { balance: funds - cost, items, unlocks: finishes.map((e) => e.id) }
 }
 
 // The same checks as validateRoomItem on the server. Returns the clean fields.
-function validateRoomItem(fields, { creating = false } = {}) {
+function validateRoomItem(fields) {
   const errors = []
   const value = {}
-  if (creating) {
-    if (!ROOM_ITEM_KINDS.includes(fields.kind)) {
-      errors.push('kind must be one of ' + ROOM_ITEM_KINDS.join(', '))
-    }
-    value.kind = fields.kind
-  }
   for (const axis of ['x', 'z']) {
     if (!(axis in fields)) continue
     const [min, max] = ROOM_BOUNDS[axis]
@@ -360,53 +541,30 @@ function validateRoomItem(fields, { creating = false } = {}) {
     }
     value.rotation = rotation
   }
-  if (!creating && errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of x, z, rotation')
+  if ('placed' in fields) {
+    if (typeof fields.placed !== 'boolean') errors.push('placed must be true or false')
+    value.placed = fields.placed
+  }
+  if (errors.length === 0 && Object.keys(value).length === 0) {
+    errors.push('send at least one of x, z, rotation, placed')
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
   return value
 }
 
-function findItem(db, id) {
-  const item = db.room.items.find((i) => i.id === id)
-  if (!item) throw new Error('Room item not found')
-  return item
-}
-
-// Placement is optional; without one the item appears mid-floor.
-export async function addRoomItem(kind, placement = {}) {
-  await delay()
-  const db = read()
-  const value = validateRoomItem({ ...placement, kind }, { creating: true })
-  if (db.room.items.length >= MAX_ROOM_ITEMS) {
-    throw new Error(`The room already holds ${MAX_ROOM_ITEMS} items`)
-  }
-  const id = Math.max(0, ...db.room.items.map((i) => i.id)) + 1
-  const item = { id, kind: value.kind, x: value.x ?? 0, z: value.z ?? 0.5, rotation: value.rotation ?? 0 }
-  db.room.items.push(item)
-  write(db)
-  return item
-}
-
-// Move and/or turn an item: any of { x, z, rotation }.
+// Move, turn, store or place an item: any of { x, z, rotation, placed }.
 export async function updateRoomItem(id, patch) {
   await delay()
   const db = read()
-  const item = findItem(db, id)
-  const { x, z, rotation } = validateRoomItem(patch)
-  if (x !== undefined) item.x = x
-  if (z !== undefined) item.z = z
-  if (rotation !== undefined) item.rotation = rotation
+  const item = db.room.items.find((i) => i.id === id)
+  if (!item) throw new Error('Room item not found')
+  const value = validateRoomItem(patch)
+  if (value.placed && !item.placed && db.room.items.filter((i) => i.placed).length >= MAX_PLACED_ITEMS) {
+    throw new Error(`The room already holds ${MAX_PLACED_ITEMS} things. Store something first`)
+  }
+  Object.assign(item, value)
   write(db)
   return item
-}
-
-export async function removeRoomItem(id) {
-  await delay()
-  const db = read()
-  findItem(db, id)
-  db.room.items = db.room.items.filter((i) => i.id !== id)
-  write(db)
 }
 
 // Put the demo back to its seed state. Only the mock has this; there is no

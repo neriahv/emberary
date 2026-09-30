@@ -63,11 +63,12 @@ export const getRoom = () => request('/api/room')
 
 export const updateRoom = (patch) => request('/api/room', json('PATCH', patch))
 
-export const addRoomItem = (kind, placement = {}) =>
-  request('/api/room/items', json('POST', { ...placement, kind }))
-
 export const updateRoomItem = (id, patch) =>
   request(`/api/room/items/${encodeURIComponent(id)}`, json('PATCH', patch))
 
-export const removeRoomItem = (id) =>
-  request(`/api/room/items/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const checkout = (items) => request('/api/shop/checkout', json('POST', { items }))
+
+// ember
+export const getEmber = () => request('/api/ember')
+
+export const checkIn = () => request('/api/ember/check-in', { method: 'POST' })

@@ -36,13 +36,21 @@ Grouped by screen, each marked with where it actually stands.
   real cover. *Done.*
 - **My Books** — the collection sorted into the four reading statuses; change
   status, page, rating, review, or remove a book. *Done.*
-- **Library Room** — a 3D room with one bookcase shelf per reading status.
-  *Done, and grew past what was planned:* it is now a full-screen isometric
+- **Library Room** — a 3D room where the reader's books stand on real
+  shelves. *Done, and grew past what was planned:* it is an isometric
   diorama built from a reference photo, with a round window, cut-away walls
-  and warm lighting; books slide off the shelf and open into a two-page
-  spread with a page-turn animation instead of a side panel; and the room can
-  be furnished — rugs, a desk, a rocking chair, a globe, lanterns and more —
-  added, dragged, turned and removed in an edit mode, with everything saved.
+  and warm lighting. The shelves hold every book the reader has started
+  (reading, read or set aside), in their own order rather than sorted by
+  status, the way a real bookcase is; the first plan of one shelf per
+  status was dropped for that reason. Books slide off the shelf and open
+  into a two-page spread with a page-turn animation. The room is furnished
+  from a shop: the reader builds a cart of bookshelves, wallpaper, floors,
+  tables, chairs, lamps, rugs and decorations, each shown as a picture of
+  the real model, and pays in Ember; then drags, turns or stores each piece.
+- **Ember** — the room's currency, earned by reading: a daily check-in (+3),
+  20 pages in a day (+5), every 50 pages of a book (+1) and finishing a book
+  (+15). Kept as a ledger in the database so it cannot be earned twice or
+  spent below zero. *Done, added in Week 3.*
 - **Profile** — the reader's profile, and insights worked out from their
   shelves: counts, average rating, favourite genres and authors, monthly
   reading activity, and the yearly goal as a donut chart. *Done.*

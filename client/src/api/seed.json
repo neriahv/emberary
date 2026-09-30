@@ -42,6 +42,9 @@
     "wallColor": "#e3a86b",
     "floorColor": "#9a5530",
     "shelfColor": "#5e3219",
+    "wallpaper": "wallpaper-plain",
+    "floor": "floor-planks",
+    "unlocks": [],
     "items": [
       { "id": 1, "kind": "rug", "x": 0.3, "z": 0.2, "rotation": 0 },
       { "id": 2, "kind": "desk", "x": -0.9, "z": -0.7, "rotation": 0 },

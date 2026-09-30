@@ -6,7 +6,8 @@
 -- against the database your live demo depends on. Check which DATABASE_URL is
 -- loaded before you run it.
 
-TRUNCATE TABLE room_items, user_books, room_settings, books, readers RESTART IDENTITY CASCADE;
+TRUNCATE TABLE ember_ledger, reading_days, room_unlocks, room_items, user_books, room_settings,
+  books, readers RESTART IDENTITY CASCADE;
 
 INSERT INTO readers (id, display_name, bio, yearly_goal, joined_at) VALUES
   (1, 'Ember Reader',
@@ -96,18 +97,35 @@ VALUES
   (1, 'b04', 'want-to-read', 0, NULL, '',
    NULL, '2026-09-12T10:00:00.000Z', '2026-09-12T10:00:00.000Z', NULL);
 
-INSERT INTO room_settings (reader_id, wall_color, floor_color, shelf_color) VALUES
-  (1, '#e3a86b', '#9a5530', '#5e3219');
+INSERT INTO room_settings (reader_id, wall_color, floor_color, shelf_color, wallpaper, floor) VALUES
+  (1, '#e3a86b', '#9a5530', '#5e3219', 'wallpaper-plain', 'floor-planks');
 
-INSERT INTO room_items (id, reader_id, kind, x, z, rotation) VALUES
-  (1, 1, 'rug', 0.3, 0.2, 0),
-  (2, 1, 'desk', -0.9, -0.7, 0),
-  (3, 1, 'rocking-chair', 1.1, 0.1, 250),
-  (4, 1, 'side-table', 0.7, 1.5, 0),
-  (5, 1, 'lantern', -0.4, 1.5, 0),
-  (6, 1, 'dresser', -2.05, 0.9, 90),
-  (7, 1, 'globe', -1.75, 1.95, 0),
-  (8, 1, 'plant', 1.95, 1.9, 0);
+INSERT INTO room_items (id, reader_id, kind, x, z, rotation, placed) VALUES
+  (1, 1, 'rug', 0.3, 0.2, 0, true),
+  (2, 1, 'desk', -0.9, -0.7, 0, true),
+  (3, 1, 'rocking-chair', 1.1, 0.1, 250, true),
+  (4, 1, 'side-table', 0.7, 1.5, 0, true),
+  (5, 1, 'lantern', -0.4, 1.5, 0, true),
+  (6, 1, 'dresser', -2.05, 0.9, 90, true),
+  (7, 1, 'globe', -1.75, 1.95, 0, true),
+  (8, 1, 'plant', 1.95, 1.9, 0, true);
+
+INSERT INTO ember_ledger (reader_id, amount, reason, ref, created_at) VALUES
+  (1, 10, 'welcome', '', '2026-06-01T00:00:00.000Z'),
+  (1, 8, 'pages-read', 'b01', '2026-06-24T20:00:00.000Z'),
+  (1, 15, 'book-finished', 'b01', '2026-06-24T20:00:00.000Z'),
+  (1, 6, 'pages-read', 'b03', '2026-07-12T18:00:00.000Z'),
+  (1, 15, 'book-finished', 'b03', '2026-07-12T18:00:00.000Z'),
+  (1, 2, 'pages-read', 'b16', '2026-07-28T16:00:00.000Z'),
+  (1, 8, 'pages-read', 'b02', '2026-08-04T22:00:00.000Z'),
+  (1, 15, 'book-finished', 'b02', '2026-08-04T22:00:00.000Z'),
+  (1, 3, 'pages-read', 'b07', '2026-08-09T17:00:00.000Z'),
+  (1, 15, 'book-finished', 'b07', '2026-08-09T17:00:00.000Z'),
+  (1, 6, 'pages-read', 'b05', '2026-08-27T23:00:00.000Z'),
+  (1, 15, 'book-finished', 'b05', '2026-08-27T23:00:00.000Z'),
+  (1, 1, 'pages-read', 'b12', '2026-09-18T19:30:00.000Z'),
+  (1, 4, 'pages-read', 'b08', '2026-09-20T21:10:00.000Z'),
+  (1, -21, 'purchase', 'rug, desk, rocking-chair, side-table, lantern, dresser, globe, plant', '2026-09-20T21:10:00.000Z');
 
 -- The rows above chose their own ids, so move each sequence past them.
 SELECT setval(pg_get_serial_sequence('readers', 'id'), (SELECT max(id) FROM readers));

@@ -132,6 +132,194 @@ export function plankTexture() {
   })
 }
 
+// ------------------------------------------------------------ finishes
+//
+// The shop's wallpapers and floors. Each is drawn in pale greys, and the
+// material's colour tints it, so the reader's wall and floor colours still
+// apply on top of the pattern they bought.
+
+function repeating(el, x, y) {
+  const texture = makeTexture(el)
+  texture.wrapS = texture.wrapT = RepeatWrapping
+  texture.repeat.set(x, y)
+  return texture
+}
+
+// A repeatable pseudo-random number, so a pattern looks the same every time.
+const jitter = (n) => {
+  const x = Math.sin(n * 12.9898) * 43758.5453
+  return x - Math.floor(x)
+}
+
+const WALLPAPERS = {
+  'wallpaper-stripes': () => {
+    const [el, ctx] = canvas(256, 64)
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = i % 2 ? '#d9d9d9' : '#f4f4f4'
+      ctx.fillRect(i * 64, 0, 64, 64)
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'
+      ctx.fillRect(i * 64, 0, 2, 64)
+    }
+    return repeating(el, 8, 1)
+  },
+  'wallpaper-trellis': () => {
+    const [el, ctx] = canvas(128, 128)
+    ctx.fillStyle = '#f2f2f2'
+    ctx.fillRect(0, 0, 128, 128)
+    ctx.strokeStyle = '#c4c4c4'
+    ctx.lineWidth = 5
+    for (const k of [-1, 0, 1]) {
+      ctx.beginPath()
+      ctx.moveTo(k * 128, 0)
+      ctx.lineTo(k * 128 + 128, 128)
+      ctx.moveTo(k * 128 + 128, 0)
+      ctx.lineTo(k * 128, 128)
+      ctx.stroke()
+    }
+    ctx.fillStyle = '#b0b0b0'
+    for (const [x, y] of [[64, 64], [0, 0], [128, 0], [0, 128], [128, 128]]) {
+      ctx.beginPath()
+      ctx.arc(x, y, 7, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return repeating(el, 12, 7)
+  },
+  'wallpaper-sprig': () => {
+    const [el, ctx] = canvas(128, 128)
+    ctx.fillStyle = '#f3f3f3'
+    ctx.fillRect(0, 0, 128, 128)
+    const sprig = (x, y, turn) => {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(turn)
+      ctx.strokeStyle = '#a9a9a9'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(0, 12)
+      ctx.lineTo(0, -12)
+      ctx.stroke()
+      ctx.fillStyle = '#b8b8b8'
+      for (const [lx, ly, a] of [[-5, -4, -0.6], [5, 2, 0.6], [-5, 8, -0.6], [0, -14, 0]]) {
+        ctx.beginPath()
+        ctx.ellipse(lx, ly, 3, 6, a, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+    }
+    sprig(32, 32, 0.3)
+    sprig(96, 96, -0.4)
+    sprig(96, 32, 2.6)
+    sprig(32, 96, -2.8)
+    return repeating(el, 14, 8)
+  },
+  'wallpaper-panels': () => {
+    const [el, ctx] = canvas(256, 256)
+    for (let i = 0; i < 4; i++) {
+      const shade = 205 + Math.round(jitter(i + 1) * 25)
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+      ctx.fillRect(i * 64, 0, 64, 256)
+      ctx.strokeStyle = 'rgba(0,0,0,0.05)'
+      for (let g = 0; g < 4; g++) {
+        const gx = i * 64 + 10 + g * 13
+        ctx.beginPath()
+        ctx.moveTo(gx, 0)
+        ctx.bezierCurveTo(gx + 3, 90, gx - 3, 170, gx + 1, 256)
+        ctx.stroke()
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'
+      ctx.fillRect(i * 64, 0, 3, 256)
+    }
+    return repeating(el, 7, 1)
+  },
+}
+
+const FLOORS = {
+  'floor-checker': () => {
+    const [el, ctx] = canvas(128, 128)
+    for (const [x, y, light] of [[0, 0, 1], [64, 0, 0], [0, 64, 0], [64, 64, 1]]) {
+      ctx.fillStyle = light ? '#f0f0f0' : '#6e6e6e'
+      ctx.fillRect(x, y, 64, 64)
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(0, 0, 128, 128)
+    ctx.beginPath()
+    ctx.moveTo(64, 0)
+    ctx.lineTo(64, 128)
+    ctx.moveTo(0, 64)
+    ctx.lineTo(128, 64)
+    ctx.stroke()
+    return repeating(el, 5, 5)
+  },
+  // Planks twice as long as they are wide, laid in the stepped zigzag of a
+  // herringbone. The pattern repeats every four plank widths in both
+  // directions, so the canvas tiles without a seam.
+  'floor-herringbone': () => {
+    const w = 32
+    const size = 4 * w
+    const [el, ctx] = canvas(size, size)
+    let n = 0
+    const plank = (x, y, width, height) => {
+      const shade = 190 + Math.round(jitter(++n) * 45)
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+      ctx.fillRect(x, y, width, height)
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(x + 1, y + 1, width - 2, height - 2)
+    }
+    for (let j = -4; j <= 4; j++) {
+      for (let k = -8; k <= 8; k++) {
+        const x = k * w + j * 2 * w
+        const y = k * w - j * 2 * w
+        plank(x, y, 2 * w, w)
+        plank(x, y + w, w, 2 * w)
+      }
+    }
+    return repeating(el, 5, 5)
+  },
+  'floor-stone': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#9a9a9a'
+    ctx.fillRect(0, 0, 256, 256)
+    const rows = [96, 64, 96]
+    let y = 0
+    let n = 0
+    for (const height of rows) {
+      const widths = height === 64 ? [96, 64, 96] : [128, 128]
+      let x = Math.round(jitter(y + 3) * 60)
+      for (let i = 0; i < widths.length * 2; i++) {
+        const width = widths[i % widths.length]
+        const shade = 195 + Math.round(jitter(++n) * 45)
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+        // Drawn twice, one canvas-width apart, so a flag crossing the right
+        // edge reappears on the left and the tile has no seam.
+        for (const shift of [-256, 0]) ctx.fillRect(x + shift + 3, y + 3, width - 6, height - 6)
+        x += width
+        if (x >= 256 + 128) break
+      }
+      y += height
+    }
+    return repeating(el, 3, 3)
+  },
+}
+
+// The wallpaper for the walls, or null for plain paint.
+export function wallpaperTexture(id) {
+  return WALLPAPERS[id] ? cached(id, WALLPAPERS[id]) : null
+}
+
+export function floorTexture(id) {
+  return FLOORS[id] ? cached(id, FLOORS[id]) : plankTexture()
+}
+
+// A picture of a finish for the shop, tinted in CSS by the room's colour.
+// null for plain paint, which is just the colour.
+export function finishSwatch(id) {
+  const texture = id.startsWith('wallpaper') ? wallpaperTexture(id) : floorTexture(id)
+  if (!texture) return null
+  return cached(`swatch|${id}`, () => texture.image.toDataURL())
+}
+
 // Afternoon sky for the round window.
 export function skyTexture() {
   return cached('sky', () => {

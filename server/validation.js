@@ -7,6 +7,8 @@
 // were sent and are allowed, already converted to the right type, so nothing
 // the client made up ever reaches a query.
 
+import { catalogEntry } from './catalog.js'
+
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
 
 const HEX_COLOUR = /^#[0-9a-f]{6}$/i
@@ -107,8 +109,18 @@ export function validateRoom(body) {
     value[key] = body[key]
   }
 
+  // Whether the reader owns the finish is checked by the route, which can ask
+  // the database; this only checks that it is a finish of the right kind.
+  for (const key of ['wallpaper', 'floor']) {
+    if (!has(body, key)) continue
+    if (catalogEntry(body[key])?.type !== key) {
+      errors.push(`${key} must be one of the shop's ${key} finishes`)
+    }
+    value[key] = body[key]
+  }
+
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of wallColor, floorColor, shelfColor')
+    errors.push('send at least one of wallColor, floorColor, shelfColor, wallpaper, floor')
   }
 
   return { errors, value }
@@ -116,29 +128,15 @@ export function validateRoom(body) {
 
 // ------------------------------------------------------------ room items
 
-export const ROOM_ITEM_KINDS = [
-  'rug', 'plant', 'lamp', 'armchair', 'side-table', 'cushion',
-  'desk', 'rocking-chair', 'globe', 'dresser', 'lantern',
-]
-
 // The floor area an item may stand on, in metres. The same limits as the CHECK
 // constraints on room_items in schema.sql.
 export const ROOM_BOUNDS = { x: [-2.2, 2.2], z: [-2.2, 2.2] }
 
-export const MAX_ROOM_ITEMS = 30
-
-// A new item (`creating`) needs a kind and may give a placement; an existing
-// item can only be moved and turned, never changed into something else.
-export function validateRoomItem(body, { creating = false } = {}) {
+// An item can be moved, turned, put in storage or placed again, never changed
+// into something else. New items only arrive through the shop.
+export function validateRoomItem(body) {
   const errors = []
   const value = {}
-
-  if (creating) {
-    if (!ROOM_ITEM_KINDS.includes(body.kind)) {
-      errors.push('kind must be one of ' + ROOM_ITEM_KINDS.join(', '))
-    }
-    value.kind = body.kind
-  }
 
   for (const axis of ['x', 'z']) {
     if (!has(body, axis)) continue
@@ -159,14 +157,38 @@ export function validateRoomItem(body, { creating = false } = {}) {
     value.rotation = rotation
   }
 
-  if (!creating && errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of x, z, rotation')
+  if (has(body, 'placed')) {
+    if (typeof body.placed !== 'boolean') errors.push('placed must be true or false')
+    value.placed = body.placed
+  }
+
+  if (errors.length === 0 && Object.keys(value).length === 0) {
+    errors.push('send at least one of x, z, rotation, placed')
   }
 
   return { errors, value }
 }
 
-// The new left-to-right order of the books on one Library Room shelf.
+// A shop cart: { items: [catalogue id, ...] }. The same piece of furniture may
+// be bought several times over; a wallpaper or floor only once.
+export function validateCheckout(body) {
+  const items = body.items
+  if (
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    items.length > 20 ||
+    !items.every((id) => typeof id === 'string' && catalogEntry(id))
+  ) {
+    return { errors: ['items must be a list of 1 to 20 things from the shop'], value: null }
+  }
+  const finishes = items.filter((id) => catalogEntry(id).type !== 'item')
+  if (new Set(finishes).size !== finishes.length) {
+    return { errors: ['a wallpaper or floor can only be bought once'], value: null }
+  }
+  return { errors: [], value: items }
+}
+
+// The new order of the books on the Library Room shelves, first to last.
 export function validateShelfOrder(body) {
   const bookIds = body.bookIds
   if (

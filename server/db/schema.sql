@@ -113,16 +113,72 @@ UPDATE room_items SET
   x = LEAST(GREATEST(x, -2.2), 2.2),
   z = LEAST(GREATEST(z, -2.2), 2.2);
 
+-- The kinds are the "item" entries of server/catalog.js.
 ALTER TABLE room_items
   ADD CONSTRAINT room_items_kind_check CHECK (kind IN (
-    'rug', 'plant', 'lamp', 'armchair', 'side-table', 'cushion',
-    'desk', 'rocking-chair', 'globe', 'dresser', 'lantern'
+    'bookcase-small', 'bookcase-tall',
+    'side-table', 'coffee-table', 'desk', 'dresser',
+    'stool', 'chair', 'cushion', 'armchair', 'rocking-chair',
+    'lantern', 'lamp', 'candelabra',
+    'rug', 'round-rug', 'runner-rug',
+    'vase', 'plant', 'globe', 'clock'
   )),
   -- Compared as REAL, like the columns. 2.2 stored as a REAL is 2.2000000477,
   -- which is not BETWEEN -2.2 AND 2.2 in exact numeric terms, so an item
   -- pushed right up to a wall would be refused.
   ADD CONSTRAINT room_items_x_check CHECK (x BETWEEN -2.2::real AND 2.2::real),
   ADD CONSTRAINT room_items_z_check CHECK (z BETWEEN -2.2::real AND 2.2::real);
+
+-- Bought furniture is never destroyed: taking it out of the room puts it in
+-- storage (placed = false), from where it can be placed again for free.
+ALTER TABLE room_items ADD COLUMN IF NOT EXISTS placed BOOLEAN NOT NULL DEFAULT true;
+
+-- The wallpaper and floor finishes on the room. Plain paint and oak planks are
+-- free; the others have to be bought first (room_unlocks).
+ALTER TABLE room_settings
+  ADD COLUMN IF NOT EXISTS wallpaper TEXT NOT NULL DEFAULT 'wallpaper-plain'
+    CHECK (wallpaper IN ('wallpaper-plain', 'wallpaper-stripes', 'wallpaper-trellis',
+                         'wallpaper-sprig', 'wallpaper-panels')),
+  ADD COLUMN IF NOT EXISTS floor TEXT NOT NULL DEFAULT 'floor-planks'
+    CHECK (floor IN ('floor-planks', 'floor-checker', 'floor-herringbone', 'floor-stone'));
+
+-- The finishes a reader has bought.
+CREATE TABLE IF NOT EXISTS room_unlocks (
+  reader_id INTEGER NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  item      TEXT    NOT NULL,
+  PRIMARY KEY (reader_id, item)
+);
+
+-- Ember, the Library Room's currency. Every Ember earned or spent is a row, and
+-- a reader's balance is the sum of their rows, so the balance can always be
+-- explained and never drifts from its history.
+CREATE TABLE IF NOT EXISTS ember_ledger (
+  id         SERIAL      PRIMARY KEY,
+  reader_id  INTEGER     NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  amount     INTEGER     NOT NULL CHECK (amount <> 0),
+  reason     TEXT        NOT NULL CHECK (reason IN (
+               'welcome', 'daily-check-in', 'daily-goal', 'book-finished', 'pages-read', 'purchase'
+             )),
+  -- What it was for: a book id, a day ("2026-09-30") or the things bought.
+  ref        TEXT        NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ember_ledger_reader_idx ON ember_ledger (reader_id, id DESC);
+
+-- One-off rewards can only be recorded once: one welcome, one check-in and one
+-- daily goal per day, one "finished" per book. The database refuses a second,
+-- so two quick clicks cannot earn twice.
+CREATE UNIQUE INDEX IF NOT EXISTS ember_ledger_once_idx ON ember_ledger (reader_id, reason, ref)
+  WHERE reason IN ('welcome', 'daily-check-in', 'daily-goal', 'book-finished');
+
+-- Pages read per reader per day, for the daily reading goal.
+CREATE TABLE IF NOT EXISTS reading_days (
+  reader_id INTEGER NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  day       DATE    NOT NULL,
+  pages     INTEGER NOT NULL DEFAULT 0 CHECK (pages >= 0),
+  PRIMARY KEY (reader_id, day)
+);
 
 -- The API serves reader 1 until accounts exist, so make sure reader 1 exists
 -- even on a database that only ever had this file run against it.

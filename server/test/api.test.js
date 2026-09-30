@@ -274,15 +274,110 @@ test('rejects an invalid profile', async () => {
   assert.equal((await call('PATCH', '/api/profile', { bio: 'x'.repeat(281) })).status, 400)
 })
 
+// ------------------------------------------------------------ ember
+
+// The seed reader: 10 welcome + 38 for pages + 75 for five finished books,
+// less 21 for the furniture already in the room.
+const SEED_BALANCE = 102
+
+const balance = async () => (await call('GET', '/api/ember')).body.balance
+
+test('the wallet shows the balance worked out from the reading history', async () => {
+  const { status, body } = await call('GET', '/api/ember')
+  assert.equal(status, 200)
+  assert.equal(body.balance, SEED_BALANCE)
+  assert.equal(body.checkedInToday, false)
+  assert.equal(body.pagesToday, 0)
+  assert.equal(body.dailyPageGoal, 20)
+  assert.match(body.today, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(body.history[0].reason, 'purchase')
+})
+
+test('the daily check-in pays 3 Ember, once a day', async () => {
+  const first = await call('POST', '/api/ember/check-in')
+  assert.equal(first.status, 201)
+  assert.equal(first.body.reward.amount, 3)
+  assert.equal(first.body.balance, SEED_BALANCE + 3)
+  assert.equal(first.body.checkedInToday, true)
+
+  assert.equal((await call('POST', '/api/ember/check-in')).status, 409)
+  assert.equal(await balance(), SEED_BALANCE + 3)
+})
+
+test('finishing a book pays for the book, the pages and the daily goal', async () => {
+  // Emma: 95 of 474 pages, which has already earned 1 Ember for its first 50.
+  const { body } = await call('PATCH', '/api/my-books/b12', { status: 'read' })
+  const earned = Object.fromEntries(body.rewards.map((r) => [r.reason, r.amount]))
+  assert.deepEqual(earned, { 'book-finished': 15, 'pages-read': 8, 'daily-goal': 5 })
+  assert.equal(await balance(), SEED_BALANCE + 28)
+  assert.equal((await call('GET', '/api/ember')).body.pagesToday, 474 - 95)
+})
+
+test('a book is only ever paid for finishing once', async () => {
+  await call('PATCH', '/api/my-books/b12', { status: 'read' })
+  const after = await balance()
+
+  await call('PATCH', '/api/my-books/b12', { status: 'currently-reading' })
+  const again = await call('PATCH', '/api/my-books/b12', { status: 'read' })
+  assert.equal(again.body.rewards.some((r) => r.reason === 'book-finished'), false)
+
+  // Nor by taking it off the shelves and adding it back as Read.
+  await call('DELETE', '/api/my-books/b01')
+  const readded = await call('POST', '/api/my-books', { bookId: 'b01', status: 'read' })
+  assert.equal(readded.status, 201)
+  assert.equal(readded.body.rewards.some((r) => r.reason === 'book-finished'), false)
+  assert.equal(readded.body.rewards.some((r) => r.reason === 'pages-read'), false)
+  assert.ok((await balance()) <= after + 5, 'at most the daily goal, which was already paid today')
+})
+
+test('pages earn 1 Ember per 50, and paging back and forth earns nothing new', async () => {
+  // Dune: 240 pages read, 4 Ember already earned.
+  assert.deepEqual((await call('PATCH', '/api/my-books/b08', { currentPage: 249 })).body.rewards, [])
+
+  const next = await call('PATCH', '/api/my-books/b08', { currentPage: 250 })
+  assert.deepEqual(next.body.rewards, [{ amount: 1, reason: 'pages-read', ref: 'b08' }])
+
+  await call('PATCH', '/api/my-books/b08', { currentPage: 10 })
+  const back = await call('PATCH', '/api/my-books/b08', { currentPage: 250 })
+  assert.equal(back.body.rewards.some((r) => r.reason === 'pages-read'), false)
+})
+
+test('the daily reading goal pays once, when today\'s pages reach 20', async () => {
+  const first = await call('PATCH', '/api/my-books/b08', { currentPage: 255 })
+  assert.deepEqual(first.body.rewards.map((r) => r.reason), ['pages-read'])
+  const goal = await call('PATCH', '/api/my-books/b08', { currentPage: 260 })
+  assert.deepEqual(goal.body.rewards, [{ amount: 5, reason: 'daily-goal', ref: goal.body.rewards[0].ref }])
+  const more = await call('PATCH', '/api/my-books/b08', { currentPage: 300 })
+  assert.equal(more.body.rewards.some((r) => r.reason === 'daily-goal'), false)
+})
+
+test('saving a book that earns nothing says so', async () => {
+  const { body } = await call('PATCH', '/api/my-books/b01', { review: 'Still perfect.' })
+  assert.deepEqual(body.rewards, [])
+})
+
+test('the catalogue and its prices are the same on the client and the server', async () => {
+  const server = await import('../catalog.js')
+  const client = await import(new URL('../../client/src/api/catalog.js', import.meta.url))
+  assert.deepEqual(client.CATALOG, server.CATALOG)
+  assert.deepEqual(client.SHOP_CATEGORIES, server.SHOP_CATEGORIES)
+  assert.deepEqual(client.EMBER_RULES, server.EMBER_RULES)
+  assert.equal(client.MAX_PLACED_ITEMS, server.MAX_PLACED_ITEMS)
+  assert.equal(client.MAX_OWNED_ITEMS, server.MAX_OWNED_ITEMS)
+})
+
 // ------------------------------------------------------------ library room
 
-test('reads the room with its colours and items', async () => {
+test('reads the room with its colours, finishes and items', async () => {
   const { body } = await call('GET', '/api/room')
   assert.equal(body.wallColor, '#e3a86b')
+  assert.equal(body.wallpaper, 'wallpaper-plain')
+  assert.equal(body.floor, 'floor-planks')
+  assert.deepEqual(body.unlocks, ['wallpaper-plain', 'floor-planks'])
   assert.deepEqual(body.items.map((i) => i.kind), [
     'rug', 'desk', 'rocking-chair', 'side-table', 'lantern', 'dresser', 'globe', 'plant',
   ])
-  assert.deepEqual(body.items[1], { id: 2, kind: 'desk', x: -0.9, z: -0.7, rotation: 0 })
+  assert.deepEqual(body.items[1], { id: 2, kind: 'desk', x: -0.9, z: -0.7, rotation: 0, placed: true })
 })
 
 test('updates room colours without touching the items', async () => {
@@ -292,26 +387,79 @@ test('updates room colours without touching the items', async () => {
   assert.equal(body.items.length, 8)
 })
 
-test('rejects bad room colours and empty patches', async () => {
+test('rejects bad room colours, unknown finishes and empty patches', async () => {
   assert.equal((await call('PATCH', '/api/room', { floorColor: 'red' })).status, 400)
   assert.equal((await call('PATCH', '/api/room', { rug: false })).status, 400)
+  assert.equal((await call('PATCH', '/api/room', { wallpaper: 'floor-stone' })).status, 400)
+  assert.equal((await call('PATCH', '/api/room', { floor: 'lino' })).status, 400)
 })
 
-test('adds a room item, in the middle of the floor unless placed', async () => {
-  const plain = await call('POST', '/api/room/items', { kind: 'cushion' })
-  assert.equal(plain.status, 201)
-  assert.deepEqual(plain.body, { id: 9, kind: 'cushion', x: 0, z: 0.5, rotation: 0 })
+test('a wallpaper or floor has to be bought before it goes on the room', async () => {
+  const locked = await call('PATCH', '/api/room', { wallpaper: 'wallpaper-stripes' })
+  assert.equal(locked.status, 409)
 
-  const placed = await call('POST', '/api/room/items', { kind: 'globe', x: 2.1, z: -2.1, rotation: 90 })
-  assert.deepEqual(placed.body, { id: 10, kind: 'globe', x: 2.1, z: -2.1, rotation: 90 })
+  await call('POST', '/api/shop/checkout', { items: ['wallpaper-stripes'] })
+  const { status, body } = await call('PATCH', '/api/room', { wallpaper: 'wallpaper-stripes' })
+  assert.equal(status, 200)
+  assert.equal(body.wallpaper, 'wallpaper-stripes')
+  assert.ok(body.unlocks.includes('wallpaper-stripes'))
+})
 
-  assert.equal((await call('GET', '/api/room')).body.items.length, 10)
+test('checkout buys the whole cart, pays for it, and puts it in the room', async () => {
+  const { status, body } = await call('POST', '/api/shop/checkout', {
+    items: ['bookcase-tall', 'chair', 'chair', 'floor-checker'],
+  })
+  assert.equal(status, 201)
+  assert.equal(body.balance, SEED_BALANCE - 10 - 1 - 1 - 3)
+  assert.deepEqual(body.unlocks, ['floor-checker'])
+  assert.deepEqual(body.items.map((i) => [i.id, i.kind, i.placed]), [
+    [9, 'bookcase-tall', true],
+    [10, 'chair', true],
+    [11, 'chair', true],
+  ])
+  // The bookcase goes against the back wall; the chairs mid-floor, side by side.
+  assert.deepEqual([body.items[0].x, body.items[0].z], [-0.85, -2.2])
+  assert.notDeepEqual([body.items[1].x, body.items[1].z], [body.items[2].x, body.items[2].z])
+  assert.equal(await balance(), body.balance)
+
+  const history = (await call('GET', '/api/ember')).body.history
+  assert.deepEqual(history[0], { ...history[0], amount: -15, reason: 'purchase' })
+})
+
+test('a second bookcase does not land on top of the first', async () => {
+  const first = await call('POST', '/api/shop/checkout', { items: ['bookcase-small'] })
+  const second = await call('POST', '/api/shop/checkout', { items: ['bookcase-small'] })
+  assert.deepEqual([first.body.items[0].x, first.body.items[0].z], [-0.85, -2.2])
+  assert.notDeepEqual([second.body.items[0].x, second.body.items[0].z], [-0.85, -2.2])
+})
+
+test('checkout refuses what the reader cannot afford, and changes nothing', async () => {
+  const cart = Array(11).fill('bookcase-tall')
+  const { status, body } = await call('POST', '/api/shop/checkout', { items: cart })
+  assert.equal(status, 409)
+  assert.match(body.error, /costs 110 Ember and you have 102/)
+  assert.equal(await balance(), SEED_BALANCE)
+  assert.equal((await call('GET', '/api/room')).body.items.length, 8)
+})
+
+test('checkout refuses unknown things, empty carts and finishes already owned', async () => {
+  assert.equal((await call('POST', '/api/shop/checkout', { items: ['piano'] })).status, 400)
+  assert.equal((await call('POST', '/api/shop/checkout', { items: [] })).status, 400)
+  assert.equal((await call('POST', '/api/shop/checkout', {})).status, 400)
+  assert.equal(
+    (await call('POST', '/api/shop/checkout', { items: ['floor-stone', 'floor-stone'] })).status,
+    400
+  )
+  const free = await call('POST', '/api/shop/checkout', { items: ['wallpaper-plain'] })
+  assert.equal(free.status, 409)
+  assert.match(free.body.error, /already own Plain paint/)
+  assert.equal(await balance(), SEED_BALANCE)
 })
 
 test('moves and turns a room item, keeping what was not sent', async () => {
   const { status, body } = await call('PATCH', '/api/room/items/4', { x: -0.333, rotation: 45 })
   assert.equal(status, 200)
-  assert.deepEqual(body, { id: 4, kind: 'side-table', x: -0.33, z: 1.5, rotation: 45 })
+  assert.deepEqual(body, { id: 4, kind: 'side-table', x: -0.33, z: 1.5, rotation: 45, placed: true })
 })
 
 test('an item can stand right against the walls', async () => {
@@ -322,6 +470,29 @@ test('an item can stand right against the walls', async () => {
   }
 })
 
+test('an item goes into storage and comes back out, never lost', async () => {
+  const stored = await call('PATCH', '/api/room/items/3', { placed: false })
+  assert.equal(stored.body.placed, false)
+  const room = (await call('GET', '/api/room')).body
+  assert.equal(room.items.find((i) => i.id === 3).placed, false)
+  assert.equal(room.items.length, 8)
+
+  const placed = await call('PATCH', '/api/room/items/3', { placed: true })
+  assert.equal(placed.body.placed, true)
+})
+
+test('a room holds 30 things at once; more go to storage', async () => {
+  const cart = Array(20).fill('vase')
+  await call('POST', '/api/shop/checkout', { items: cart })
+  const { body } = await call('POST', '/api/shop/checkout', { items: Array(4).fill('vase') })
+  assert.deepEqual(body.items.map((i) => i.placed), [true, true, false, false])
+
+  const blocked = await call('PATCH', `/api/room/items/${body.items[2].id}`, { placed: true })
+  assert.equal(blocked.status, 409)
+  await call('PATCH', '/api/room/items/1', { placed: false })
+  assert.equal((await call('PATCH', `/api/room/items/${body.items[2].id}`, { placed: true })).status, 200)
+})
+
 test('an item cannot change kind, leave the room, or turn past 359', async () => {
   const kept = await call('PATCH', '/api/room/items/1', { kind: 'lamp', x: 0.5 })
   assert.equal(kept.body.kind, 'rug')
@@ -330,27 +501,19 @@ test('an item cannot change kind, leave the room, or turn past 359', async () =>
   assert.equal((await call('PATCH', '/api/room/items/1', { z: -2.4 })).status, 400)
   assert.equal((await call('PATCH', '/api/room/items/1', { rotation: 360 })).status, 400)
   assert.equal((await call('PATCH', '/api/room/items/1', { x: null })).status, 400)
+  assert.equal((await call('PATCH', '/api/room/items/1', { placed: 'yes' })).status, 400)
   assert.equal((await call('PATCH', '/api/room/items/1', {})).status, 400)
-  assert.equal((await call('POST', '/api/room/items', { kind: 'piano' })).status, 400)
 })
 
-test('removes a room item, then 404s on it', async () => {
-  assert.equal((await call('DELETE', '/api/room/items/3')).status, 204)
-  assert.equal((await call('DELETE', '/api/room/items/3')).status, 404)
-  assert.equal((await call('PATCH', '/api/room/items/3', { x: 0 })).status, 404)
+test('unknown room items are 404s, and furniture is never deleted', async () => {
+  assert.equal((await call('PATCH', '/api/room/items/99', { x: 0 })).status, 404)
   assert.equal((await call('PATCH', '/api/room/items/abc', { x: 0 })).status, 404)
-  assert.equal((await call('DELETE', '/api/room/items/99999999999')).status, 404)
-  assert.deepEqual((await call('GET', '/api/room')).body.items.map((i) => i.id), [1, 2, 4, 5, 6, 7, 8])
+  assert.equal((await call('PATCH', '/api/room/items/99999999999', { x: 0 })).status, 404)
+  assert.equal((await call('DELETE', '/api/room/items/3')).status, 404)
+  assert.equal((await call('POST', '/api/room/items', { kind: 'rug' })).status, 404)
 })
 
-test('a room holds at most 30 items', async () => {
-  for (let i = 8; i < 30; i++) await call('POST', '/api/room/items', { kind: 'cushion' })
-  const full = await call('POST', '/api/room/items', { kind: 'cushion' })
-  assert.equal(full.status, 409)
-  assert.equal((await call('GET', '/api/room')).body.items.length, 30)
-})
-
-test('saves the order of books along a shelf', async () => {
+test('saves the order of books along the shelves', async () => {
   const order = ['b04', 'b06', 'b13']
   assert.equal((await call('PUT', '/api/my-books/order', { bookIds: order })).status, 204)
 
@@ -366,13 +529,21 @@ test('reordering a shelf is not reading activity', async () => {
   assert.equal(b13.updatedAt, '2026-09-05T10:00:00.000Z')
 })
 
-test('a book that changes shelf loses its old position', async () => {
+test('a book joining the shelves from Want to Read arrives at the end', async () => {
   await call('PUT', '/api/my-books/order', { bookIds: ['b04', 'b06'] })
   const moved = await call('PATCH', '/api/my-books/b04', { status: 'currently-reading' })
   assert.equal(moved.body.shelfPosition, null)
 
   const reviewed = await call('PATCH', '/api/my-books/b06', { review: 'Soon.' })
   assert.equal(reviewed.body.shelfPosition, 1)
+})
+
+test('a book keeps its place when it moves between Reading, Read and Did Not Finish', async () => {
+  await call('PUT', '/api/my-books/order', { bookIds: ['b08', 'b01'] })
+  const read = await call('PATCH', '/api/my-books/b08', { status: 'read' })
+  assert.equal(read.body.shelfPosition, 0)
+  const dnf = await call('PATCH', '/api/my-books/b01', { status: 'did-not-finish' })
+  assert.equal(dnf.body.shelfPosition, 1)
 })
 
 test('rejects a bad shelf order', async () => {

@@ -27,13 +27,19 @@ live site stays in demo mode until the API is deployed.
 - **My Books.** Your collection sorted into Currently Reading, Want to Read, Read
   and Did Not Finish. Change a book's status, update your page, rate it, review
   it, or remove it
-- **Library Room.** A full-screen 3D diorama of a reading room: a round window,
-  a tall bookcase with one shelf per reading status, and your books on it with
-  their titles on the spines. Click a book and it slides off the shelf and opens
-  into a two-page spread, the book on the left and your notes on the right; close
-  it and it goes back. **Edit room** lets you change the colours and furnish the
-  room (desk, rocking chair, globe, dresser, lanterns and more), dragging each
-  piece across the floor. Everything you arrange is saved
+- **Library Room.** A 3D diorama of a reading room, filling the window below the
+  navigation bar: a round window, and every book you have started (reading,
+  read, or set aside) standing on the shelves in your own order, titles on the
+  spines, like a real bookcase. Click a book and it slides off the shelf and
+  opens into a two-page spread, the book on the left and your notes on the
+  right. **Edit room** opens a shop and lets you arrange the room: put a cart
+  together from bookshelves, wallpaper, floors, tables, chairs, lamps, rugs and
+  decorations, each shown as a picture of the real thing, and pay for it in
+  Ember. Drag furniture across the floor, turn it, or put it in storage.
+  Everything is saved
+- **Ember.** Emberary's currency, earned by reading: a daily check-in, reading
+  20 pages in a day, every 50 pages of a book, and finishing a book. The wallet
+  in the navigation bar shows the balance and how to earn more
 - **Profile.** Your profile, and insights worked out from your shelves: counts,
   average rating, favourite genres and authors, a ring chart of your yearly goal
   and monthly activity
@@ -175,29 +181,40 @@ the mock.
 | `GET /api/books/:id` | One catalogue book |
 | `GET /api/my-books` | Your shelves, newest change first, each entry with its book |
 | `GET /api/my-books/:bookId` | One entry on your shelves |
-| `POST /api/my-books` | Add `{ bookId, status }`. `status` defaults to `want-to-read` |
-| `PATCH /api/my-books/:bookId` | Change any of `status`, `currentPage`, `rating`, `review`, `shelfPosition` |
-| `PUT /api/my-books/order` | Save one shelf's left-to-right order: `{ bookIds: [...] }` |
+| `POST /api/my-books` | Add `{ bookId, status }`. `status` defaults to `want-to-read`. The reply includes `rewards` |
+| `PATCH /api/my-books/:bookId` | Change any of `status`, `currentPage`, `rating`, `review`, `shelfPosition`. The reply includes `rewards`: the Ember this save earned |
+| `PUT /api/my-books/order` | Save the order of the books on the shelves: `{ bookIds: [...] }` |
 | `DELETE /api/my-books/:bookId` | Take a book off your shelves |
 | `GET /api/stats` | Counts by status, average rating, pages read, top genres and authors, books finished per month |
 | `GET /api/recommendations?limit=4` | Books you do not own, scored against what you read and rated |
 | `GET /api/profile` · `PATCH /api/profile` | `displayName`, `bio`, `yearlyGoal` |
-| `GET /api/room` | The Library Room: its colours and every item in it |
-| `PATCH /api/room` | Change any of `wallColor`, `floorColor`, `shelfColor` |
-| `POST /api/room/items` | Add `{ kind, x?, z?, rotation? }`. Without a placement it appears mid-floor |
-| `PATCH /api/room/items/:id` | Move or turn an item: any of `x`, `z`, `rotation` |
-| `DELETE /api/room/items/:id` | Take an item out of the room |
+| `GET /api/room` | The Library Room: colours, `wallpaper`, `floor`, the finishes you own (`unlocks`) and every item, placed or stored |
+| `PATCH /api/room` | Change any of `wallColor`, `floorColor`, `shelfColor`, and a `wallpaper` or `floor` you own |
+| `PATCH /api/room/items/:id` | Move, turn, store or place an item: any of `x`, `z`, `rotation`, `placed` |
+| `POST /api/shop/checkout` | Buy a cart, `{ items: [catalogue id, ...] }`, all or nothing. 409 if you cannot afford it |
+| `GET /api/ember` | Your balance, today's check-in and pages, the earning rules, and recent history |
+| `POST /api/ember/check-in` | The daily check-in. 409 if already claimed today |
 
 The statuses are `currently-reading`, `want-to-read`, `read` and
 `did-not-finish`. Marking a book Read moves it to its last page and records when
-it was finished, which is what the activity chart counts. A book that changes
-status moves to the end of its new shelf.
+it was finished, which is what the activity chart counts. Every started book is
+on the Library Room shelves; one that joins them from Want to Read goes to the
+end, and moving between the other statuses keeps its place.
 
-Room item kinds are `rug`, `plant`, `lamp`, `armchair`, `side-table`,
-`cushion`, `desk`, `rocking-chair`, `globe`, `dresser` and `lantern`, at most 30
-per room. The floor is 5 by 5 metres centred on 0: `x` runs from -2.2 (the window
-wall) to 2.2, and `z` from -2.2 (the bookcase wall) to 2.2; `rotation` is whole
-degrees from 0 to 359.
+What the shop sells, and its prices, are in `server/catalog.js` (kept identical
+to `client/src/api/catalog.js`, and a test checks they match). A room holds 30
+things at once and a reader owns at most 60; the rest wait in storage, and
+nothing bought is ever deleted. The floor is 5 by 5 metres centred on 0: `x`
+runs from -2.2 (the window wall) to 2.2, and `z` from -2.2 (the bookcase wall) to
+2.2; `rotation` is whole degrees from 0 to 359.
+
+**Ember.** Every Ember earned or spent is a row in `ember_ledger`, and the balance
+is their sum. One-off rewards (the welcome gift, a daily check-in, a daily goal,
+a finished book) have a unique index, so they cannot be paid twice, even by
+removing a book and adding it again. Page rewards are counted against what that
+book has already earned, so paging back and forth earns nothing. Rewards and
+purchases happen inside a transaction with the rows they depend on locked.
+"Today" is in `APP_TIMEZONE` (Asia/Manila by default).
 
 Every book includes `coverUrl`, the link to its real cover, or `null` when none
 was found.
@@ -213,6 +230,7 @@ placeholder values.
 | `CORS_ORIGINS` | server | comma-separated origins allowed to call the API |
 | `NODE_ENV` | server | `production` on your host |
 | `PORT` | server | **set by the host**, do not set it yourself |
+| `APP_TIMEZONE` | server, optional | when "today" starts for the daily check-in and reading goal; `Asia/Manila` if unset |
 | `GOOGLE_BOOKS_API_KEY` | server `.env`, your laptop only | used only by `npm run covers:fetch`; the API does not need it, so do not set it on the host |
 | `VITE_USE_MOCK_API` | client, at build time | only `false` turns demo mode off; unset means on |
 | `VITE_API_BASE_URL` | client, at build time | your API's public URL, no trailing slash |
@@ -250,17 +268,23 @@ setup only, because the catalogue of books lives there. It starts with
         seed.json    demo books, reading history, profile and room
       src/pages/     Home, Discover, Library Room, My Books, Profile
       src/components/  shared pieces: BookCard, BookCover, BookTile, BookEditForm...
-        room/        the 3D diorama (LibraryScene), its furniture (models) and
-                     canvas-drawn spines and floor (textures), the opening book
-                     (BookModal) and the edit panel (RoomCustomizer)
+        room/        the 3D diorama (LibraryScene), its furniture and bookcases
+                     (models), canvas-drawn spines, wallpapers and floors
+                     (textures), the shop's pictures of each piece (thumbnails),
+                     the opening book (BookModal) and the shop and edit panel
+                     (RoomCustomizer)
+        EmberBadge   the wallet in the navigation bar
+      src/api/catalog.js  what the shop sells and what Ember is earned for
       src/hooks/     useAsync, the loading/error/ready state every screen uses;
-                     useRoomSaver, which saves room changes after a pause
+                     useRoomSaver, which saves room changes after a pause;
+                     useEmber, the wallet kept up to date
     server/          Express API
       app.js         every route, built without listening so tests can run it
       server.js      reads the environment and starts app.js
       validation.js  the same input rules as mockApi.js
+      catalog.js     the shop and the Ember rules (identical to the client's)
       repos/         the SQL, one file per area: books, myBooks, insights,
-                     profile, room
+                     profile, room (and the shop's checkout), ember
       db/            pool, schema.sql, seed.sql and a runner for them;
                      local.js (npm run db:local), build-seed.js and
                      fetch-covers.js (npm run covers:fetch)

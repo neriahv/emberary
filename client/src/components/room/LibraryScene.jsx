@@ -2,16 +2,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { MeshStandardMaterial, Plane, Vector3 } from 'three'
-import { STATUSES, STATUS_LABELS, ROOM_ITEM_LABELS, ROOM_BOUNDS } from '../../api'
-import { MODELS, Shadowed } from './models.jsx'
-import { plankTexture, skyTexture, spineTexture } from './textures.js'
+import { ROOM_BOUNDS, SHELVED_STATUSES, catalogEntry } from '../../api'
+import { BOOKCASES, BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, shelfLevels } from './models.jsx'
+import { floorTexture, skyTexture, spineTexture, wallpaperTexture } from './textures.js'
 
 // The 3D Library Room: a cut-away diorama seen from above one corner, like a
 // dollhouse. Two walls meet at the back: the window wall on the left (x = -2.5)
 // and the bookcase wall on the right (z = -2.5). The open sides face the viewer.
 //
-// The tall bookcase has a shelf per reading status, top to bottom, so where a
-// book sits tells you where you are with it. Units are roughly metres.
+// Every book the reader has started (reading, read, or set aside) stands on
+// the shelves, in the order they arranged it, like a real bookcase: the
+// built-in one first, then any bookcases they bought. Want to Read books are
+// not on the shelves yet. Units are roughly metres.
 
 const HALF = 2.5 // the floor runs -HALF..HALF on x and z
 const WALL_HEIGHT = 3
@@ -22,16 +24,11 @@ const BACKDROP = '#d9764f'
 // every frame, and a room with thirty lanterns should still turn smoothly.
 const MAX_ITEM_LIGHTS = 4
 
-// The status bookcase, against the right-hand wall.
-const CASE = { x: 1.05, width: 2.3, height: 2.8, depth: 0.42 }
-CASE.z = -HALF + CASE.depth / 2 + 0.02
-const SHELF_BASE = 0.16 // height of the lowest shelf board
-const SHELF_GAP = 0.64
-const INNER_WIDTH = CASE.width - 0.14
+// The built-in bookcase, against the right-hand wall.
+const MAIN = BOOKCASES.main
+const MAIN_AT = [1.05, 0, -HALF + MAIN.depth / 2 + 0.02]
 // How far a book slides towards you when it is opened.
 const PULL = 0.34
-
-const shelfY = (status) => SHELF_BASE + (STATUSES.length - 1 - STATUSES.indexOf(status)) * SHELF_GAP
 
 // Thicker books for longer books, taller for older ones, so a shelf does not
 // look like a row of identical bricks.
@@ -41,12 +38,12 @@ function bookSize(book) {
   return [thickness, height, 0.3]
 }
 
-// One shelf's books, left to right. Books the reader has arranged come first,
-// in their saved order; the rest follow in the order they were added, so a new
-// book appears at the right-hand end rather than shuffling the shelf.
-export function shelfOrder(entries, status) {
+// The books on the shelves, first to last. Books the reader has arranged come
+// first, in their saved order; the rest follow in the order they were added,
+// so a newly started book appears at the end rather than shuffling the rest.
+export function shelfOrder(entries) {
   return entries
-    .filter((e) => e.status === status)
+    .filter((e) => SHELVED_STATUSES.includes(e.status))
     .sort(
       (a, b) =>
         (a.shelfPosition ?? Infinity) - (b.shelfPosition ?? Infinity) ||
@@ -55,23 +52,35 @@ export function shelfOrder(entries, status) {
     )
 }
 
-// Lay each shelf's books left to right. Anything that does not fit is left
-// off and counted, rather than drawn through the side of the bookcase.
-export function layoutShelves(entries) {
-  const shelves = Object.fromEntries(STATUSES.map((s) => [s, { placed: [], hidden: 0 }]))
-  for (const status of STATUSES) {
-    let x = -INNER_WIDTH / 2
-    for (const entry of shelfOrder(entries, status)) {
-      const size = bookSize(entry.book)
-      if (x + size[0] > INNER_WIDTH / 2) {
-        shelves[status].hidden += 1
-        continue
+// The bookcases, in the order books fill them: the built-in one, then every
+// bought bookcase standing in the room, oldest first.
+export function bookcasesIn(room) {
+  const bought = room.items.filter((i) => i.placed && MODELS[i.kind]?.spec)
+  return [{ id: 'main', spec: MAIN }, ...bought.map((i) => ({ id: i.id, spec: MODELS[i.kind].spec }))]
+}
+
+// Fill the shelves: left to right along each shelf, top shelf to bottom, one
+// bookcase after another. Returns each bookcase's books, and how many did not
+// fit anywhere (the room says so, rather than drawing them through a wall).
+export function layoutBookcases(entries, cases) {
+  const placed = Object.fromEntries(cases.map((c) => [c.id, []]))
+  const queue = shelfOrder(entries)
+  let next = 0
+  for (const { id, spec } of cases) {
+    const width = innerWidth(spec)
+    for (const y of shelfLevels(spec)) {
+      let x = -width / 2
+      while (next < queue.length) {
+        const entry = queue[next]
+        const size = bookSize(entry.book)
+        if (x + size[0] > width / 2) break
+        placed[id].push({ entry, size, x: x + size[0] / 2, y })
+        x += size[0] + 0.006
+        next += 1
       }
-      shelves[status].placed.push({ entry, size, x: x + size[0] / 2 })
-      x += size[0] + 0.006
     }
   }
-  return shelves
+  return { placed, overflow: queue.length - next }
 }
 
 // Ease `current` towards `target`; true while there is still somewhere to go.
@@ -154,62 +163,29 @@ function Book({ entry, size, x, y, selected, interactive, onSelect }) {
   )
 }
 
-function Bookcase({ entries, color, selectedId, interactive, onSelect }) {
-  const shelves = layoutShelves(entries)
-  const { width, height, depth } = CASE
-
+// A bookcase and the reader's books on it. Used for the built-in one and for
+// every bookcase the reader bought.
+function Bookcase({ spec, books, color, selectedId, interactive, onSelect }) {
   return (
-    <group position={[CASE.x, 0, CASE.z]}>
+    <>
       <Shadowed>
-        <mesh position={[0, height / 2, -depth / 2 + 0.015]}>
-          <boxGeometry args={[width, height, 0.03]} />
-          <meshStandardMaterial color={color} roughness={0.9} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={side} position={[(side * (width - 0.07)) / 2, height / 2, 0]}>
-            <boxGeometry args={[0.07, height, depth]} />
-            <meshStandardMaterial color={color} roughness={0.75} />
-          </mesh>
-        ))}
-        <mesh position={[0, height + 0.03, 0.01]}>
-          <boxGeometry args={[width + 0.1, 0.07, depth + 0.04]} />
-          <meshStandardMaterial color={color} roughness={0.7} />
-        </mesh>
-        {STATUSES.map((status) => (
-          <mesh key={status} position={[0, shelfY(status) - 0.02, 0]}>
-            <boxGeometry args={[width - 0.07, 0.04, depth]} />
-            <meshStandardMaterial color={color} roughness={0.75} />
-          </mesh>
-        ))}
+        <BookcaseFrame spec={spec} color={color} />
       </Shadowed>
-
-      {STATUSES.map((status) => {
-        const { placed, hidden } = shelves[status]
-        return (
-          <group key={status} position={[0, 0, -depth / 2 + 0.03 + 0.15]}>
-            {/* On the shelf's front edge, at the right-hand end. */}
-            <Html zIndexRange={[4, 0]} position={[width / 2 - 0.08, shelfY(status) - 0.03, depth / 2 - 0.03]}>
-              <span className="shelf-label">
-                {STATUS_LABELS[status]}
-                {hidden > 0 && ` (+${hidden} more)`}
-              </span>
-            </Html>
-            {placed.map(({ entry, size, x }) => (
-              <Book
-                key={entry.bookId}
-                entry={entry}
-                size={size}
-                x={x}
-                y={shelfY(status)}
-                selected={entry.bookId === selectedId}
-                interactive={interactive}
-                onSelect={onSelect}
-              />
-            ))}
-          </group>
-        )
-      })}
-    </group>
+      <group position={[0, 0, bookRowZ(spec)]}>
+        {books.map(({ entry, size, x, y }) => (
+          <Book
+            key={entry.bookId}
+            entry={entry}
+            size={size}
+            x={x}
+            y={y}
+            selected={entry.bookId === selectedId}
+            interactive={interactive}
+            onSelect={onSelect}
+          />
+        ))}
+      </group>
+    </>
   )
 }
 
@@ -305,9 +281,12 @@ function RoundWindow() {
   )
 }
 
-function RoomShell({ wallColor, floorColor }) {
+// The walls and floor, in the reader's colours and whatever wallpaper and
+// floor they have put down. The patterns are pale, so the colour tints them.
+function RoomShell({ wallColor, floorColor, wallpaper, floor }) {
   const trim = '#5a2f17'
-  const planks = plankTexture()
+  const floorMap = floorTexture(floor)
+  const wallMap = wallpaperTexture(wallpaper)
   const span = HALF * 2 + WALL
 
   return (
@@ -319,7 +298,7 @@ function RoomShell({ wallColor, floorColor }) {
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
         <planeGeometry args={[HALF * 2, HALF * 2]} />
-        <meshStandardMaterial color={floorColor} map={planks} roughness={0.8} />
+        <meshStandardMaterial key={floor} color={floorColor} map={floorMap} roughness={0.8} />
       </mesh>
       {/* a thin dark edge along the slab's top, as on a diorama base */}
       <mesh position={[HALF, 0.005, -WALL / 2]}>
@@ -335,11 +314,11 @@ function RoomShell({ wallColor, floorColor }) {
         {/* window wall (left) and bookcase wall (right) */}
         <mesh position={[-HALF - WALL / 2, WALL_HEIGHT / 2, -WALL / 2]}>
           <boxGeometry args={[WALL, WALL_HEIGHT, span]} />
-          <meshStandardMaterial color={wallColor} roughness={0.95} />
+          <meshStandardMaterial key={wallpaper} color={wallColor} map={wallMap} roughness={0.95} />
         </mesh>
         <mesh position={[-WALL / 2, WALL_HEIGHT / 2, -HALF - WALL / 2]}>
           <boxGeometry args={[span, WALL_HEIGHT, WALL]} />
-          <meshStandardMaterial color={wallColor} roughness={0.95} />
+          <meshStandardMaterial key={wallpaper} color={wallColor} map={wallMap} roughness={0.95} />
         </mesh>
       </Shadowed>
       {/* wooden caps along the top of both walls */}
@@ -374,10 +353,12 @@ const floorPlane = new Plane(new Vector3(0, 1, 0), 0)
 const hit = new Vector3()
 const clamp = (value, [min, max]) => Math.round(Math.min(max, Math.max(min, value)) * 100) / 100
 
-function RoomItem({ item, lit, editing, selected, onSelect, onChange }) {
+// One piece of furniture. A bookcase also carries its share of the reader's
+// books (`shelf`), which can be clicked like any others.
+function RoomItem({ item, lit, editing, selected, onSelect, onChange, shelf }) {
   const [hovered, setHovered] = useState(false)
   const drag = useRef(null)
-  const { Model, radius } = MODELS[item.kind] ?? MODELS.cushion
+  const { Model, radius, height, spec } = MODELS[item.kind] ?? MODELS.cushion
 
   // In edit mode an item can be picked up and slid across the floor. The
   // pointer is captured so the drag keeps working when it leaves the item.
@@ -419,9 +400,13 @@ function RoomItem({ item, lit, editing, selected, onSelect, onChange }) {
 
   return (
     <group position={[item.x, 0, item.z]} rotation={[0, (item.rotation * Math.PI) / 180, 0]} {...handlers}>
-      <Shadowed>
-        <Model lit={lit} />
-      </Shadowed>
+      {spec ? (
+        <Bookcase spec={spec} {...shelf} />
+      ) : (
+        <Shadowed>
+          <Model lit={lit} />
+        </Shadowed>
+      )}
       {editing && (selected || hovered) && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
           <ringGeometry args={[radius, radius + 0.05, 48]} />
@@ -429,8 +414,8 @@ function RoomItem({ item, lit, editing, selected, onSelect, onChange }) {
         </mesh>
       )}
       {editing && hovered && !selected && (
-        <Html zIndexRange={[4, 0]} position={[0, 1.2, 0]} center className="room-tooltip">
-          {ROOM_ITEM_LABELS[item.kind]}
+        <Html zIndexRange={[4, 0]} position={[0, Math.max(height + 0.25, 0.9), 0]} center className="room-tooltip">
+          {catalogEntry(item.kind)?.name}
         </Html>
       )}
     </group>
@@ -482,9 +467,19 @@ export default function LibraryScene({
   onSelectItem,
   onItemChange,
 }) {
+  // Stored furniture is not in the room at all.
+  const items = room.items.filter((i) => i.placed)
   const lights = new Set(
-    room.items.filter((i) => MODELS[i.kind]?.light).slice(0, MAX_ITEM_LIGHTS).map((i) => i.id)
+    items.filter((i) => MODELS[i.kind]?.light).slice(0, MAX_ITEM_LIGHTS).map((i) => i.id)
   )
+  const { placed: shelved } = layoutBookcases(entries, bookcasesIn(room))
+  const shelfProps = (id) => ({
+    books: shelved[id] ?? [],
+    color: room.shelfColor,
+    selectedId: selectedBookId,
+    interactive: !editing,
+    onSelect: onSelectBook,
+  })
 
   return (
     <Canvas
@@ -512,17 +507,18 @@ export default function LibraryScene({
         shadow-normalBias={0.02}
       />
 
-      <RoomShell wallColor={room.wallColor} floorColor={room.floorColor} />
-      <DecorBookcase color={room.shelfColor} />
-      <Bookcase
-        entries={entries}
-        color={room.shelfColor}
-        selectedId={selectedBookId}
-        interactive={!editing}
-        onSelect={onSelectBook}
+      <RoomShell
+        wallColor={room.wallColor}
+        floorColor={room.floorColor}
+        wallpaper={room.wallpaper}
+        floor={room.floor}
       />
+      <DecorBookcase color={room.shelfColor} />
+      <group position={MAIN_AT}>
+        <Bookcase spec={MAIN} {...shelfProps('main')} />
+      </group>
 
-      {room.items.map((item) => (
+      {items.map((item) => (
         <RoomItem
           key={item.id}
           item={item}
@@ -531,6 +527,7 @@ export default function LibraryScene({
           selected={item.id === selectedItemId}
           onSelect={onSelectItem}
           onChange={onItemChange}
+          shelf={shelfProps(item.id)}
         />
       ))}
     </Canvas>

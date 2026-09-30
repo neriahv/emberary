@@ -20,22 +20,17 @@ export const USING_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const implementation = USING_MOCK_API ? mockApi : httpApi
 
 export const STATUSES = mockApi.STATUSES
-export const ROOM_ITEM_KINDS = mockApi.ROOM_ITEM_KINDS
 export const ROOM_BOUNDS = mockApi.ROOM_BOUNDS
+export {
+  CATALOG,
+  SHOP_CATEGORIES,
+  EMBER_RULES,
+  MAX_PLACED_ITEMS,
+  catalogEntry,
+} from './catalog.js'
 
-export const ROOM_ITEM_LABELS = {
-  rug: 'Rug',
-  plant: 'Plant',
-  lamp: 'Reading lamp',
-  armchair: 'Armchair',
-  'side-table': 'Side table',
-  cushion: 'Floor cushion',
-  desk: 'Writing desk',
-  'rocking-chair': 'Rocking chair',
-  globe: 'Globe',
-  dresser: 'Dresser',
-  lantern: 'Lantern',
-}
+// Books on the Library Room shelves: every one the reader has started.
+export const SHELVED_STATUSES = ['currently-reading', 'read', 'did-not-finish']
 
 export const STATUS_LABELS = {
   'currently-reading': 'Currently Reading',
@@ -48,8 +43,6 @@ export const {
   listBooks,
   getBook,
   listMyBooks,
-  addToCollection,
-  updateMyBook,
   removeFromCollection,
   reorderShelf,
   getReadingStats,
@@ -58,10 +51,43 @@ export const {
   updateProfile,
   getRoom,
   updateRoom,
-  addRoomItem,
   updateRoomItem,
-  removeRoomItem,
+  getEmber,
 } = implementation
+
+// Anything that can change the Ember balance tells the page, so the wallet in
+// the header can refresh itself without every screen knowing it exists.
+const EMBER_CHANGED = 'emberary:ember-changed'
+
+export function onEmberChange(listener) {
+  window.addEventListener(EMBER_CHANGED, listener)
+  return () => window.removeEventListener(EMBER_CHANGED, listener)
+}
+
+const announcing =
+  (call) =>
+  async (...args) => {
+    const result = await call(...args)
+    window.dispatchEvent(new Event(EMBER_CHANGED))
+    return result
+  }
+
+export const addToCollection = announcing(implementation.addToCollection)
+export const updateMyBook = announcing(implementation.updateMyBook)
+export const checkout = announcing(implementation.checkout)
+export const checkIn = announcing(implementation.checkIn)
+
+// "+15 Ember for finishing the book", from the `rewards` a save returns.
+const REWARD_REASONS = {
+  'book-finished': 'finishing the book',
+  'pages-read': 'pages read',
+  'daily-goal': "reaching today's reading goal",
+  'daily-check-in': 'checking in today',
+  welcome: 'joining Emberary',
+}
+
+export const describeRewards = (rewards = []) =>
+  rewards.map((r) => `+${r.amount} Ember for ${REWARD_REASONS[r.reason] ?? r.reason}`).join(', ')
 
 // Demo only. Undefined when the real API is in use, so check before calling.
 export const resetDemo = USING_MOCK_API ? mockApi.resetDemo : undefined

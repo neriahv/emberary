@@ -30,6 +30,18 @@ export async function list(pool, readerId) {
   return result.rows
 }
 
+// The status and page of one entry, locked until the transaction ends, so the
+// Ember earned by one save is settled before the next save of the same book
+// reads it. `db` must be a client inside a transaction.
+export async function lock(db, readerId, bookId) {
+  const result = await db.query(
+    `SELECT status, current_page AS "currentPage" FROM user_books
+     WHERE reader_id = $1 AND book_id = $2 FOR UPDATE`,
+    [readerId, bookId]
+  )
+  return result.rows[0] ?? null
+}
+
 export async function get(pool, readerId, bookId) {
   const result = await pool.query(
     `SELECT ${ENTRY_COLUMNS}
@@ -70,8 +82,9 @@ export async function add(pool, readerId, bookId, status) {
 //   - marking a book Read moves it to its last page
 //   - finished_at is stamped when a book becomes Read and cleared when it
 //     stops being Read, so the activity chart counts it in the right month
-//   - a book that changes status moves to a different Library Room shelf, so
-//     its old shelf_position means nothing there; it goes to the end instead
+//   - a book that joins or leaves the Library Room's shelves (Want to Read is
+//     not on them) loses its old shelf_position, so it arrives at the end;
+//     moving between Currently Reading, Read and Did Not Finish keeps its place
 export async function update(pool, readerId, bookId, patch) {
   const result = await pool.query(
     `WITH updated AS (
@@ -82,7 +95,8 @@ export async function update(pool, readerId, bookId, patch) {
          rating         = CASE WHEN $5::boolean THEN $6::int ELSE ub.rating END,
          review         = COALESCE($7::text, ub.review),
          shelf_position = CASE WHEN $8::boolean THEN $9::int
-                               WHEN $3::text IS NOT NULL AND $3::text <> ub.status THEN NULL
+                               WHEN $3::text IS NOT NULL AND $3::text <> ub.status
+                                    AND 'want-to-read' IN ($3::text, ub.status) THEN NULL
                                ELSE ub.shelf_position END,
          finished_at    = CASE WHEN $3::text IS NULL OR $3::text = ub.status THEN ub.finished_at
                                WHEN $3::text = 'read' THEN now()

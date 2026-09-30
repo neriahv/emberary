@@ -42,8 +42,11 @@ they've added a single book.
 ![Library Room, phone](assets/mockup-library-room-mobile.png)
 ![Library Room, empty state](assets/mockup-library-room-empty.png)
 
-Full-screen, not inside the site's usual page shell: a round window, one
-bookcase shelf per reading status, and the furniture the reader has placed.
+The room fills the whole window below the navigation bar, which stays in place
+so the reader can move to any other screen straight from the room: a round
+window, the reader's started books standing on the shelves in their own order,
+and the furniture the reader has bought and placed. The Ember balance sits in
+the navigation bar and at the top of the room.
 The empty state (above) is the room with no books and no furniture — the
 shelves and the round window are the only things a brand new reader sees.
 
@@ -57,6 +60,12 @@ actually works:
 - **Edit room** turns on a mode where furniture can be picked up and dragged
   across the floor directly, not only moved with the sliders visible once an
   item is selected.
+
+![Library Room shop, with a cart](assets/mockup-library-room-shop.png)
+
+The shop in **Edit room**: categories across the top, a picture of each piece
+(a photo of the actual 3D model), and a cart that totals the price in Ember and
+says how much more is needed when the reader cannot afford it yet.
 
 ## Honest note
 
@@ -85,10 +94,10 @@ and a few things in the built app go further than the wireframes planned:
   reading goal (which the wireframe didn't have at all).
 - **Grew beyond the wireframe.** The Library Room itself: the wireframe
   showed a small diagram inside the ordinary page layout. The built room is a
-  full-screen diorama modelled on a reference photo, with a round window,
-  cut-away walls, warm lighting, and real books whose spines carry their own
-  titles.
-- **Known, minor, not fixed.** On a narrow phone, the Library Room's
-  **Leave room** / **Edit room** buttons wrap onto two rows with an
-  oversized gap beneath them (visible in the phone screenshot above). It
-  doesn't block anything — both buttons still work — but it's not tidy.
+  diorama filling the whole window below the navigation bar, modelled on a
+  reference photo, with a round window, cut-away walls, warm lighting, and
+  real books whose spines carry their own titles.
+- **Changed during the build.** The room first opened as its own full-screen
+  view over the navigation bar, with a **Leave room** button to get back out.
+  That was replaced: the room now opens under the navigation bar like every
+  other page, so the nav bar is the way out and the extra button is gone.

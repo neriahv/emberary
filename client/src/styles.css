@@ -133,6 +133,52 @@ a { color: var(--accent); }
 }
 .brand-mark { color: var(--accent); margin-right: var(--space-2); }
 
+/* The Ember wallet sits beside the brand; the nav keeps the right-hand side. */
+.ember-wallet { position: relative; display: flex; align-items: center; gap: var(--space-2); margin-right: auto; }
+.ember-icon { width: 1em; height: 1em; fill: currentColor; flex: none; }
+.ember-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px var(--space-3);
+  font-weight: 700;
+}
+.ember-badge:hover { border-color: var(--accent); filter: none; }
+.ember-badge.is-gaining { animation: ember-gain 1.2s ease-out; }
+@keyframes ember-gain {
+  0% { box-shadow: 0 0 0 0 rgb(240 138 93 / 0.8); transform: scale(1); }
+  30% { transform: scale(1.12); }
+  100% { box-shadow: 0 0 0 12px rgb(240 138 93 / 0); transform: scale(1); }
+}
+.ember-claim { padding: 2px var(--space-3); border-radius: 999px; }
+.ember-popover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 30;
+  width: min(19rem, calc(100vw - 2rem));
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.2);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+}
+.ember-popover h3 { font-size: var(--text-sm); margin: var(--space-3) 0 var(--space-1); }
+.ember-popover-balance { display: flex; align-items: center; gap: var(--space-1); margin: 0; font-size: var(--text-lg); color: var(--accent); }
+.ember-popover-today, .ember-popover-spend { margin: var(--space-1) 0 0; }
+.ember-rules, .ember-history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.ember-rules li, .ember-history li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.ember-rules strong, .is-earned { color: var(--status-reading); }
+.is-spent { color: var(--danger); }
+.reward-note { color: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .ember-badge.is-gaining, .item-thumb-wait { animation: none; } }
+
 .nav-links {
   display: flex;
   flex-wrap: wrap;
@@ -440,13 +486,14 @@ button.book-card-select:hover .book-card-title { color: var(--accent); }
 
 /* ------------------------------------------------------------------ library room */
 
-/* The room covers the whole window, over the site's header, like a game. */
+/* The room fills the window below the site's header, like a game, while the
+   navigation bar stays usable above it. --header-height is set by Layout.jsx. */
 body.room-open { overflow: hidden; }
 
 .room-screen {
   position: fixed;
-  inset: 0;
-  z-index: 50;
+  inset: var(--header-height, 3.5rem) 0 0 0;
+  z-index: 4; /* under the sticky header (5), over the page behind */
   background: radial-gradient(ellipse at 50% 45%, #e38a60, #c9643f 75%);
   color: #fff8ef;
 }
@@ -488,6 +535,18 @@ body.room-open { overflow: hidden; }
 .hud-edit { background: #fff1dc; color: #5a2a14; border-color: transparent; }
 .hud-edit:hover { background: #ffffff; }
 .hud-edit[aria-pressed='true'] { background: #3f7a4a; color: #fff; }
+.hud-ember { display: inline-flex; align-items: center; gap: var(--space-1); }
+.hud-ember .ember-icon { fill: #ffb070; }
+.hud-notice {
+  flex-basis: 100%;
+  margin: 0;
+  width: fit-content;
+  font-size: var(--text-sm);
+  background: rgb(28 18 12 / 0.7);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+}
+.hud-notice .button-link { color: #fff1dc; }
 .hud-select { max-width: min(22rem, 70vw); padding-right: var(--space-3); }
 .hud-select option { color: #2a1f1a; }
 .hud-label { color: #fff8ef; font-size: var(--text-md); font-weight: 700; text-shadow: 0 1px 3px rgb(0 0 0 / 0.35); }
@@ -501,7 +560,7 @@ body.room-open { overflow: hidden; }
   top: 4rem;
   right: var(--space-4);
   bottom: var(--space-4);
-  width: min(22rem, calc(100vw - 2rem));
+  width: min(25rem, calc(100vw - 2rem));
   overflow-y: auto;
   background: var(--card);
   color: var(--fg);
@@ -526,19 +585,6 @@ body.room-open { overflow: hidden; }
   pointer-events: none;
 }
 
-.shelf-label {
-  display: inline-block;
-  color: #fff8ef;
-  background: rgb(20 14 10 / 0.6);
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 0 var(--space-1);
-  border-radius: 2px;
-  white-space: nowrap;
-  pointer-events: none;
-  transform: translate(-100%, -50%);
-}
-
 .customizer fieldset { border: none; padding: 0; margin: 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .customizer legend { font-weight: 700; margin-bottom: var(--space-2); padding: 0; }
 .color-field, .check-field { display: flex; align-items: center; gap: var(--space-3); color: var(--fg); font-size: var(--text-md); }
@@ -546,9 +592,111 @@ body.room-open { overflow: hidden; }
 .check-field input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
 .save-state { min-height: 1.5em; margin: 0; font-size: var(--text-sm); }
 
-.item-add { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
-.item-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.item-list button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+/* The drawer's two tabs, and the balance beside them. */
+.drawer-tabs { display: flex; align-items: center; gap: var(--space-1); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
+.drawer-tab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+}
+.drawer-tab[aria-selected='true'] { color: var(--accent); border-bottom-color: var(--accent); }
+.drawer-tab:hover { filter: none; color: var(--fg); }
+.drawer-balance { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 700; color: var(--accent); }
+
+/* Pictures of furniture and swatches of finishes. */
+.item-thumb, .finish-swatch {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: var(--radius-sm);
+  background: radial-gradient(circle at 50% 40%, #fff8ef, #f1e2cf);
+  overflow: hidden;
+}
+.item-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.item-thumb-wait { width: 40%; height: 40%; border-radius: 50%; background: var(--line); animation: thumb-wait 1s ease-in-out infinite alternate; }
+@keyframes thumb-wait { from { opacity: 0.4; } to { opacity: 1; } }
+.finish-swatch { background-size: 4.5rem auto; background-repeat: repeat; border: 1px solid var(--line); }
+.thumbnail-studio { position: fixed; left: -10000px; top: 0; pointer-events: none; }
+
+.price { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; color: var(--accent); font-size: var(--text-sm); }
+
+/* The shop. */
+.shop-categories { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-3); }
+.chip {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.shop-grid { list-style: none; padding: 0; margin: 0 0 var(--space-4); display: grid; gap: var(--space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+}
+.shop-card .item-thumb, .shop-card .finish-swatch { width: 100%; height: 6.5rem; }
+.shop-card-name { font-weight: 700; font-size: var(--text-sm); line-height: 1.25; }
+.shop-card button { width: 100%; }
+.shop-card-owned { font-size: var(--text-sm); color: var(--muted); padding: var(--space-1) 0; }
+
+/* The cart stays in view at the bottom of the drawer while browsing. */
+.cart {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 16px rgb(0 0 0 / 0.06);
+}
+.cart h3 { margin: 0 0 var(--space-2); }
+.cart-empty { margin: 0; font-size: var(--text-sm); }
+.cart-lines { list-style: none; padding: 0; margin: 0 0 var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); max-height: 11rem; overflow-y: auto; }
+.cart-lines li { display: flex; align-items: center; gap: var(--space-2); }
+.cart-lines .item-thumb, .cart-lines .finish-swatch { width: 2.25rem; height: 2.25rem; }
+.cart-line-name { flex: 1; font-size: var(--text-sm); }
+.cart-remove { font-size: 1.2rem; line-height: 1; text-decoration: none; color: var(--muted); padding: 0 var(--space-1); }
+.cart-total { display: flex; justify-content: space-between; align-items: center; margin: 0; font-weight: 700; }
+.cart-after { margin: var(--space-1) 0 var(--space-2); font-size: var(--text-sm); }
+.cart-short { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--danger); }
+.cart-buy { width: 100%; }
+
+/* Arranging the room. */
+.finish-choices, .thumb-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.finish-choice, .thumb-choice {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  background: transparent;
+  color: var(--fg);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-1);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+.finish-choice .finish-swatch, .thumb-choice .item-thumb { width: 100%; height: 3.6rem; }
+.finish-choice[aria-pressed='true'], .thumb-choice[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+.thumb-choice.is-stored { opacity: 0.9; }
+.thumb-choice.is-stored button { width: 100%; }
 .customizer .hint { margin: 0; font-size: var(--text-sm); }
 .item-editor label { font-size: var(--text-sm); color: var(--muted); }
 .item-editor input[type='range'] { width: 100%; accent-color: var(--accent); }

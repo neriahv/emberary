@@ -7,7 +7,11 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .map((origin) => origin.trim())
   .filter(Boolean)
 
-const app = createApp(pool, { corsOrigins })
+// When "today" starts for the daily Ember check-in and reading goal. An IANA
+// name, such as Asia/Manila or Europe/London.
+const timezone = process.env.APP_TIMEZONE || 'Asia/Manila'
+
+const app = createApp(pool, { corsOrigins, timezone })
 
 // The host chooses the port and tells you through PORT. Hardcoding 3000 is the
 // commonest reason a first deploy is marked unhealthy and killed.

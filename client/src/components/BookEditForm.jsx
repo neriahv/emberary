@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { STATUSES, STATUS_LABELS, updateMyBook, removeFromCollection } from '../api'
+import { STATUSES, STATUS_LABELS, updateMyBook, removeFromCollection, describeRewards } from '../api'
 import StarRating from './StarRating.jsx'
 
 // The form that changes one book on your shelves: status, page, rating and
@@ -19,6 +19,7 @@ export default function BookEditForm({ entry, onSaved, onRemoved, heading = 'Upd
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [savedAt, setSavedAt] = useState(null)
+  const [earned, setEarned] = useState('')
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }))
   const showProgress = form.status === 'currently-reading' || form.status === 'did-not-finish'
@@ -47,6 +48,7 @@ export default function BookEditForm({ entry, onSaved, onRemoved, heading = 'Upd
         review: saved.review,
       })
       setSavedAt(Date.now())
+      setEarned(describeRewards(saved.rewards))
       onSaved?.(saved)
     } catch (caught) {
       setError(caught)
@@ -132,7 +134,7 @@ export default function BookEditForm({ entry, onSaved, onRemoved, heading = 'Upd
         </button>
         {savedAt && !dirty && (
           <span className="muted" role="status">
-            Saved.
+            Saved.{earned && <strong className="reward-note"> {earned}.</strong>}
           </span>
         )}
       </div>
