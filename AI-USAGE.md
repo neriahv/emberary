@@ -101,6 +101,65 @@ At least six entries. One per real use. Every entry needs a commit link.
   (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 
+### 2026-09-30 - Library Room shelves and furniture shop (Week 3)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** Three changes to the Library Room. Remove the shelf
+  labels ("Currently Reading", "Want to Read", …), because the room is meant to
+  display the books I have read or started, not sort them. Show a picture of
+  each piece of furniture instead of only its name. Replace "add furniture"
+  with a shop and a cart, with the categories I listed (bookshelves,
+  wallpaper, floor tiles, tables, chairs, lamps, rugs, decorations) and prices
+  based on my examples (chair 1 Ember, table 2, wallpaper 3, large bookshelf
+  10).
+- **What it gave back:**
+  - The shelves now hold only Currently Reading, Read and Did Not Finish books,
+    in one order with no labels. They fill the main bookcase, then any
+    bookcases I buy.
+  - `catalog.js`, the price list with 33 items in 8 categories, kept as
+    identical copies in `server/` and `client/src/api/`.
+  - Nine new 3D models in `models.jsx`, and new wallpaper and floor patterns
+    in `textures.js`.
+  - `thumbnails.jsx`, which takes a picture of each real 3D model for the shop
+    cards.
+  - `RoomCustomizer.jsx` rebuilt with Shop and Arrange tabs, a cart, and a
+    **Put in storage** option instead of delete.
+  - A `POST /api/shop/checkout` route that checks prices and the balance on
+    the server.
+- **What I kept, what I changed, and why:**
+  - Kept all of it, including the prices it filled in for the items my
+    examples didn't cover. For example, a small bookcase costs 6 and a
+    grandfather clock 5.
+  - Storage instead of delete was its suggestion. I kept it because otherwise
+    removing something I had paid for would throw the Ember away.
+  - Two bugs came up while testing, described in Cases 4 and 5 below.
+- **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
+
+### 2026-09-30 - Ember: earning the shop's currency by reading (Week 3)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** A way to earn Ember for the shop by reading, using the
+  rewards I described: a free 3 Ember for checking in each day, 15 for
+  finishing a book, and rewards for a daily goal and for pages read.
+- **What it gave back:**
+  - An `ember_ledger` table where every reward and purchase is one row, and the
+    balance is their sum.
+  - `server/repos/ember.js`, which pays +3 for the daily check-in, +5 for
+    reading 20 pages in a day, +1 per 50 pages of a book and +15 for finishing
+    a book.
+  - A unique index so each reward can only be paid once.
+  - An Ember wallet in the navigation bar (`EmberBadge.jsx`) with a **Daily +3**
+    button and the reader's recent history.
+  - A message after saving a book that says what was earned.
+  - Tests, including tests for ways to cheat.
+- **What I kept, what I changed, and why:** Kept it. I asked for the rewards
+  and their amounts; the rules that stop cheating came from the AI. Finishing
+  a book only pays once, even if the book is removed and added again. Paging
+  backwards and forwards does not earn page rewards twice. I kept those rules
+  because without them the shop would be free. The 53 server tests, which
+  include these cases, all pass.
+- **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
+
 ## 2. Where the AI got it wrong
 
 Three cases. Be specific. If you write that the AI was never wrong, this section
@@ -139,20 +198,20 @@ scores zero.
   limit. Ran the full test suite afterward to confirm.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### Case 3 - a leftover server that made CORS look broken (Week 2)
+### Case 3 - the shop's pictures blanked the whole page (Week 3)
 
-- **What it gave me:** A background API server started for testing, meant to
-  be stopped when done.
-- **What was wrong with it:** Later browser tests reported CORS errors on a
-  port that should have been allowed. Stopping the server process had not
-  stopped its `node --watch` child process, which restarted on its own with
-  the default CORS settings and kept holding the port. It took tracing the
-  process on port 3000 back through its parent to find.
-- **What I did instead:** Had it identify and stop every leftover process by
-  checking each one's command line and start time first, and switch to
-  running the server without `--watch` for one-off test sessions so there is
-  no hidden child process left behind.
-- **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
+- **What it gave me:** `thumbnails.jsx`, which photographs each furniture
+  model one at a time on a hidden 3D canvas to make the shop's pictures.
+- **What was wrong with it:** Opening **Edit room** turned the whole Library
+  Room page blank. The code removed each finished model from its list of
+  models to photograph, but also kept moving an index forward through that
+  list. As the list got shorter, the index ran past its end and the code tried
+  to draw a model that did not exist, which crashed the page.
+- **What I did instead:** Had it drop the index and always photograph the
+  first model still left in the list. Then I reopened the shop in the browser
+  to check that every card had a picture and the console showed no errors.
+- **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
+
 
 ## 3. Who wrote what
 
