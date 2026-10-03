@@ -1,0 +1,12 @@
+{
+  "name": "emberary",
+  "private": true,
+  "description": "Build and start commands for the deployed app: Express serves the API and the built React client from one address.",
+  "scripts": {
+    "build": "npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server",
+    "start": "npm start --prefix server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

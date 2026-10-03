@@ -3,7 +3,7 @@
 A personal reading space for leisure readers to discover, organize and track
 their books, with a 3D Library Room where their collection sits on real shelves.
 
-**Live site:** https://yourusername.github.io/your-repo-name/
+**Live site:** https://github.com/neriahv/emberary
 **API:** https://your-api.onrender.com/healthz
 **Demo video:** (link)
 
@@ -52,8 +52,10 @@ Every book shows its real cover where one was found (see
 React 18 and Vite, with React Router for navigation and React Three Fiber
 (three.js) for the Library Room. Express 4 and PostgreSQL (through `pg`, with
 parameterised queries only) are the back end, tested with Node's built-in test
-runner. The client is on GitHub Pages; the API and database hosts are not chosen
-yet.
+runner. The deployed app is one Express service on Render, serving the API and
+the client behind a password, with `helmet` security headers and a rate limit on
+failed logins; the database is on Neon. GitHub Pages keeps a public demo-mode
+preview.
 
 ## Demo mode
 
@@ -133,7 +135,8 @@ It uses the same address and password as `.env.example`, so the default
 `DATABASE_URL` works unchanged.
 
 `npm test` refuses to run unless `DATABASE_URL` points at `localhost`, because it
-empties the tables before every test.
+empties the tables before every test. It runs every file in `server/test/`, one
+at a time, since two of them reset the same database.
 
 The demo data lives in `client/src/api/seed.json`. After changing it, run
 `npm run db:seed:build` in `server/` to regenerate `db/seed.sql`, so both modes
@@ -228,7 +231,8 @@ placeholder values.
 | --- | --- | --- |
 | `DATABASE_URL` | server | PostgreSQL connection string. Contains a password |
 | `CORS_ORIGINS` | server | comma-separated origins allowed to call the API |
-| `NODE_ENV` | server | `production` on your host |
+| `NODE_ENV` | server | `production` on your host; turns on the gate and serves the built client |
+| `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | server, host dashboard only | the access gate's login. The server will not start in production without both |
 | `PORT` | server | **set by the host**, do not set it yourself |
 | `APP_TIMEZONE` | server, optional | when "today" starts for the daily check-in and reading goal; `Asia/Manila` if unset |
 | `GOOGLE_BOOKS_API_KEY` | server `.env`, your laptop only | used only by `npm run covers:fetch`; the API does not need it, so do not set it on the host |
@@ -252,12 +256,27 @@ Never put a key, a password or a connection string in one.
 
 The repository must be **public** for Pages to serve it on a free account.
 
-**API and database.** Not automated here, because most hosts deploy straight from
-your repository with no workflow at all. Point your host at the `server/` folder,
-set the environment variables in its dashboard, and run `server/db/schema.sql`
-against the hosted database. Run `server/db/seed.sql` once as well, on first
-setup only, because the catalogue of books lives there. It starts with
-`TRUNCATE`, so running it again wipes every reader's shelves.
+The Pages site stays in demo mode on purpose: it is the public preview, and it
+never touches the database.
+
+**The real app: Render and Neon.** One Render web service runs Express, which
+serves both the API and the built React client from the same address, behind an
+HTTP Basic Authentication gate (`server/basicAuth.js`, `server/web.js`). Same
+address means no CORS and one login for everything. The database is on Neon.
+
+| Render setting | Value |
+| --- | --- |
+| Root directory | *(empty: the repository root)* |
+| Build command | `npm run build` (root `package.json`: builds the client, installs the server) |
+| Start command | `npm start` |
+| Health check path | `/healthz`, the one route outside the gate |
+| Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, `VITE_USE_MOCK_API=false` |
+
+The database is set up from a laptop, connected as Neon's **owner** role:
+`schema.sql`, then `seed.sql` (first setup only: it starts with `TRUNCATE`), then
+`roles.sql`. The deployed API connects as `emberary_app`, a role that can read
+and write the app's rows but cannot change tables, rewrite the catalogue, or
+edit Ember history (`server/test/roles.test.js` checks each of these).
 
 ## Project structure
 
@@ -278,17 +297,24 @@ setup only, because the catalogue of books lives there. It starts with
       src/hooks/     useAsync, the loading/error/ready state every screen uses;
                      useRoomSaver, which saves room changes after a pause;
                      useEmber, the wallet kept up to date
+    package.json     build and start commands for the host
     server/          Express API
       app.js         every route, built without listening so tests can run it
-      server.js      reads the environment and starts app.js
+      web.js         the deployed app: security headers, the gate, the API
+                     and the built client on one address
+      basicAuth.js   the access gate
+      server.js      reads the environment and starts app.js (or web.js in
+                     production)
       validation.js  the same input rules as mockApi.js
       catalog.js     the shop and the Ember rules (identical to the client's)
       repos/         the SQL, one file per area: books, myBooks, insights,
                      profile, room (and the shop's checkout), ember
-      db/            pool, schema.sql, seed.sql and a runner for them;
-                     local.js (npm run db:local), build-seed.js and
-                     fetch-covers.js (npm run covers:fetch)
-      test/          endpoint tests against a real PostgreSQL
+      db/            pool, schema.sql, seed.sql, roles.sql (the deployed
+                     API's permissions) and a runner for them; local.js
+                     (npm run db:local), build-seed.js and fetch-covers.js
+                     (npm run covers:fetch)
+      test/          endpoint tests against a real PostgreSQL, plus the gate,
+                     the deployed app and the database role
     compose.yml      only if you self-host
     docs/            planning documents and weekly reports
 
@@ -305,11 +331,13 @@ In the API, each route validates its input (`validation.js`) and then calls a
 repository function in `repos/`, which runs one parameterised query. Stats and
 recommendations are computed in SQL rather than in JavaScript.
 
-The database has five tables: `books` (the shared catalogue), `readers`,
+The database has eight tables: `books` (the shared catalogue), `readers`,
 `user_books` (one row per reader per book: status, page, rating, review, shelf
-position and when it was finished), `room_settings` (the room's colours) and
-`room_items` (each piece of furniture, with its position and rotation). There
-are no accounts
+position and when it was finished), `room_settings` (the room's colours,
+wallpaper and floor), `room_items` (each piece of furniture, with its position,
+rotation and whether it is placed or stored), `room_unlocks` (the wallpapers
+and floors bought), `ember_ledger` (every Ember earned or spent) and
+`reading_days` (pages read per day, for the daily goal). There are no accounts
 yet, so the API always acts as reader 1. Every reader-owned row already carries a
 `reader_id`, so adding accounts later will not need a migration of every table.
 
@@ -318,7 +346,6 @@ yet, so the API always acts as reader 1. Every reader-owned row already carries 
 - Deploy the database and the API, seed the hosted catalogue, then switch off
   demo mode on the live site
 - Test the deployed version end to end and fix whatever production changes
-- Drag furniture around the room with the mouse, as well as with the sliders
 - Add accounts, so each reader's shelves are their own
 
 ## Author

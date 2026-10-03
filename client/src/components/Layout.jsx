@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { USING_MOCK_API } from '../api'
 import DemoNotice from './DemoNotice.jsx'
 import EmberBadge from './EmberBadge.jsx'
 
@@ -60,6 +61,13 @@ export default function Layout() {
       </main>
 
       <footer className="site-footer">
+        {/* Say what the live app keeps. Demo mode says it in DemoNotice instead. */}
+        {!USING_MOCK_API && (
+          <p className="privacy-note">
+            Emberary saves your shelves, reading progress, ratings, reviews, profile, room and
+            Ember history in its database, and nothing else. Nothing is shared or sold.
+          </p>
+        )}
         {/* The covers are not ours: they are served by Google Books. */}
         Book covers courtesy of{' '}
         <a href="https://books.google.com/" target="_blank" rel="noopener noreferrer">

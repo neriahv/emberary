@@ -10,7 +10,7 @@
     "db:schema": "node --env-file=.env db/run.js db/schema.sql",
     "db:seed": "node --env-file=.env db/run.js db/seed.sql",
     "db:reset": "npm run db:schema && npm run db:seed",
-    "test": "node --env-file=.env --test test/api.test.js",
+    "test": "node --env-file=.env --test --test-concurrency=1",
     "db:seed:build": "node db/build-seed.js",
     "covers:fetch": "node --env-file=.env db/fetch-covers.js"
   },

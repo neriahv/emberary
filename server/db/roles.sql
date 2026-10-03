@@ -1,0 +1,6 @@
+-- What the deployed API's own database role may do, and nothing more.
+-- Spec: test/roles.test.js. Task 3 in FINISHING-GUIDE.md.
+--
+-- Run as the database owner, after schema.sql, once the role emberary_app
+-- exists. Contains no password: on Neon the console creates the role and
+-- generates its password.

@@ -883,3 +883,4 @@ body.room-open { overflow: hidden; }
 .bar-label { font-size: 0.75rem; color: var(--muted); }
 
 .site-footer { max-width: 72rem; margin: 0 auto; padding: 0 var(--space-4) var(--space-5); font-size: var(--text-sm); color: var(--muted); }
+.site-footer .privacy-note { margin: 0 0 var(--space-2); }
