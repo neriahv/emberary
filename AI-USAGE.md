@@ -189,6 +189,51 @@ At least six entries. One per real use. Every entry needs a commit link.
     without asking the AI to check it each time.
 - **Commit:** https://github.com/neriahv/emberary/commit/d59a306889bfde1f723afbdda7dd1e23c40b6a7b
 
+### 2026-10-04 - Finishing Touches: Look, Search and Room Controls (Week 3)
+
+- **Tool:** Claude Code (Opus 5.5, then Sonnet 5.5)
+- **What I asked for:** A last round of polish on the finished app. I wanted
+  a cozy autumn look that follows my wireframe layouts and keeps my colour
+  palette, my own logo built into the app, Discover searching all of Google
+  Books, readable spines on the Library Room shelves, books I can move
+  anywhere, a type-to-search book finder, a clearer Ember wallet, no
+  overflowing or awkward layouts on any screen, and a room I can look around
+  in, not only zoom.
+- **What it gave back:**
+  - **The look:** rounded cards, pill buttons, soft serif headings (Fraunces
+    and Nunito, bundled with the app), warm glows and small illustrations,
+    plus the wireframe's missing pieces: the Home welcome banner and Quick
+    Access, genre chips, an Add Book button, and a phone tab bar.
+  - **The logo:** my flame-in-a-book artwork redrawn as a vector for the
+    header, footer and browser tab, and echoed in section markers and the
+    loading state.
+  - **Discover:** search through the API to Google Books, an **Add to My
+    Books** menu with the four statuses, and results shown above
+    recommendations while searching. A book found on Google joins the
+    catalogue when it is first added, fetched by the server rather than
+    trusted from the browser.
+  - **The Library Room:** spines cut from real covers (five drawn designs in
+    demo mode), dragging a book to any shelf, a searchable finder with covers,
+    zoom towards the pointer, right-drag to move the view, and a Re-centre
+    button.
+  - **The Ember wallet:** a coin badge, a card that says Ember is the site's
+    currency, today's goal, ways to earn, and a named purchase history.
+  - **Layout:** a script that opens every page and panel at six widths and
+    reports anything overflowing. It found 32 problems, now 0. Home also shows
+    only the two most recent books being read.
+  - **Tests:** 11 more server tests (86 in all). A one-line grant in
+    `roles.sql` and the Google key in `server.js`, both small changes to files
+    I had written.
+- **What I kept, what I changed, and why:**
+  - Kept all of it. The direction was mine: the wireframes, the palette, the
+    logo, and what each feature should do.
+  - The AI could not search Google Books from the demo site, because Google's
+    keyless daily quota runs out. The demo searches its own shelf and says so,
+    and the live app uses my key on the server.
+  - I ran the database update on Neon myself, so the app could store where
+    each book stands on the shelves.
+- **Commit:** https://github.com/neriahv/emberary/commit/5fa70520dc9984be25ceb205eb7307d54475c241
+
 ## 2. Where the AI got it wrong
 
 ### Case 1 - A Database Constraint that Rejected its Own Boundary (Week 2)

@@ -5,7 +5,7 @@ import { useAsync } from '../hooks/useAsync.js'
 import { useEmber } from '../hooks/useEmber.js'
 import { useRoomSaver } from '../hooks/useRoomSaver.js'
 import AsyncState from '../components/AsyncState.jsx'
-import { EmberIcon } from '../components/EmberBadge.jsx'
+import { EmberCoin } from '../components/EmberBadge.jsx'
 import LibraryScene, { bookcasesIn, layoutBookcases, shelfOrder } from '../components/room/LibraryScene.jsx'
 import RoomCustomizer from '../components/room/RoomCustomizer.jsx'
 import BookModal from '../components/room/BookModal.jsx'
@@ -34,6 +34,8 @@ export default function LibraryRoomPage() {
   const [pulledId, setPulledId] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [moveError, setMoveError] = useState(null)
+  // Bumped by the Re-centre button to put the view back where it started.
+  const [viewReset, setViewReset] = useState(0)
   const openTimer = useRef(null)
   const [params, setParams] = useSearchParams()
 
@@ -141,6 +143,7 @@ export default function LibraryRoomPage() {
             onSelectItem={setSelectedItemId}
             onItemChange={changeItem}
             onMoveBook={moveBook}
+            viewReset={viewReset}
           />
         </div>
       ) : (
@@ -158,8 +161,13 @@ export default function LibraryRoomPage() {
         <span className="hud-spacer" />
         {wallet.data && (
           <button type="button" className="hud-button hud-ember" onClick={openShop}>
-            <EmberIcon /> {wallet.data.balance}
+            <EmberCoin size="sm" /> {wallet.data.balance}
             <span className="visually-hidden"> Ember. Open the shop</span>
+          </button>
+        )}
+        {ready && (
+          <button type="button" className="hud-button" onClick={() => setViewReset((n) => n + 1)}>
+            ⟲ Re-centre
           </button>
         )}
         {ready && (
@@ -189,7 +197,9 @@ export default function LibraryRoomPage() {
               {/* The canvas cannot be used with a keyboard or a screen reader,
                   so every book in it can also be found and opened here. */}
               <BookFinder entries={shelved} onPick={pickBook} />
-              <span className="hud-hint">Click a book on the shelves to open it · drag to look around</span>
+              <span className="hud-hint">
+                Click a book to open it · drag to turn · right-drag or two fingers to move · scroll to zoom
+              </span>
             </>
           ) : (
             <p className="hud-hint">
@@ -202,7 +212,9 @@ export default function LibraryRoomPage() {
 
       {ready && editing && (
         <div className="hud hud-bottom">
-          <p className="hud-hint">Drag a book to any shelf to move it · drag furniture across the floor</p>
+          <p className="hud-hint">
+            Drag a book to any shelf · drag furniture across the floor · right-drag to move the view
+          </p>
           {moveError && (
             <p className="hud-notice" role="alert">
               Could not move the book: {moveError.message}

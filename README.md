@@ -47,7 +47,9 @@ access gate.
   together from bookshelves, wallpaper, floors, tables, chairs, lamps, rugs and
   decorations, each shown as a picture of the real thing, and pay for it in
   Ember. Drag furniture across the floor, turn it, or put it in storage, and
-  drag any book to any spot on any shelf. Everything is saved
+  drag any book to any spot on any shelf. Look around freely: scroll to zoom
+  towards the pointer, drag to turn, right-drag (or two fingers) to move up,
+  down and sideways, and **Re-centre** to come back. Everything is saved
 - **Ember.** Emberary's currency, earned by reading: a daily check-in, reading
   20 pages in a day, every 50 pages of a book, and finishing a book. The wallet
   in the navigation bar shows the balance and how to earn more

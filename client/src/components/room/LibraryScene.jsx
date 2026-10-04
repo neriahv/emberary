@@ -574,24 +574,72 @@ function useFitZoom() {
   return Math.max(20, Math.min(size.width / 7.2, size.height / 7.4))
 }
 
-function Camera({ editing }) {
+// How far the view may wander: around the room, never off into empty space.
+const VIEW_BOUNDS = { x: [-2.6, 2.6], y: [0.2, 3.2], z: [-2.6, 2.6] }
+// Where the view starts, and where Re-centre brings it back to.
+const VIEW_FROM = [10, 8.6, 10]
+const VIEW_TARGET = [0, 1.05, 0]
+
+function Camera({ editing, viewReset }) {
   const fit = useFitZoom()
   const camera = useRef()
+  const controls = useRef()
+
+  // Fit the room to the window.
   useEffect(() => {
     camera.current.zoom = fit
     camera.current.updateProjectionMatrix()
   }, [fit])
 
+  // "Re-centre" puts the view back exactly where it started.
+  useEffect(() => {
+    if (!viewReset || !controls.current) return
+    // With gliding on, the controls only ever shrink the motion left over from
+    // the last drag, so it would keep nudging the view after the reset. An
+    // update with gliding off clears it; the second pass then lands exactly on
+    // the starting view.
+    const glide = controls.current.enableDamping
+    controls.current.enableDamping = false
+    for (let pass = 0; pass < 2; pass += 1) {
+      controls.current.target.set(...VIEW_TARGET)
+      camera.current.position.set(...VIEW_FROM)
+      camera.current.zoom = fit
+      camera.current.updateProjectionMatrix()
+      controls.current.update()
+    }
+    controls.current.enableDamping = glide
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewReset])
+
+  // Moving the view moves both the camera and the point it looks at. If that
+  // point would leave the room, both are nudged back by the same amount.
+  function keepInRoom() {
+    const { target, object } = controls.current
+    const before = target.clone()
+    target.set(
+      Math.min(VIEW_BOUNDS.x[1], Math.max(VIEW_BOUNDS.x[0], target.x)),
+      Math.min(VIEW_BOUNDS.y[1], Math.max(VIEW_BOUNDS.y[0], target.y)),
+      Math.min(VIEW_BOUNDS.z[1], Math.max(VIEW_BOUNDS.z[0], target.z))
+    )
+    object.position.add(target.clone().sub(before))
+  }
+
   return (
     <>
-      <OrthographicCamera ref={camera} makeDefault position={[10, 8.6, 10]} near={0.1} far={60} />
+      <OrthographicCamera ref={camera} makeDefault position={VIEW_FROM} near={0.1} far={60} />
       <OrbitControls
-        target={[0, 1.05, 0]}
-        enablePan={false}
-        // While editing, a drag moves furniture, not the view.
+        ref={controls}
+        target={VIEW_TARGET}
+        // Right-drag (or Shift + drag, or two fingers) slides the view; the
+        // wheel zooms towards the pointer, so you can zoom straight into a shelf.
+        enablePan
+        screenSpacePanning
+        zoomToCursor
+        onChange={keepInRoom}
+        // While editing, a left-drag moves furniture and books, not the view.
         enableRotate={!editing}
         minZoom={fit * 0.75}
-        maxZoom={fit * 3}
+        maxZoom={fit * 4}
         minPolarAngle={0.75}
         maxPolarAngle={1.2}
         minAzimuthAngle={Math.PI / 4 - 0.55}
@@ -611,6 +659,7 @@ export default function LibraryScene({
   onSelectItem,
   onItemChange,
   onMoveBook,
+  viewReset = 0,
 }) {
   // Stored furniture is not in the room at all.
   const items = room.items.filter((i) => i.placed)
@@ -687,7 +736,7 @@ export default function LibraryScene({
       onPointerMissed={() => (editing ? onSelectItem(null) : null)}
     >
       <color attach="background" args={[BACKDROP]} />
-      <Camera editing={editing} />
+      <Camera editing={editing} viewReset={viewReset} />
 
       <ambientLight intensity={0.55} color="#ffe2c4" />
       <hemisphereLight args={['#ffe9d0', '#6b3a1f', 0.55]} />

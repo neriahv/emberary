@@ -55,6 +55,104 @@ export default function DiscoverPage() {
     recs.reload()
   }
 
+  const recommended = (
+    <section aria-labelledby="recs-heading" className="section feature-panel">
+      <h2 id="recs-heading">Recommended for You</h2>
+      <AsyncState {...recs} label="Finding recommendations" />
+      {recs.status === 'ready' && recs.data.length === 0 && (
+        <p className="empty">You own every book in the catalogue. Impressive.</p>
+      )}
+      {recs.status === 'ready' && recs.data.length > 0 && (
+        <ul className="rec-row">
+          {recs.data.map(({ book, reason }) => (
+            <li key={book.id} className="rec card">
+              <BookCover book={book} size="sm" />
+              <div>
+                <h3 className="book-card-title">{book.title}</h3>
+                <p className="book-card-author">{book.author}</p>
+                <p className="rec-reason">{reason}</p>
+                <AddToCollection book={book} owned={owned.has(book.id)} onAdded={handleAdded} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+
+  const found = (
+    <section aria-labelledby="results-heading" className="section">
+      <h2 id="results-heading">
+        {fromGoogle ? 'From Google Books' : "On Emberary's shelf"}
+        {results.status === 'ready' && <span className="muted"> · {results.data.length}</span>}
+      </h2>
+
+      <AsyncState {...results} label={searching ? 'Searching Google Books' : 'Loading the catalogue'} />
+      {searching && results.status === 'ready' && !fromGoogle && (
+        <p className="demo-notice">
+          Google Books is not answering the demo right now (without a key it shares a small daily
+          limit with everyone), so these are matches from Emberary's own shelf. The live app searches
+          all of Google Books with its own key.
+        </p>
+      )}
+
+      {results.status === 'ready' && results.data.length === 0 && (
+        <p className="empty">
+          No books match {query ? `"${query}"` : 'that filter'}
+          {genre ? ` in ${genre}` : ''}. Try a shorter search or another genre.
+        </p>
+      )}
+
+      {results.status === 'ready' && results.data.length > 0 && (
+        <div className={`split${selected ? ' has-detail' : ''}`}>
+          <div className="book-grid">
+            {results.data.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book}
+                selected={book.id === selectedId}
+                onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
+              >
+                <AddToCollection book={book} owned={owned.has(book.id)} onAdded={handleAdded} />
+              </BookCard>
+            ))}
+          </div>
+
+          {selected && (
+            <section className="detail-panel card" aria-labelledby="discover-detail">
+              <div className="detail-head">
+                <BookCover book={selected} size="md" />
+                <div>
+                  <h2 id="discover-detail">{selected.title}</h2>
+                  <p className="detail-author">
+                    {selected.author}
+                    {selected.year ? ` · ${selected.year}` : ''}
+                  </p>
+                  <p className="book-card-meta">
+                    {selected.genre} · {selected.pages} pages
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="button-quiet detail-close"
+                  onClick={() => setSelectedId(null)}
+                >
+                  Close
+                </button>
+              </div>
+              <p className="detail-description">{selected.description}</p>
+              <AddToCollection
+                book={selected}
+                owned={owned.has(selected.id)}
+                onAdded={handleAdded}
+              />
+            </section>
+          )}
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <>
       <div className="page-head">
@@ -100,99 +198,9 @@ export default function DiscoverPage() {
         ))}
       </div>
 
-      <section aria-labelledby="recs-heading" className="section feature-panel">
-        <h2 id="recs-heading">Recommended for You</h2>
-        <AsyncState {...recs} label="Finding recommendations" />
-        {recs.status === 'ready' && recs.data.length === 0 && (
-          <p className="empty">You own every book in the catalogue. Impressive.</p>
-        )}
-        {recs.status === 'ready' && recs.data.length > 0 && (
-          <ul className="rec-row">
-            {recs.data.map(({ book, reason }) => (
-              <li key={book.id} className="rec card">
-                <BookCover book={book} size="sm" />
-                <div>
-                  <h3 className="book-card-title">{book.title}</h3>
-                  <p className="book-card-author">{book.author}</p>
-                  <p className="rec-reason">{reason}</p>
-                  <AddToCollection book={book} owned={owned.has(book.id)} onAdded={handleAdded} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section aria-labelledby="results-heading" className="section">
-        <h2 id="results-heading">
-          {fromGoogle ? 'From Google Books' : "On Emberary's shelf"}
-          {results.status === 'ready' && <span className="muted"> · {results.data.length}</span>}
-        </h2>
-
-        <AsyncState {...results} label={searching ? 'Searching Google Books' : 'Loading the catalogue'} />
-        {searching && results.status === 'ready' && !fromGoogle && (
-          <p className="demo-notice">
-            Google Books is not answering the demo right now (without a key it shares a small daily
-            limit with everyone), so these are matches from Emberary's own shelf. The live app searches
-            all of Google Books with its own key.
-          </p>
-        )}
-
-        {results.status === 'ready' && results.data.length === 0 && (
-          <p className="empty">
-            No books match {query ? `"${query}"` : 'that filter'}
-            {genre ? ` in ${genre}` : ''}. Try a shorter search or another genre.
-          </p>
-        )}
-
-        {results.status === 'ready' && results.data.length > 0 && (
-          <div className={`split${selected ? ' has-detail' : ''}`}>
-            <div className="book-grid">
-              {results.data.map((book) => (
-                <BookCard
-                  key={book.id}
-                  book={book}
-                  selected={book.id === selectedId}
-                  onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
-                >
-                  <AddToCollection book={book} owned={owned.has(book.id)} onAdded={handleAdded} />
-                </BookCard>
-              ))}
-            </div>
-
-            {selected && (
-              <section className="detail-panel card" aria-labelledby="discover-detail">
-                <div className="detail-head">
-                  <BookCover book={selected} size="md" />
-                  <div>
-                    <h2 id="discover-detail">{selected.title}</h2>
-                    <p className="detail-author">
-                      {selected.author}
-                      {selected.year ? ` · ${selected.year}` : ''}
-                    </p>
-                    <p className="book-card-meta">
-                      {selected.genre} · {selected.pages} pages
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="button-quiet detail-close"
-                    onClick={() => setSelectedId(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-                <p className="detail-description">{selected.description}</p>
-                <AddToCollection
-                  book={selected}
-                  owned={owned.has(selected.id)}
-                  onAdded={handleAdded}
-                />
-              </section>
-            )}
-          </div>
-        )}
-      </section>
+      {/* While searching, the results come first; otherwise the recommendations do. */}
+      {searching ? found : recommended}
+      {searching ? recommended : found}
     </>
   )
 }

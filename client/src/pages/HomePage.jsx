@@ -69,9 +69,10 @@ export default function HomePage() {
               Nothing on the go. <Link to="/my-books?status=want-to-read">Start something from Want to Read</Link>.
             </p>
           )}
+          {/* The two most recently updated, so the card stays compact. */}
           {books.status === 'ready' && reading.length > 0 && (
             <ul className="reading-list">
-              {reading.slice(0, 3).map((entry) => (
+              {reading.slice(0, 2).map((entry) => (
                 <li key={entry.bookId} className="reading-item">
                   <BookCover book={entry.book} size="sm" />
                   <div>
@@ -89,6 +90,11 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
+          )}
+          {books.status === 'ready' && reading.length > 2 && (
+            <Link className="more-link" to="/my-books?status=currently-reading">
+              and {reading.length - 2} more you are reading
+            </Link>
           )}
         </section>
 
