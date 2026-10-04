@@ -238,6 +238,34 @@ At least six entries. One per real use. Every entry needs a commit link.
   to check that every card had a picture and the console showed no errors.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
+### Case 4 - a rate limit that could lock out the right people (Week 3)
+
+- **What it gave me:** Guidance for the rate limit in front of my access gate:
+  `skipSuccessfulRequests: true`, so that only failures count toward the
+  limit of 10 per 15 minutes. Its tests passed.
+- **What was wrong with it:** My first login to the live site got
+  "Could not load this: 429".
+  - **The immediate cause.** The AI had checked the live site with requests
+    run from my own laptop, so they shared my IP and used up the failed
+    attempts.
+  - **The real flaw underneath.** express-rate-limit treats *every* 4xx
+    response as a failure, not just a wrong password. A logged-in reader who
+    got ten ordinary answers like "404" or "409 You already checked in today"
+    would have been locked out of the app.
+  - **Why the tests missed it.** They only tested wrong passwords, and correct
+    passwords that always succeeded.
+- **What I did instead:**
+  - Had it add a test where a logged-in reader gets 15 404s in a row and must
+    never see a 429. It failed on request 11, which confirmed the flaw.
+  - Fixed it myself by telling the limiter what counts as success:
+    `requestWasSuccessful: (request, response) => response.statusCode !== 401`.
+    Only failed logins count now.
+  - 9 of 9 tests pass, and I pushed it, so Render redeployed it.
+  - To get back in straight away, I restarted the Render service, which
+    clears the limiter's in-memory counter, instead of waiting out the
+    15 minutes.
+- **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
+
 ## 3. Who wrote what
 
 ### Written by me
@@ -345,8 +373,9 @@ At least six entries. One per real use. Every entry needs a commit link.
   2. **`GET /healthz`:** answers health checks without requiring a password
      or using the rate limit, so Render can tell the app is alive.
   3. **Rate limit:** runs before the gate so failed login attempts count:
-     10 per 15 minutes. `skipSuccessfulRequests` means normal browsing with
-     the right password is never limited.
+     10 per 15 minutes. `requestWasSuccessful` says that only a 401 is a
+     failure, and `skipSuccessfulRequests` then leaves everything else
+     uncounted, so a logged-in reader is never limited (see Case 4).
   4. **The gate (`basicAuth`):** protects the client files and the API.
   5. **Static files:** serve the built React files before the SPA fallback.
   6. **SPA fallback:** sends `index.html` for client routes such as
@@ -400,6 +429,41 @@ At least six entries. One per real use. Every entry needs a commit link.
     is refused when it tries to change tables, edit the catalogue, rewrite
     Ember history, or delete readers or furniture. With these, the whole
     server suite passes, 74 of 74.
+
+**Deploying it and locking it down**
+
+- **Live app:** https://emberary.onrender.com (behind the gate)
+- **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
+- **What it does and why it is built this way:** This is not source code, so
+  it is a note rather than a code claim. All of it happened in my own
+  accounts.
+  - **Neon.** I created the `emberary` project in AWS Singapore, the region
+    closest to Manila. Neon made it PostgreSQL 18, not the 17 my tests use; I
+    kept it, because the schema, seed and every check worked. I created the
+    `emberary_app` role in the console, which generated its password, so no
+    database password was ever typed into a file in the repository.
+  - **Loading the database.** From my laptop I ran `schema.sql`, `seed.sql`
+    and `roles.sql` as the owner, through a temporary `.env.neon-owner` file.
+    I confirmed `.gitignore` covers it before using it, and deleted it
+    afterwards, so the owner login no longer exists on my machine.
+  - **The app's connection string.** It uses `emberary_app` and
+    `sslmode=verify-full`, which checks the database server's certificate
+    instead of only encrypting the connection.
+  - **Render.** I created the web service in Singapore, next to the database,
+    so queries don't cross an ocean. The build is `npm run build` and the
+    start is `npm start`. The health check path is `/healthz`, the only route
+    outside the gate. Six environment variables are set in the dashboard,
+    including the gate's login, which I generated with Node's `crypto`.
+  - **Checking it like a grader.** In a private window: the login box, a
+    wrong password refused, no demo banner, `/readyz` showing the database
+    up, adding and finishing a book, buying furniture, reloading, and
+    refreshing on `/my-books`.
+  - **Locking down the repository.** I put the grader's login in my private
+    workspace README only. I turned on secret scanning and push protection
+    for the repository, and push protection for my own account, which covers
+    every public repository I push to. I confirmed no Actions variables
+    are set, so GitHub Pages stays the public demo, and ran the secret search
+    over the whole git history. Only placeholders came back.
 
 ### The AI-written part I understand best
 

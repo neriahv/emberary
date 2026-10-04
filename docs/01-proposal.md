@@ -54,15 +54,14 @@ Grouped by screen, each marked with where it actually stands.
 - **Profile** — the reader's profile, and insights worked out from their
   shelves: counts, average rating, favourite genres and authors, monthly
   reading activity, and the yearly goal as a donut chart. *Done.*
-- **Backend** — an Express API and a five-table PostgreSQL database
-  (`books`, `readers`, `user_books`, `room_settings`, `room_items`) behind all
-  of the above, with parameterised queries, server-side validation, and 37
-  endpoint tests. *Done, running locally against a real PostgreSQL; not
-  deployed yet (see Hosting below).*
+- **Backend** — an Express API and an eight-table PostgreSQL database behind
+  all of the above, with parameterised queries, server-side validation, and
+  75 tests (the endpoints, the access gate, the deployed app and the database
+  role). *Done, and deployed (see Hosting below).*
 - **Demo mode** — the whole app runs against a mock API stored in the
   browser, with the same function names as the real one, so it works with no
-  server at all. *Done, and still the live site's default — see Demo mode
-  below.*
+  server at all. *Done; kept as the public preview on GitHub Pages, while the
+  real app is deployed behind a login — see Demo mode below.*
 
 ## Stretch goals
 
@@ -78,24 +77,31 @@ Cut from "must have" to "if there's time," or added once the core was solid:
   Week 2's planning and shipped: furniture can be picked up and slid across
   the floor in edit mode, not only moved with sliders.
 - An access gate on the deployed API (password or Cloudflare Zero Trust) —
-  planned for Week 3, not yet built. See Risks.
+  became required rather than a stretch, and shipped in Week 3: HTTP Basic
+  Authentication in front of the whole app, with a rate limit on failed
+  logins. See Risks.
 
 ## Tech stack
 
 React 18 and Vite, with React Router for navigation and React Three Fiber
 (three.js) for the Library Room, code-split so it only loads on that one page.
 Express 4 and PostgreSQL (through `pg`, parameterised queries only) for the
-API, tested with Node's built-in test runner. The client deploys to GitHub
-Pages; the API and database host is chosen in Week 3.
+API, tested with Node's built-in test runner. The deployed app is one Express
+service on Render, serving the API and the built client behind a password,
+with `helmet` security headers; the database is on Neon. The demo-mode client
+stays on GitHub Pages.
 
 ## Data model
 
-Five tables. `books` is the shared catalogue (with each book's real cover
+Eight tables. `books` is the shared catalogue (with each book's real cover
 link, added Week 2). `readers` is one row per reader, ready for accounts
 later. `user_books` is one row per reader per book: status, page, rating,
 review, and its position along its shelf. `room_settings` holds the room's
-three colours, and `room_items` holds every piece of furniture in it, with its
-kind, position and rotation.
+colours, wallpaper and floor, and `room_items` holds every piece of furniture,
+with its kind, position, rotation, and whether it is placed or in storage.
+Week 3 added `room_unlocks` (the wallpapers and floors bought),
+`ember_ledger` (every Ember earned or spent; the balance is their sum) and
+`reading_days` (pages read per day, for the daily goal).
 
 ## Timeline
 
@@ -115,45 +121,49 @@ and empty states. A security checklist pass followed: GitHub Actions pinned
 to commit SHAs, the `X-Powered-By` header removed, CORS behaviour tested, and
 a personal email scrubbed from the commit history.
 
-**Week 3 (final week).** Deployment. Choose hosts for the API and database,
-seed the hosted catalogue, switch the live site off demo mode, add the access
-gate that is still missing (see Risks), and repeat the frontend-to-backend
-testing against the deployed version instead of a laptop.
+**Week 3 (Sept 28 – Oct 4).** The Library Room shop and Ember, then
+deployment. The shelves stopped sorting books by status, the room gained a
+furniture shop paid for in Ember, and Ember is earned by reading. Then the app
+went live: an access gate, security headers and a rate limit, a database role
+with only the permissions the app uses, the database on Neon and the app on
+Render, checked end to end in a browser against the deployed version.
 
 ## Hosting
 
 | Piece | Host | Status |
 | --- | --- | --- |
-| Client | GitHub Pages | **Live**, via `.github/workflows/deploy-pages.yml` on every push to `main` |
-| API | not chosen yet | Planned for Week 3 |
-| Database | not chosen yet | Planned for Week 3 |
+| App (client and API together) | Render, free web service, Singapore | **Live** at https://emberary.onrender.com, behind a login; redeploys on every push to `main` |
+| Database | Neon, free plan, PostgreSQL 18, Singapore | **Live**; the API connects as a limited role, not the owner |
+| Public demo | GitHub Pages | **Live** at https://neriahv.github.io/emberary/, demo mode, via `.github/workflows/deploy-pages.yml` |
 
 ## Demo mode
 
-**Still on.** The live site runs entirely against the mock API in the
-browser; nothing typed into it reaches a server. It comes off once the API
-and database are deployed and `VITE_USE_MOCK_API=false` is set on the client
-build — a Week 3 task that has not started. If this line still says "still
-on" after Week 3's deadline has passed, that is the one thing in this file
-that matters most.
+**Off on the live app, on for the public demo, on purpose.** The Render build
+sets `VITE_USE_MOCK_API=false`, so the live app reads and writes the Neon
+database. GitHub Pages keeps the demo-mode build: it never touches the
+database, so it can stay public with no login, and it is the fallback if the
+free server is asleep during a demo.
 
 ## Risks
 
-- **No access gate on the API, once it is deployed.** *Grew* into the risk
-  that matters most right now: the backend has no login, password, or
-  Zero Trust check yet, so it must not be deployed reachable from the
-  internet without one. Decided, not yet built — Week 3.
-- **The database connects as its superuser locally.** *New this week,* found
-  while working through the security checklist. Before deployment this needs
-  a role with only the permissions the app actually uses (select/insert/
-  update/delete on Emberary's own tables), not full admin rights.
-- **`helmet` is not installed.** *Known, not yet done* — one line
-  (`app.use(helmet())`) for several response-header protections the API
-  currently lacks. Small, but worth doing before the API is public.
-- **Choosing free-tier hosts for the API and database.** *Unchanged since
-  Week 1's planning:* still open, and still the main scheduling risk for
-  Week 3, since a free database can sleep or reset in ways a local one does
-  not.
+- **No access gate on the API, once it is deployed.** *Resolved.* The whole
+  app (website and API on one address) is behind HTTP Basic Authentication,
+  with the login set in Render's environment and the server refusing to start
+  without it. Failed logins are rate limited.
+- **The database connects as its superuser.** *Resolved* for the deployed
+  app: it connects as `emberary_app`, which can only read and write the rows
+  the app uses. It cannot change tables, edit the catalogue, or rewrite Ember
+  history, and a test checks each of these.
+- **`helmet` is not installed.** *Resolved:* installed, with a content
+  security policy that allows only Google Books as an outside image source.
+- **Choosing free-tier hosts for the API and database.** *Resolved:* Render
+  and Neon, both free. What remains is the free tier's behaviour: the app
+  sleeps after 15 minutes idle and takes about 30 seconds to wake, which is
+  why the demo video should be recorded on a warmed-up site.
+- **A rate limit that locked out the wrong people.** *New this week, fixed.*
+  The first version counted every error response, not just failed logins,
+  so a logged-in reader could have locked themselves out. It now counts only
+  401s, with a test.
 - **No PostgreSQL or Docker on the development laptop.** *Turned out to be
   nothing:* solved in Week 2 with `embedded-postgres`
   (`npm run db:local`), so local development no longer depends on either.

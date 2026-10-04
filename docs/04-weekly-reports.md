@@ -103,6 +103,68 @@ the security checklist flagged as still missing before the API goes public.
 
 ---
 
+## Week 3 (Sept 28 – Oct 4)
+
+**Done.** The app is deployed and works end to end at
+https://emberary.onrender.com, behind a login.
+
+- **Library Room:**
+  - The shelves no longer sort books by status: every started book (reading,
+    read, did not finish) stands in one order, like a real bookcase.
+  - Furniture is bought from a shop with a cart, in eight categories with
+    prices, and each piece is shown as a picture of its real 3D model.
+  - Furniture goes into storage instead of being deleted.
+- **Ember,** the shop's currency, earned by reading:
+  - +3 for the daily check-in, +5 for 20 pages in a day, +1 per 50 pages and
+    +15 for finishing a book;
+  - kept as a ledger, so no reward can be paid twice.
+- **The access gate, written myself:** HTTP Basic Authentication middleware,
+  with a timing-safe password comparison, that refuses to start without its
+  environment variables.
+- **The deployed app, written myself:** one Express app serving helmet
+  headers, the gate, the API and the built React client on one address. It
+  has a rate limit on failed logins, and `/healthz` is the only route
+  outside the gate.
+- **The database role, written myself:** `emberary_app` can read and write
+  only what the app uses. It cannot change tables, edit the catalogue, or
+  rewrite the Ember ledger.
+- **Deployed:**
+  - the database on Neon (Singapore), with the schema, seed and roles loaded
+    from my laptop;
+  - the app on Render (Singapore), with every secret in Render's dashboard.
+
+  Checked the live site in a private window: login, adding and finishing a
+  book, buying furniture, reloading, and refreshing on a deep link.
+- **Locked down:**
+  - secret scanning and push protection on;
+  - the git history checked for credentials (none);
+  - the server's `npm audit` findings fixed by an Express update;
+  - the grader's login in my private workspace only.
+
+**Stuck.**
+
+- **My first login to the live site got a 429.** The AI's checks had run from
+  my own laptop, so they shared my IP and used up the 10 failed attempts. It
+  also showed a real flaw: the limit counted *every* error response, so a
+  logged-in reader could lock themselves out with ordinary 404s and 409s.
+  Fixed by counting only 401s, with a test that fails without the fix.
+- **The first version of my gate changed the function to positional
+  arguments.** Every caller passes one options object, so `username` would
+  have been the whole object, and my own check would have thrown. Caught in
+  review before the tests ran.
+- **Search commands that didn't work.** The commands for searching the
+  queries were written for Git Bash; my terminal is PowerShell, which has no
+  `grep`. I used `Select-String` instead.
+- **Neon created the database as PostgreSQL 18, not 17,** which the tests use.
+  I kept it: the schema, seed and every check on the live site worked.
+
+**Hours.** Roughly around 6-8 hours of developing and coding.
+
+**Next.** Record the demo video on the deployed site, after warming it up so
+the free server is awake.
+
+---
+
 ## Week of YYYY-MM-DD
 
 **Done.** What actually works now, in the deployed app rather than on your laptop.

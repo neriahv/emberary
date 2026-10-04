@@ -3,21 +3,28 @@
 A personal reading space for leisure readers to discover, organize and track
 their books, with a 3D Library Room where their collection sits on real shelves.
 
-**Live site:** https://github.com/neriahv/emberary
-**API:** https://your-api.onrender.com/healthz
-**Demo video:** (link)
+**Live app:** https://emberary.onrender.com (behind a password, see below)
+**Public demo:** https://neriahv.github.io/emberary/ (no login; runs in your browser)
+**Health check:** https://emberary.onrender.com/healthz
+**Demo video:** to come
 
-> **This deployment is running in demo mode.** The interface is real; the backend
-> is simulated in your browser so the site works without a server. See
-> [Demo mode](#demo-mode) below. Delete this quote once your API is live.
+The live app is the real thing: React, the Express API and a PostgreSQL
+database, all deployed. It sits behind HTTP Basic Authentication, so your
+browser asks for a username and password; the grader's login is in my private
+course workspace, never in this repository. The first visit after 15 minutes
+idle takes about 30 seconds while the free server wakes up.
 
-![A screenshot of the main screen](docs/assets/screenshot.png)
+The public demo is the same interface in [demo mode](#demo-mode): anyone can
+try it, and everything stays in their own browser.
+
+![The Library Room](docs/assets/mockup-library-room-desktop.png)
 
 ## What it does
 
 Week 1 built the complete front end, running in demo mode. Week 2 added the
-Express API and PostgreSQL database behind it (see [The API](#the-api)). The
-live site stays in demo mode until the API is deployed.
+Express API and PostgreSQL database behind it (see [The API](#the-api)). Week 3
+added the Library Room shop and Ember, then deployed the whole app behind an
+access gate.
 
 - **Home.** A dashboard with your Currently Reading books and their progress,
   library stats, and rows of covers for recently updated books and
@@ -68,24 +75,13 @@ notice rather than on a silently broken build.
 
 | `VITE_USE_MOCK_API` | What happens |
 | --- | --- |
-| unset, or `true` | The client answers its own requests from `localStorage`. No server, no database, nothing shared between visitors. This is what the template ships with, so the GitHub Pages link works on day one. |
-| `false` | The client calls the Express API at `VITE_API_BASE_URL`, which reads and writes real PostgreSQL. |
+| unset, or `true` | The client answers its own requests from `localStorage`. No server, no database, nothing shared between visitors. This is the public demo on GitHub Pages. |
+| `false` | The client calls the Express API at `VITE_API_BASE_URL` (or its own address when that is empty, as on Render), which reads and writes real PostgreSQL. This is the live app. |
 
-**Demo mode is a starting point and a fallback, not a finished project.** Your
-finals submission is all three pieces deployed and talking to each other. Demo
-mode is there so you can build the interface in week one before the API exists,
-and so you have something to show if a free tier is asleep during your demo.
-
-GitHub Pages serves files and cannot run Node, so the API and the database can
-never live there. They go somewhere else:
-
-| Piece | Options |
-| --- | --- |
-| **API** | Render, Railway, Fly.io, Koyeb, a VPS, or [self-hosted behind a tunnel](../content/extending-your-app/11-self-hosting.md) |
-| **Database** | Neon, Supabase, Railway, Aiven, or your own PostgreSQL |
-
-`content/extending-your-app/` in your course workspace walks through all of it.
-Page 10 is the decision page if you do not know which to pick.
+Demo mode let me build the whole interface in Week 1 before the API existed.
+It now stays as a public preview, and as a fallback if the free server is
+asleep during a demo. GitHub Pages serves files and cannot run Node, so the
+real app runs on Render instead (see [Deploying](#deploying)).
 
 ## Running it yourself
 
@@ -249,20 +245,20 @@ Never put a key, a password or a connection string in one.
 
 1. **Settings > Pages > Build and deployment > Source: GitHub Actions.** Without
    this the workflow goes green and publishes nothing.
-2. Nothing else, until your API is live. Demo mode is the default, so the first
-   deploy works on its own. When the API is up, add `VITE_USE_MOCK_API` = `false`
-   and `VITE_API_BASE_URL` under **Settings > Secrets and variables > Actions >
-   Variables**, then re-run the workflow.
+2. Nothing else. No Actions variables are set, so the Pages build stays in demo
+   mode.
 
 The repository must be **public** for Pages to serve it on a free account.
 
 The Pages site stays in demo mode on purpose: it is the public preview, and it
-never touches the database.
+never touches the database. The real app is not on Pages, because the access
+gate has to sit in front of the website and the API together, on one address.
 
 **The real app: Render and Neon.** One Render web service runs Express, which
 serves both the API and the built React client from the same address, behind an
 HTTP Basic Authentication gate (`server/basicAuth.js`, `server/web.js`). Same
-address means no CORS and one login for everything. The database is on Neon.
+address means no CORS and one login for everything. The database is on Neon
+(PostgreSQL 18; the tests run locally on 17), in Singapore like the server.
 
 | Render setting | Value |
 | --- | --- |
@@ -343,33 +339,25 @@ yet, so the API always acts as reader 1. Every reader-owned row already carries 
 
 ## What I would do next
 
-- Deploy the database and the API, seed the hosted catalogue, then switch off
-  demo mode on the live site
-- Test the deployed version end to end and fix whatever production changes
+- Record the demo video
 - Add accounts, so each reader's shelves are their own
 
 ## Author
 
-Your name, and a link. Course and section.
+Neriah Faith L. Villapaña ([@neriahv](https://github.com/neriahv)).
+CS - 401 - Computer Science.
 
 ## AI use
 
-If you used AI while building this, say so here. Honest disclosure is the
-standard in this course and increasingly outside it, and reporting heavy use
-accurately costs you nothing.
-
-This section is the last 10 points of the finals badge, and it wants three
-things:
-
 ![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
 
-- the badge above, or one you like better
-- a line naming which assistant you used and how much of the work it touched
-- a link to [AI-USAGE.md](AI-USAGE.md), where the full account lives
-
-Keep the detail in `AI-USAGE.md` rather than here. This section is the summary a
-visitor reads; that file is the record the badge is graded from.
+Built with Claude Code (Opus 5.5) as the main assistant, and ChatGPT for
+rewording. AI wrote most of the interface, the 3D Library Room and the API's
+query layer. I wrote the routing, the server entry point, the access gate, the
+deployed app's middleware and the database role, and I did the deployment
+myself. The full account, entry by entry with commit links, is in
+[AI-USAGE.md](AI-USAGE.md).
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). Put your own name in it.
+MIT, see [LICENSE](LICENSE).
