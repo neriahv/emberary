@@ -15,6 +15,7 @@ import {
   MAX_PLACED_ITEMS,
   catalogEntry,
 } from './catalog.js'
+import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } from './bookFromGoogle.js'
 
 // v4: Ember and the Library Room shop arrived, and a v3 room has no wallet,
 // finishes or storage. A new key means a returning visitor starts again from
@@ -94,7 +95,12 @@ function findBook(db, id) {
 // A collection entry joined with its catalogue book, the shape the Week 2
 // "SELECT ... FROM user_books JOIN books" query will return.
 function withBook(db, entry) {
-  return { ...entry, shelfPosition: entry.shelfPosition ?? null, book: findBook(db, entry.bookId) }
+  return {
+    ...entry,
+    shelfPosition: entry.shelfPosition ?? null,
+    shelfSpot: entry.shelfSpot ?? null,
+    book: findBook(db, entry.bookId),
+  }
 }
 
 // The same rules the server will enforce. The client is not trusted in
@@ -125,8 +131,70 @@ function validateEntryPatch(patch, book) {
       errors.push('shelfPosition must be a whole number from 0 to 999, or null')
     }
   }
+  if ('shelfSpot' in patch && patch.shelfSpot !== null) {
+    const spot = patch.shelfSpot
+    if (
+      typeof spot !== 'object' ||
+      typeof spot.bookcase !== 'string' ||
+      !/^(main|[0-9]{1,9})$/.test(spot.bookcase) ||
+      !Number.isInteger(spot.row) || spot.row < 0 || spot.row > 9 ||
+      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -1.5 || spot.x > 1.5
+    ) {
+      errors.push('shelfSpot must be { bookcase: "main" or a bookcase id, row: 0 to 9, x: -1.5 to 1.5 }, or null')
+    }
+  }
   if (errors.length > 0) throw new Error(errors.join('; '))
 }
+
+// ---------------------------------------------------------------- Google Books
+
+// The demo has no server, so it asks Google directly. Google answers browsers
+// without a key, with a small quota per visitor, which suits a demo.
+async function fromGoogle(url) {
+  let response
+  try {
+    response = await fetch(url)
+  } catch {
+    throw new Error('Google Books did not answer')
+  }
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`Google Books answered ${response.status}`)
+  return response.json()
+}
+
+// The same as GET /api/books/search: every book on Google, with any that are
+// already in the catalogue shown as the catalogue's own book.
+//
+// Without a key Google shares one small daily quota among everyone, and it is
+// often used up. The demo then searches its own shelf instead and says so
+// (source: 'catalogue'); the key lives only on the live app's server.
+export async function searchBooks({ query = '', genre = '' } = {}) {
+  if (!query.trim() && !genre) throw new Error('send a search (q), a genre, or both')
+  let body
+  try {
+    body = await fromGoogle(searchUrl(query, genre))
+  } catch {
+    const fallback = await listBooks({ query, genre })
+    fallback.source = 'catalogue'
+    return fallback
+  }
+  const known = new Map(read().books.map((book) => [bookKey(book), book]))
+  const seen = new Set()
+  const results = []
+  for (const book of (body?.items ?? []).map(volumeToBook).filter(Boolean)) {
+    const key = bookKey(book)
+    const shown = known.get(key) ?? book
+    if (seen.has(key) || seen.has(shown.id)) continue
+    seen.add(key)
+    seen.add(shown.id)
+    results.push(shown)
+  }
+  return results
+}
+
+// The demo has no server to pass covers through, and the 3D room may not read
+// Google's images directly, so demo spines are drawn rather than photographed.
+export const coverImageUrl = () => null
 
 // ---------------------------------------------------------------- catalogue
 
@@ -159,6 +227,12 @@ export async function listMyBooks() {
 export async function addToCollection(bookId, status = 'want-to-read') {
   await delay()
   const db = read()
+  // A book found on Google joins the catalogue the first time it is added,
+  // fetched from Google again rather than trusted from the page.
+  if (!db.books.some((b) => b.id === bookId) && isGoogleId(bookId)) {
+    const found = volumeToBook(await fromGoogle(volumeUrl(volumeIdOf(bookId))))
+    if (found) db.books.push(found)
+  }
   const book = findBook(db, bookId)
   if (db.userBooks.some((entry) => entry.bookId === bookId)) {
     throw new Error(`"${book.title}" is already in your collection`)
@@ -188,6 +262,11 @@ export async function updateMyBook(bookId, patch) {
   const entry = db.userBooks.find((e) => e.bookId === bookId)
   if (!entry) throw new Error('That book is not in your collection')
   validateEntryPatch(patch, book)
+  const bookcase = patch.shelfSpot?.bookcase
+  if (bookcase && bookcase !== 'main') {
+    const item = db.room.items.find((i) => String(i.id) === bookcase)
+    if (!item?.kind.startsWith('bookcase')) throw new Error('That bookcase is not in your room')
+  }
 
   const before = { status: entry.status, currentPage: entry.currentPage }
   const next = { ...entry, ...patch }
@@ -202,8 +281,9 @@ export async function updateMyBook(bookId, patch) {
   // on them) arrives at the end; moving between the started statuses keeps
   // its place.
   const joinsOrLeaves = [patch.status, entry.status].includes('want-to-read')
-  if ('status' in patch && patch.status !== entry.status && joinsOrLeaves && !('shelfPosition' in patch)) {
-    next.shelfPosition = null
+  if ('status' in patch && patch.status !== entry.status && joinsOrLeaves) {
+    if (!('shelfPosition' in patch)) next.shelfPosition = null
+    if (!('shelfSpot' in patch)) next.shelfSpot = null
   }
   next.updatedAt = new Date().toISOString()
 

@@ -1,5 +1,7 @@
 # Emberary
 
+<p align="center"><img src="docs/assets/logo.jpg" alt="Emberary: a smiling little flame rising out of an open book" width="420"></p>
+
 A personal reading space for leisure readers to discover, organize and track
 their books, with a 3D Library Room where their collection sits on real shelves.
 
@@ -29,21 +31,23 @@ access gate.
 - **Home.** A dashboard with your Currently Reading books and their progress,
   library stats, and rows of covers for recently updated books and
   recommendations
-- **Discover.** Search the catalogue by title or author, filter by genre, read a
-  book's details and add it to your collection with a reading status
+- **Discover.** Search every book on Google Books by title or author, or browse
+  by genre, read a book's details, and add it to My Books as Currently Reading,
+  Want to Read, Read or Did Not Finish
 - **My Books.** Your collection sorted into Currently Reading, Want to Read, Read
   and Did Not Finish. Change a book's status, update your page, rate it, review
   it, or remove it
 - **Library Room.** A 3D diorama of a reading room, filling the window below the
   navigation bar: a round window, and every book you have started (reading,
-  read, or set aside) standing on the shelves in your own order, titles on the
-  spines, like a real bookcase. Click a book and it slides off the shelf and
+  read, or set aside) standing on the shelves, each spine cut from the book's
+  real cover (or, in demo mode, drawn in one of five designs in its colours),
+  with its title, so you can find it at a glance. Click a book and it slides off the shelf and
   opens into a two-page spread, the book on the left and your notes on the
   right. **Edit room** opens a shop and lets you arrange the room: put a cart
   together from bookshelves, wallpaper, floors, tables, chairs, lamps, rugs and
   decorations, each shown as a picture of the real thing, and pay for it in
-  Ember. Drag furniture across the floor, turn it, or put it in storage.
-  Everything is saved
+  Ember. Drag furniture across the floor, turn it, or put it in storage, and
+  drag any book to any spot on any shelf. Everything is saved
 - **Ember.** Emberary's currency, earned by reading: a daily check-in, reading
   20 pages in a day, every 50 pages of a book, and finishing a book. The wallet
   in the navigation bar shows the balance and how to earn more
@@ -155,9 +159,20 @@ works out the cover's main colour, which becomes the book's spine colour in the
 Library Room. `--db` updates an existing database in place without touching
 anyone's shelves, which is how a hosted database gets covers.
 
-The key is only ever read by this script. The API never calls Google, the key is
-never in a `VITE_` variable, and it is never committed. The saved image links load
-without a key, so covers work in demo mode on GitHub Pages too. A book with no
+**Searching Google Books.** Discover searches every book on Google through the
+API (`GET /api/books/search`), which adds the key on the server. A book found
+there joins the catalogue when a reader first adds it: the server fetches it from
+Google itself, by id, rather than trusting a title or cover sent by the browser.
+The demo has no server and no key, so it asks Google directly; when Google's
+small keyless quota is used up, it searches its own shelf instead and says so.
+
+**Spines.** The Library Room paints a strip of each book's real cover onto its
+spine. 3D graphics may only read images from the page's own address, so the API
+passes covers through (`GET /api/covers/:id`), only for covers already in the
+catalogue and only from Google's cover host. In demo mode, spines are drawn.
+
+The key is never in a `VITE_` variable, and it is never committed. The saved
+image links load without a key, so covers work in demo mode on GitHub Pages too. A book with no
 cover, or whose image fails to load, gets a drawn cover instead.
 
 Get a key in the Google Cloud console under **APIs & Services > Credentials**,
@@ -177,11 +192,13 @@ the mock.
 | Method and path | What it does |
 | --- | --- |
 | `GET /api/books?q=&genre=` | Search the catalogue by title or author, and filter by genre |
+| `GET /api/books/search?q=&genre=` | Search every book on Google Books. Results already in the catalogue come back as the catalogue's book. 502 if Google does not answer |
 | `GET /api/books/:id` | One catalogue book |
+| `GET /api/covers/:id` | A catalogue book's cover image, passed through from Google, for the Library Room's spines |
 | `GET /api/my-books` | Your shelves, newest change first, each entry with its book |
 | `GET /api/my-books/:bookId` | One entry on your shelves |
 | `POST /api/my-books` | Add `{ bookId, status }`. `status` defaults to `want-to-read`. The reply includes `rewards` |
-| `PATCH /api/my-books/:bookId` | Change any of `status`, `currentPage`, `rating`, `review`, `shelfPosition`. The reply includes `rewards`: the Ember this save earned |
+| `PATCH /api/my-books/:bookId` | Change any of `status`, `currentPage`, `rating`, `review`, `shelfPosition`, `shelfSpot` (`{ bookcase, row, x }` or `null`: where the book stands in the Library Room). The reply includes `rewards`: the Ember this save earned |
 | `PUT /api/my-books/order` | Save the order of the books on the shelves: `{ bookIds: [...] }` |
 | `DELETE /api/my-books/:bookId` | Take a book off your shelves |
 | `GET /api/stats` | Counts by status, average rating, pages read, top genres and authors, books finished per month |
@@ -231,7 +248,7 @@ placeholder values.
 | `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | server, host dashboard only | the access gate's login. The server will not start in production without both |
 | `PORT` | server | **set by the host**, do not set it yourself |
 | `APP_TIMEZONE` | server, optional | when "today" starts for the daily check-in and reading goal; `Asia/Manila` if unset |
-| `GOOGLE_BOOKS_API_KEY` | server `.env`, your laptop only | used only by `npm run covers:fetch`; the API does not need it, so do not set it on the host |
+| `GOOGLE_BOOKS_API_KEY` | server: host dashboard and `.env` | searching Google Books from Discover, and `npm run covers:fetch`. Restrict it to the Books API |
 | `VITE_USE_MOCK_API` | client, at build time | only `false` turns demo mode off; unset means on |
 | `VITE_API_BASE_URL` | client, at build time | your API's public URL, no trailing slash |
 
@@ -266,7 +283,7 @@ address means no CORS and one login for everything. The database is on Neon
 | Build command | `npm run build` (root `package.json`: builds the client, installs the server) |
 | Start command | `npm start` |
 | Health check path | `/healthz`, the one route outside the gate |
-| Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, `VITE_USE_MOCK_API=false` |
+| Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, `GOOGLE_BOOKS_API_KEY`, `VITE_USE_MOCK_API=false` |
 
 The database is set up from a laptop, connected as Neon's **owner** role:
 `schema.sql`, then `seed.sql` (first setup only: it starts with `TRUNCATE`), then

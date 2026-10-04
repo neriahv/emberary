@@ -5,7 +5,8 @@ import AsyncState from '../components/AsyncState.jsx'
 import BookCover from '../components/BookCover.jsx'
 import BookTile from '../components/BookTile.jsx'
 import Icon from '../components/Icon.jsx'
-import { HeroArt, RoomArt } from '../components/Illustrations.jsx'
+import { RoomArt } from '../components/Illustrations.jsx'
+import mark from '../assets/emberary-mark.svg'
 import ProgressBar from '../components/ProgressBar.jsx'
 import StatCard from '../components/StatCard.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
@@ -50,7 +51,10 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
-        <HeroArt className="hero-art" />
+        {/* Emberary's little flame, glowing over its book. */}
+        <div className="hero-mascot" aria-hidden="true">
+          <img src={mark} alt="" />
+        </div>
       </section>
 
       <div className="home-row">

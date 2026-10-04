@@ -394,6 +394,9 @@ export function shelfLevels({ height, shelves }) {
   return Array.from({ length: shelves }, (_, i) => SHELF_BASE + (shelves - 1 - i) * gap)
 }
 
+// The height of the space for books on each shelf.
+export const shelfGap = ({ height, shelves }) => (height - SHELF_BASE - 0.08) / shelves
+
 // The width of a shelf between the sides, and how far forward a book stands so
 // its back touches the back panel.
 export const innerWidth = ({ width }) => width - 2 * SIDE

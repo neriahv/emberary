@@ -114,9 +114,10 @@ test('cannot change the shape of the database', async () => {
   await assertDenied('TRUNCATE user_books')
 })
 
-test('cannot rewrite the book catalogue', async () => {
-  await assertDenied(`INSERT INTO books (id, title, author, genre, pages, year, color, description)
-                      VALUES ('x', 'x', 'x', 'x', 1, 2000, '#000000', 'x')`)
+test('can add to the book catalogue, but never rewrite it', async () => {
+  // Adding is how a book found on Google joins the catalogue.
+  await app.query(`INSERT INTO books (id, title, author, genre, pages, year, color, description)
+                   VALUES ('gb-roleTest1', 'x', 'x', 'x', 1, 2000, '#000000', 'x')`)
   await assertDenied(`UPDATE books SET title = 'changed'`)
   await assertDenied('DELETE FROM books')
 })

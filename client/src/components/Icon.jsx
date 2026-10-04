@@ -10,7 +10,6 @@ const PATHS = {
   plus: 'M12 5v14M5 12h14',
   arrow: 'M5 12h14M13 6l6 6-6 6',
   leaf: 'M5 19C5 11 10 6 19 5c0 9-5 14-14 14ZM5 19l7.5-7.5',
-  flame: 'M12 3c1.2 3.2 5 5.2 5 10a5 5 0 0 1-10 0c0-2.2 1-3.7 2.2-4.8.2 2 1.1 3.1 2.3 3.3-.3-3.2-.7-5.6.5-8.5Z',
 }
 
 export default function Icon({ name, label, className = '' }) {

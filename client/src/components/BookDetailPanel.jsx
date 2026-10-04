@@ -19,7 +19,8 @@ export default function BookDetailPanel({ entry, onSaved, onRemoved, onClose }) 
         <div>
           <h2 id={`detail-${book.id}`}>{book.title}</h2>
           <p className="detail-author">
-            {book.author} · {book.year}
+            {book.author}
+            {book.year ? ` · ${book.year}` : ''}
           </p>
           <p className="book-card-meta">
             {book.genre} · {book.pages} pages

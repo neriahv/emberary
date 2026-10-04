@@ -101,6 +101,20 @@ One scale, six steps, all off a 4px base: `--space-1` through `--space-6` are
 page container's own max-width and padding rather than a separate desktop/
 mobile constant.
 
+## Logo
+
+The logo is a smiling little flame rising out of an open red book with gold
+stars on its cover (`docs/assets/logo.jpg`). In the app it is redrawn as a
+vector, so it stays sharp at any size and has no background of its own:
+`client/src/assets/emberary-mark.svg` (the header, footer, Home welcome and
+loading state) and `emberary-icon.svg` (the browser tab: framed tighter,
+without the glow and sparks, so it reads at 16px).
+
+Three things carry it into the rest of the interface: the wordmark is set in
+`--accent-deep`, the logo's deep ember red; section titles are marked with
+the gold four-point star from the book's cover; and while a page loads, the
+little flame flickers beside the message.
+
 ## Components
 
 Added with the cozy autumn redesign: `Icon` (`name`, `label`), a small set of

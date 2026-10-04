@@ -11,7 +11,7 @@ looks exactly like what it is.
 
 At least six entries. One per real use. Every entry needs a commit link.
 
-### 2026-09-23 - Frontend design (Week 1)
+### 2026-09-23 - Frontend Design (Week 1)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** The whole Week 1 frontend — Home, Discover, My Books,
@@ -26,7 +26,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   pieces existed (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/bcb1ea090502f249e23dc7d89fe51136070bb0f3
 
-### 2026-09-27 - Library Room rebuilt as a 3D diorama (Week 2)
+### 2026-09-27 - Library Room Rebuilt as a 3D Diorama (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I gave a reference photo of an isometric reading-room
@@ -44,7 +44,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   overlapping the edit panel.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Backend beyond basic Express and the database (Week 2)
+### 2026-09-27 - Backend Beyond Basic Express and the Database (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I can write a basic Express server and a database
@@ -60,7 +60,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   PostgreSQL installed, so the project runs from `node_modules` alone.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Real book covers from Google Books (Week 2)
+### 2026-09-27 - Real Book Covers from Google Books (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A script to fetch each catalogue book's real cover
@@ -74,7 +74,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   try the next edition instead (see Case 2 below).
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Profile reading goal as a ring chart (Week 2)
+### 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Replace the yearly reading-goal progress bar on the
@@ -86,7 +86,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   site's look without extra rework.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Security checklist pass (Week 2)
+### 2026-09-27 - Security Checklist Pass (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** To go through the course's security checklist against
@@ -101,7 +101,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 
-### 2026-09-30 - Library Room shelves and furniture shop (Week 3)
+### 2026-09-30 - Library Room Shelves and Furniture Shop (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Three changes to the Library Room. Remove the shelf
@@ -135,7 +135,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - Two bugs came up while testing, described in Cases 4 and 5 below.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-09-30 - Ember: earning the shop's currency by reading (Week 3)
+### 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A way to earn Ember for the shop by reading, using the
@@ -160,7 +160,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   include these cases, all pass.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-10-03 - Tests and setup for going live (Week 3)
+### 2026-10-03 - Tests and Setup for Going Live (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Help getting the app ready to deploy safely. Before
@@ -191,25 +191,7 @@ At least six entries. One per real use. Every entry needs a commit link.
 
 ## 2. Where the AI got it wrong
 
-### Case 1 - covers that were scanned title pages, not covers (Week 2)
-
-- **What it gave me:** A first working version of `fetch-covers.js` that
-  accepted whatever image Google Books returned for the best title/author
-  match.
-- **What was wrong with it:** For four books (Dune, Little Women, The
-  Adventures of Sherlock Holmes, The Lion, the Witch and the Wardrobe), the
-  best-matching edition on Google Books was an old public-domain scan whose
-  "cover" was actually a black-and-white line-art title page, not a real
-  cover. It looked fine in the terminal log ("cover found") but was wrong on
-  screen.
-- **What I did instead:** Had it add a check on each candidate image before
-  accepting it — real cover art comes back as a JPEG of some size; a scanned
-  title page came back as a small PNG — and try the next edition if a
-  candidate fails that check. Confirmed by downloading and looking at the
-  fixed covers afterward.
-- **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
-
-### Case 2 - a database constraint that rejected its own boundary (Week 2)
+### Case 1 - A Database Constraint that Rejected its Own Boundary (Week 2)
 
 - **What it gave me:** A CHECK constraint on room item positions,
   `x BETWEEN -2.2 AND 2.2`, meant to match the validation already run in the
@@ -224,7 +206,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   limit. Ran the full test suite afterward to confirm.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### Case 3 - the shop's pictures blanked the whole page (Week 3)
+### Case 2 - The Shop's Pictures Blanked the Whole Page (Week 3)
 
 - **What it gave me:** `thumbnails.jsx`, which photographs each furniture
   model one at a time on a hidden 3D canvas to make the shop's pictures.
@@ -238,7 +220,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   to check that every card had a picture and the console showed no errors.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### Case 4 - a rate limit that could lock out the right people (Week 3)
+### Case 3 - A Rate Limit that could Lock Out the Right People (Week 3)
 
 - **What it gave me:** Guidance for the rate limit in front of my access gate:
   `skipSuccessfulRequests: true`, so that only failures count toward the
@@ -323,7 +305,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   the history rewrite against my own real GitHub account is not something the
   AI could do for me.
 
-**The access gate**
+**The Access Gate**
 
 - **File:** `server/basicAuth.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/c88cb8e6733777d14f32ece107cf876cd4d143a0
@@ -358,7 +340,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     have thrown. I put the `{ username, password, realm }` destructuring back.
     8 of 8 tests pass.
 
-**The deployed app**
+**The Deployed App**
 
 - **Files:** `server/web.js`, `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/09ed7d0ab2d633f5ee2587b35ff86d55a4dcbfa5

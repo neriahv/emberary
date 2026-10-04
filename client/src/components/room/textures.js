@@ -46,54 +46,210 @@ function fitFont(ctx, text, maxWidth, start, min, family) {
   return size
 }
 
-// A book's spine: its cover colour, two gilt bands, the title running top to
-// bottom as on an English-language spine, and the author's surname at the foot.
-export function spineTexture(book) {
-  return cached(`spine|${book.id}|${book.color}|${book.title}`, () => {
-    const [el, ctx] = canvas(96, 640)
-    const { width: w, height: h } = el
-    const ink = inkFor(book.color)
+// ------------------------------------------------------------ spines
 
+// A spine is 96 x 640 pixels, drawn top to bottom. Every book gets one of five
+// designs, chosen from its id so it always looks the same, in its own cover
+// colour, so two books are told apart on the shelf by more than their titles.
+const SPINE_W = 96
+const SPINE_H = 640
+const SERIF = 'Fraunces Variable, Georgia, "Times New Roman", serif'
+const GILT = '#d9b56a'
+
+function hashOf(text) {
+  let hash = 0
+  for (const ch of text) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return hash
+}
+
+// The colour lighter (amount > 0) or darker (amount < 0).
+function shade(hex, amount) {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (c) => Math.round(amount > 0 ? c + (255 - c) * amount : c * (1 + amount))
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(mix)
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// The rounded look of a real spine: darker at both edges.
+function roundSpine(ctx) {
+  const round = ctx.createLinearGradient(0, 0, SPINE_W, 0)
+  round.addColorStop(0, 'rgba(0,0,0,0.38)')
+  round.addColorStop(0.22, 'rgba(255,255,255,0.10)')
+  round.addColorStop(0.5, 'rgba(255,255,255,0.04)')
+  round.addColorStop(0.82, 'rgba(0,0,0,0.10)')
+  round.addColorStop(1, 'rgba(0,0,0,0.42)')
+  ctx.fillStyle = round
+  ctx.fillRect(0, 0, SPINE_W, SPINE_H)
+}
+
+// Text running top to bottom, as on an English-language spine.
+function spineText(ctx, text, { y, length, align = 'left', start, min, color, alpha = 1 }) {
+  ctx.save()
+  ctx.translate(SPINE_W / 2, y)
+  ctx.rotate(Math.PI / 2)
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = align
+  ctx.fillStyle = color
+  ctx.globalAlpha = alpha
+  fitFont(ctx, text, length, start, min, SERIF)
+  ctx.fillText(text, 0, 0)
+  ctx.restore()
+}
+
+function diamond(ctx, x, y, size, color) {
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(x, y - size)
+  ctx.lineTo(x + size * 0.7, y)
+  ctx.lineTo(x, y + size)
+  ctx.lineTo(x - size * 0.7, y)
+  ctx.closePath()
+  ctx.fill()
+}
+
+const surnameOf = (book) => book.author.split(',')[0].trim().split(' ').at(-1)
+
+// Five designs. Each fills the canvas and returns where the title may go.
+const DESIGNS = [
+  // classic: two pairs of gilt bands at the head and foot
+  (ctx, book, ink) => {
     ctx.fillStyle = book.color
-    ctx.fillRect(0, 0, w, h)
-    // Rounded spine: darker at both edges.
-    const round = ctx.createLinearGradient(0, 0, w, 0)
-    round.addColorStop(0, 'rgba(0,0,0,0.38)')
-    round.addColorStop(0.22, 'rgba(255,255,255,0.10)')
-    round.addColorStop(0.5, 'rgba(255,255,255,0.04)')
-    round.addColorStop(0.82, 'rgba(0,0,0,0.10)')
-    round.addColorStop(1, 'rgba(0,0,0,0.42)')
-    ctx.fillStyle = round
-    ctx.fillRect(0, 0, w, h)
-
+    ctx.fillRect(0, 0, SPINE_W, SPINE_H)
     ctx.fillStyle = ink
     ctx.globalAlpha = 0.75
-    for (const y of [34, 44, h - 44, h - 34]) ctx.fillRect(10, y, w - 20, 3)
+    for (const y of [34, 44, SPINE_H - 44, SPINE_H - 34]) ctx.fillRect(10, y, SPINE_W - 20, 3)
     ctx.globalAlpha = 1
+    return { y: 70, length: SPINE_H - 220, color: ink }
+  },
+  // label: a paper label with the title, between dark bands
+  (ctx, book) => {
+    ctx.fillStyle = book.color
+    ctx.fillRect(0, 0, SPINE_W, SPINE_H)
+    ctx.fillStyle = shade(book.color, -0.35)
+    ctx.fillRect(0, 0, SPINE_W, 36)
+    ctx.fillRect(0, SPINE_H - 36, SPINE_W, 36)
+    ctx.fillStyle = '#f3e6cc'
+    ctx.fillRect(14, 70, SPINE_W - 28, SPINE_H - 230)
+    ctx.strokeStyle = shade(book.color, -0.2)
+    ctx.lineWidth = 3
+    ctx.strokeRect(19, 75, SPINE_W - 38, SPINE_H - 240)
+    return { y: 92, length: SPINE_H - 274, color: shade(book.color, -0.45) }
+  },
+  // two-tone: a pale band across the foot, like a paperback's jacket
+  (ctx, book, ink) => {
+    ctx.fillStyle = book.color
+    ctx.fillRect(0, 0, SPINE_W, SPINE_H)
+    ctx.fillStyle = shade(book.color, 0.55)
+    ctx.fillRect(0, SPINE_H * 0.7, SPINE_W, SPINE_H * 0.3)
+    ctx.fillStyle = GILT
+    ctx.fillRect(0, SPINE_H * 0.7 - 5, SPINE_W, 5)
+    diamond(ctx, SPINE_W / 2, 30, 12, GILT)
+    return { y: 58, length: SPINE_H * 0.7 - 80, color: ink }
+  },
+  // leather: raised ribs with gilt diamonds between them
+  (ctx, book, ink) => {
+    ctx.fillStyle = shade(book.color, -0.15)
+    ctx.fillRect(0, 0, SPINE_W, SPINE_H)
+    for (const y of [24, 120, SPINE_H - 120, SPINE_H - 24]) {
+      ctx.fillStyle = shade(book.color, -0.45)
+      ctx.fillRect(0, y - 7, SPINE_W, 14)
+      ctx.fillStyle = 'rgba(255,255,255,0.18)'
+      ctx.fillRect(0, y - 7, SPINE_W, 3)
+    }
+    diamond(ctx, SPINE_W / 2, 72, 14, GILT)
+    diamond(ctx, SPINE_W / 2, SPINE_H - 72, 14, GILT)
+    return { y: 150, length: SPINE_H - 330, color: GILT }
+  },
+  // stripes: a band of thin stripes near the head, the publisher's mark below
+  (ctx, book, ink) => {
+    ctx.fillStyle = book.color
+    ctx.fillRect(0, 0, SPINE_W, SPINE_H)
+    ctx.fillStyle = shade(book.color, 0.35)
+    for (let i = 0; i < 5; i += 1) ctx.fillRect(0, 22 + i * 11, SPINE_W, 5)
+    ctx.beginPath()
+    ctx.arc(SPINE_W / 2, SPINE_H - 40, 16, 0, Math.PI * 2)
+    ctx.fillStyle = shade(book.color, 0.5)
+    ctx.fill()
+    return { y: 96, length: SPINE_H - 260, color: ink }
+  },
+]
 
-    const family = 'Georgia, "Times New Roman", serif'
-    ctx.save()
-    ctx.translate(w / 2, 64)
-    ctx.rotate(Math.PI / 2)
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'left'
-    fitFont(ctx, book.title, h - 64 - 150, 40, 18, family)
-    ctx.fillText(book.title, 0, 0)
-    ctx.restore()
-
-    const surname = book.author.split(' ').at(-1)
-    ctx.save()
-    ctx.translate(w / 2, h - 60)
-    ctx.rotate(Math.PI / 2)
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'right'
-    ctx.globalAlpha = 0.85
-    fitFont(ctx, surname, 110, 26, 14, family)
-    ctx.fillText(surname, 0, 0)
-    ctx.restore()
-
+// A book's drawn spine. Used everywhere in demo mode, and in the live app until
+// (or unless) the real cover arrives.
+export function spineTexture(book) {
+  return cached(`spine|${book.id}|${book.color}|${book.title}`, () => {
+    const [el, ctx] = canvas(SPINE_W, SPINE_H)
+    const ink = inkFor(book.color)
+    const design = DESIGNS[hashOf(book.id) % DESIGNS.length]
+    const title = design(ctx, book, ink)
+    roundSpine(ctx)
+    spineText(ctx, book.title, { y: title.y, length: title.length, start: 40, min: 16, color: title.color })
+    spineText(ctx, surnameOf(book), {
+      y: SPINE_H - 60,
+      length: 110,
+      align: 'right',
+      start: 26,
+      min: 14,
+      color: title.color === GILT ? GILT : ink,
+      alpha: 0.85,
+    })
     return makeTexture(el)
   })
+}
+
+// A spine cut from the book's real cover: a strip from the left of the front,
+// where a cover's art usually wraps round onto the spine, with the title on a
+// dark band so it stays readable over any picture.
+export function coverSpineTexture(book, image) {
+  return cached(`cover-spine|${book.id}`, () => {
+    const [el, ctx] = canvas(SPINE_W, SPINE_H)
+    // Scale the cover to the spine's height, then take a strip near its left.
+    const scale = SPINE_H / image.naturalHeight
+    const stripFrom = Math.min(image.naturalWidth * 0.18, image.naturalWidth - SPINE_W / scale)
+    ctx.drawImage(image, Math.max(0, stripFrom), 0, SPINE_W / scale, image.naturalHeight, 0, 0, SPINE_W, SPINE_H)
+
+    const band = ctx.createLinearGradient(0, 0, SPINE_W, 0)
+    band.addColorStop(0, 'rgba(20,12,8,0)')
+    band.addColorStop(0.2, 'rgba(20,12,8,0.55)')
+    band.addColorStop(0.8, 'rgba(20,12,8,0.55)')
+    band.addColorStop(1, 'rgba(20,12,8,0)')
+    ctx.fillStyle = band
+    ctx.fillRect(0, 56, SPINE_W, SPINE_H - 200)
+    ctx.fillStyle = GILT
+    ctx.globalAlpha = 0.85
+    ctx.fillRect(12, 50, SPINE_W - 24, 3)
+    ctx.fillRect(12, SPINE_H - 147, SPINE_W - 24, 3)
+    ctx.globalAlpha = 1
+
+    roundSpine(ctx)
+    spineText(ctx, book.title, { y: 70, length: SPINE_H - 228, start: 38, min: 16, color: '#fff6e6' })
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.8)'
+    ctx.shadowBlur = 6
+    spineText(ctx, surnameOf(book), { y: SPINE_H - 40, length: 90, align: 'right', start: 24, min: 13, color: '#fff6e6' })
+    ctx.restore()
+    return makeTexture(el)
+  })
+}
+
+// Load a cover from the app's own address, once per book. Resolves with the
+// image, or null if there is none or it fails: the drawn spine stays.
+const images = new Map()
+export function loadCover(url) {
+  if (!url) return Promise.resolve(null)
+  if (!images.has(url)) {
+    images.set(
+      url,
+      new Promise((resolve) => {
+        const image = new Image()
+        image.crossOrigin = 'anonymous'
+        image.onload = () => resolve(image.naturalWidth > 0 ? image : null)
+        image.onerror = () => resolve(null)
+        image.src = url
+      })
+    )
+  }
+  return images.get(url)
 }
 
 // Grey wood planks. The floor material's colour tints them, so the reader's

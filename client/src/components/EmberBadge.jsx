@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { checkIn } from '../api'
+import { checkIn, catalogEntry } from '../api'
 import { useEmber } from '../hooks/useEmber.js'
+import ProgressBar from './ProgressBar.jsx'
 
 // A small ember, the currency's mark.
 export function EmberIcon() {
@@ -12,17 +13,45 @@ export function EmberIcon() {
   )
 }
 
+// The ember stamped on a gold coin: how the currency looks wherever it is shown.
+export function EmberCoin({ size = 'md' }) {
+  return (
+    <span className={`ember-coin ember-coin-${size}`} aria-hidden="true">
+      <EmberIcon />
+    </span>
+  )
+}
+
 const HISTORY_LABELS = {
   welcome: 'Welcome gift',
   'daily-check-in': 'Daily check-in',
   'daily-goal': 'Daily reading goal',
   'book-finished': 'Finished a book',
   'pages-read': 'Pages read',
-  purchase: 'Bought for the Library Room',
+  purchase: 'Shop',
 }
 
-// The wallet in the navigation bar: the balance, the daily check-in, and how
-// to earn more.
+// What a purchase bought, by name, from the catalogue ids it was recorded with.
+function purchaseNames(ref) {
+  const names = String(ref ?? '')
+    .split(',')
+    .map((id) => catalogEntry(id.trim())?.name)
+    .filter(Boolean)
+  if (names.length === 0) return 'Furniture for the Library Room'
+  return names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')
+}
+
+function when(iso) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(iso).setHours(0, 0, 0, 0)) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// The wallet in the navigation bar: the balance, the daily check-in, how to
+// earn more, and where it went.
 export default function EmberBadge() {
   const wallet = useEmber()
   const [open, setOpen] = useState(false)
@@ -73,6 +102,17 @@ export default function EmberBadge() {
 
   if (wallet.status === 'error' && !data) return null
   const rules = data?.rules
+  const ways = rules && [
+    { amount: rules.dailyCheckIn, text: 'Check in once a day' },
+    { amount: rules.dailyGoalReward, text: `Read ${rules.dailyPageGoal} pages in a day` },
+    { amount: 1, text: `Every ${rules.pagesPerEmber} pages of a book` },
+    { amount: rules.bookFinished, text: 'Finish a book' },
+  ]
+  const claimButton = data && !data.checkedInToday && (
+    <button type="button" className="ember-claim" onClick={claim} disabled={claiming}>
+      {claiming ? 'Claiming...' : `Daily +${rules.dailyCheckIn}`}
+    </button>
+  )
 
   return (
     <div className="ember-wallet" ref={box}>
@@ -80,53 +120,76 @@ export default function EmberBadge() {
         type="button"
         className={`ember-badge${gaining ? ' is-gaining' : ''}`}
         aria-expanded={open}
-        aria-label={data ? `${data.balance} Ember. How to earn more` : 'Ember'}
+        aria-label={data ? `Your wallet: ${data.balance} Ember` : 'Your Ember wallet'}
         onClick={() => setOpen(!open)}
       >
-        <EmberIcon />
-        <span>{data ? data.balance : '…'}</span>
+        <EmberCoin size="sm" />
+        <span className="ember-amount">{data ? data.balance : '…'}</span>
+        <span className="ember-unit">Ember</span>
       </button>
-      {data && !data.checkedInToday && (
-        <button type="button" className="ember-claim" onClick={claim} disabled={claiming}>
-          {claiming ? 'Claiming...' : `Daily +${rules.dailyCheckIn}`}
-        </button>
-      )}
+      {claimButton}
 
       {open && data && (
-        <div className="ember-popover" role="dialog" aria-label="Your Ember">
-          <p className="ember-popover-balance">
-            <EmberIcon /> <strong>{data.balance}</strong> Ember
-          </p>
-          <p className="muted ember-popover-today">
-            Today: {Math.min(data.pagesToday, data.dailyPageGoal)} of {data.dailyPageGoal} pages read
-            {data.pagesToday >= data.dailyPageGoal ? ' — goal reached.' : '.'}
-          </p>
-          <h3>How to earn Ember</h3>
-          <ul className="ember-rules">
-            <li>
-              Check in once a day <strong>+{rules.dailyCheckIn}</strong>
-            </li>
-            <li>
-              Read {rules.dailyPageGoal} pages in a day <strong>+{rules.dailyGoalReward}</strong>
-            </li>
-            <li>
-              Every {rules.pagesPerEmber} pages of a book <strong>+1</strong>
-            </li>
-            <li>
-              Finish a book <strong>+{rules.bookFinished}</strong>
-            </li>
-          </ul>
-          <p className="muted ember-popover-spend">
-            Spend it on furniture in the <Link to="/library-room" onClick={() => setOpen(false)}>Library Room</Link>{' '}
-            shop.
-          </p>
+        <div className="ember-popover" role="dialog" aria-label="Your Ember wallet">
+          <div className="ember-card">
+            <p className="ember-card-label">Your wallet</p>
+            <p className="ember-card-balance">
+              <EmberCoin size="lg" />
+              <strong>{data.balance}</strong>
+              <span>Ember</span>
+            </p>
+            <p className="ember-card-about">
+              Ember is Emberary's currency. You earn it by reading, and spend it on furniture,
+              wallpaper and floors for your Library Room.
+            </p>
+          </div>
+
+          <section className="ember-section" aria-label="Today">
+            <h3>Today's reading goal</h3>
+            <ProgressBar
+              value={Math.min(data.pagesToday, data.dailyPageGoal)}
+              max={data.dailyPageGoal}
+              label="Pages read today"
+              unit="pages"
+            />
+            {data.checkedInToday ? (
+              <p className="ember-done">✓ Checked in today</p>
+            ) : (
+              claimButton
+            )}
+          </section>
+
+          <section className="ember-section">
+            <h3>Ways to earn</h3>
+            <ul className="ember-ways">
+              {ways.map((way) => (
+                <li key={way.text}>
+                  <span className="ember-gain">
+                    <EmberCoin size="xs" />+{way.amount}
+                  </span>
+                  <span>{way.text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <Link className="button ember-shop" to="/library-room?shop=1" onClick={() => setOpen(false)}>
+            Spend it in the shop
+          </Link>
+
           {data.history.length > 0 && (
-            <>
-              <h3>Recently</h3>
+            <section className="ember-section">
+              <h3>Recent activity</h3>
               <ul className="ember-history">
-                {data.history.map((row) => (
-                  <li key={row.id}>
-                    <span>{HISTORY_LABELS[row.reason] ?? row.reason}</span>
+                {data.history.map((row, i) => (
+                  <li key={row.id ?? i}>
+                    <span className={`ember-history-dot ${row.amount < 0 ? 'is-spent' : 'is-earned'}`} aria-hidden="true">
+                      {row.amount < 0 ? '−' : '+'}
+                    </span>
+                    <span className="ember-history-what">
+                      {row.reason === 'purchase' ? purchaseNames(row.ref) : HISTORY_LABELS[row.reason] ?? row.reason}
+                      <small>{row.reason === 'purchase' ? `Shop · ${when(row.createdAt)}` : when(row.createdAt)}</small>
+                    </span>
                     <strong className={row.amount < 0 ? 'is-spent' : 'is-earned'}>
                       {row.amount > 0 ? '+' : '−'}
                       {Math.abs(row.amount)}
@@ -134,7 +197,7 @@ export default function EmberBadge() {
                   </li>
                 ))}
               </ul>
-            </>
+            </section>
           )}
           {error && (
             <p className="error error-inline" role="alert">

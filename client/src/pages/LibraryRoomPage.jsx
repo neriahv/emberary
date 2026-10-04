@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { listMyBooks, getRoom, reorderShelf, STATUS_LABELS, USING_MOCK_API } from '../api'
+import { Link, useSearchParams } from 'react-router-dom'
+import { listMyBooks, getRoom, updateMyBook, USING_MOCK_API } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import { useEmber } from '../hooks/useEmber.js'
 import { useRoomSaver } from '../hooks/useRoomSaver.js'
@@ -9,6 +9,7 @@ import { EmberIcon } from '../components/EmberBadge.jsx'
 import LibraryScene, { bookcasesIn, layoutBookcases, shelfOrder } from '../components/room/LibraryScene.jsx'
 import RoomCustomizer from '../components/room/RoomCustomizer.jsx'
 import BookModal from '../components/room/BookModal.jsx'
+import BookFinder from '../components/room/BookFinder.jsx'
 
 // How long a book takes to slide off the shelf before it opens.
 const PULL_MS = 420
@@ -32,8 +33,9 @@ export default function LibraryRoomPage() {
   // The book off the shelf, and whether it has opened yet.
   const [pulledId, setPulledId] = useState(null)
   const [openId, setOpenId] = useState(null)
-  const [shelfMove, setShelfMove] = useState({ busy: false, error: null })
+  const [moveError, setMoveError] = useState(null)
   const openTimer = useRef(null)
+  const [params, setParams] = useSearchParams()
 
   const entries = books.data ?? []
   const shelved = shelfOrder(entries)
@@ -53,7 +55,6 @@ export default function LibraryRoomPage() {
   function pickBook(bookId) {
     if (!bookId || pulledId) return
     setPulledId(bookId)
-    setShelfMove({ busy: false, error: null })
     openTimer.current = setTimeout(() => setOpenId(bookId), reducedMotion() ? 0 : PULL_MS)
   }
 
@@ -72,26 +73,17 @@ export default function LibraryRoomPage() {
     bookClosed()
   }
 
-  // Move the open book one place along the shelves. The whole order is saved,
-  // because most books on them may never have had a saved place.
-  async function moveOnShelf(step) {
-    const order = shelved.map((e) => e.bookId)
-    const index = order.indexOf(openEntry.bookId)
-    const next = [...order]
-    ;[next[index], next[index + step]] = [next[index + step], next[index]]
-    const positions = Object.fromEntries(next.map((bookId, position) => [bookId, position]))
+  // A book carried to a new spot in Edit room. It moves at once, and goes
+  // back if the save fails.
+  async function moveBook(bookId, shelfSpot) {
     const previous = entries
-
-    books.setData((rows) =>
-      rows.map((row) => (row.bookId in positions ? { ...row, shelfPosition: positions[row.bookId] } : row))
-    )
-    setShelfMove({ busy: true, error: null })
+    books.setData((rows) => rows.map((row) => (row.bookId === bookId ? { ...row, shelfSpot } : row)))
+    setMoveError(null)
     try {
-      await reorderShelf(next)
-      setShelfMove({ busy: false, error: null })
+      await updateMyBook(bookId, { shelfSpot })
     } catch (error) {
       books.setData(previous)
-      setShelfMove({ busy: false, error })
+      setMoveError(error)
     }
   }
 
@@ -105,6 +97,14 @@ export default function LibraryRoomPage() {
   }
   const changeItems = (update) => room.setData((prev) => ({ ...prev, items: update(prev.items) }))
   const unlock = (ids) => room.setData((prev) => ({ ...prev, unlocks: [...prev.unlocks, ...ids] }))
+
+  // "Spend it in the shop" in the wallet arrives here with ?shop=1.
+  useEffect(() => {
+    if (params.get('shop') !== '1' || room.status !== 'ready') return
+    openShop()
+    setParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, room.status])
 
   function openShop() {
     setDrawerTab('shop')
@@ -121,11 +121,7 @@ export default function LibraryRoomPage() {
 
   const ready = books.status === 'ready' && room.status === 'ready'
   const loading = books.status !== 'ready' ? books : room
-  const shelf = openEntry && {
-    index: shelved.findIndex((e) => e.bookId === openEntry.bookId),
-    count: shelved.length,
-    ...shelfMove,
-  }
+  const onShelves = openEntry && shelved.some((e) => e.bookId === openEntry.bookId)
   // Books that do not fit on any bookcase; the answer is another bookcase.
   const overflow = ready ? layoutBookcases(entries, bookcasesIn(room.data)).overflow : 0
 
@@ -144,6 +140,7 @@ export default function LibraryRoomPage() {
             selectedItemId={selectedItemId}
             onSelectItem={setSelectedItemId}
             onItemChange={changeItem}
+            onMoveBook={moveBook}
           />
         </div>
       ) : (
@@ -190,29 +187,25 @@ export default function LibraryRoomPage() {
           {shelved.length > 0 ? (
             <>
               {/* The canvas cannot be used with a keyboard or a screen reader,
-                  so every book in it can also be opened from this list. */}
-              <label htmlFor="room-picker" className="hud-label">
-                Find a book
-              </label>
-              <select
-                id="room-picker"
-                className="hud-select"
-                value=""
-                onChange={(event) => pickBook(event.target.value)}
-              >
-                <option value="">Choose...</option>
-                {shelved.map((entry) => (
-                  <option key={entry.bookId} value={entry.bookId}>
-                    {entry.book.title} ({STATUS_LABELS[entry.status]})
-                  </option>
-                ))}
-              </select>
+                  so every book in it can also be found and opened here. */}
+              <BookFinder entries={shelved} onPick={pickBook} />
               <span className="hud-hint">Click a book on the shelves to open it · drag to look around</span>
             </>
           ) : (
             <p className="hud-hint">
               Your shelves are empty. Books appear here once you start reading them.{' '}
               <Link to="/my-books">Go to My Books</Link>.
+            </p>
+          )}
+        </div>
+      )}
+
+      {ready && editing && (
+        <div className="hud hud-bottom">
+          <p className="hud-hint">Drag a book to any shelf to move it · drag furniture across the floor</p>
+          {moveError && (
+            <p className="hud-notice" role="alert">
+              Could not move the book: {moveError.message}
             </p>
           )}
         </div>
@@ -239,10 +232,9 @@ export default function LibraryRoomPage() {
       {openEntry && (
         <BookModal
           entry={openEntry}
-          shelf={shelf}
+          onShelves={onShelves}
           onSaved={handleSaved}
           onRemoved={handleRemoved}
-          onMove={moveOnShelf}
           onClosed={bookClosed}
         />
       )}

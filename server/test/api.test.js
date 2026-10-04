@@ -21,15 +21,55 @@ const schema = readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8'
 const seed = readFileSync(new URL('../db/seed.sql', import.meta.url), 'utf8')
 
 let server
+let googleCalls = []
+let googleDown = false
+
+// A stand-in for Google, so the tests never touch the internet. It knows a
+// search, two volumes, and one cover image.
+const VOLUMES = {
+  fakeVol001: {
+    id: 'fakeVol001',
+    volumeInfo: {
+      title: 'The Night Library',
+      authors: ['Ada Quill'],
+      categories: ['Fiction / Fantasy / Epic'],
+      pageCount: 384,
+      publishedDate: '2019-05-02',
+      description: '<p>A library that only opens <b>at night</b>.</p>',
+      imageLinks: { thumbnail: 'http://books.google.com/books/content?id=fakeVol001&printsec=frontcover&img=1&zoom=1&edge=curl' },
+    },
+  },
+  fakeDune01: {
+    id: 'fakeDune01',
+    volumeInfo: { title: 'Dune', authors: ['Frank Herbert'], pageCount: 604, publishedDate: '1990' },
+  },
+  noPages001: { id: 'noPages001', volumeInfo: { title: 'A Pamphlet', authors: ['Nobody'] } },
+}
+async function fakeGoogle(url) {
+  url = new URL(url)
+  googleCalls.push(url)
+  if (googleDown) throw new Error('offline')
+  if (url.hostname === 'books.google.com') {
+    return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), { headers: { 'Content-Type': 'image/jpeg' } })
+  }
+  const id = url.pathname.split('/volumes/')[1]
+  if (id) {
+    const volume = VOLUMES[decodeURIComponent(id)]
+    return volume ? Response.json(volume) : new Response('{}', { status: 404 })
+  }
+  return Response.json({ items: Object.values(VOLUMES) })
+}
 let base
 
 before(async () => {
-  server = createApp(pool).listen(0)
+  server = createApp(pool, { fetch: fakeGoogle }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   base = `http://localhost:${server.address().port}`
 })
 
 beforeEach(async () => {
+  googleCalls = []
+  googleDown = false
   await pool.query(schema)
   await pool.query(seed)
 })
@@ -565,4 +605,115 @@ test('unknown routes and broken JSON get JSON errors, not stack traces', async (
   })
   assert.equal(response.status, 400)
   assert.deepEqual(await response.json(), { error: 'Request body is not valid JSON' })
+})
+
+// ------------------------------------------------------------ Google Books
+
+test('search goes to Google Books, and keeps only books with a page count', async () => {
+  const { status, body } = await call('GET', '/api/books/search?q=library')
+  assert.equal(status, 200)
+  assert.equal(googleCalls[0].searchParams.get('q'), 'library')
+
+  const night = body.find((b) => b.id === 'gb-fakeVol001')
+  assert.equal(night.title, 'The Night Library')
+  assert.equal(night.author, 'Ada Quill')
+  assert.equal(night.genre, 'Fantasy')
+  assert.equal(night.year, 2019)
+  assert.equal(night.description, 'A library that only opens at night .')
+  assert.match(night.coverUrl, /^https:\/\/books\.google\.com\//)
+  assert.doesNotMatch(night.coverUrl, /edge=/)
+  assert.ok(!body.some((b) => b.id === 'gb-noPages001'))
+})
+
+test('a Google result that is already in the catalogue comes back as the catalogue book', async () => {
+  const { body } = await call('GET', '/api/books/search?q=dune')
+  assert.ok(body.some((b) => b.id === 'b08'))
+  assert.ok(!body.some((b) => b.id === 'gb-fakeDune01'))
+})
+
+test('a genre chip searches Google by subject', async () => {
+  await call('GET', '/api/books/search?genre=Science%20Fiction')
+  assert.equal(googleCalls[0].searchParams.get('q'), 'subject:"science fiction"')
+})
+
+test('search needs something to search for, and says so when Google is down', async () => {
+  assert.equal((await call('GET', '/api/books/search')).status, 400)
+  assert.equal((await call('GET', `/api/books/search?q=${'x'.repeat(101)}`)).status, 400)
+  googleDown = true
+  const down = await call('GET', '/api/books/search?q=nothing-cached-yet')
+  assert.equal(down.status, 502)
+  assert.match(down.body.error, /Google Books/)
+})
+
+test('adding a book found on Google saves it to the catalogue from Google itself', async () => {
+  // The title in the body is ignored: the server asks Google.
+  const added = await call('POST', '/api/my-books', { bookId: 'gb-fakeVol001', status: 'currently-reading', title: 'Fake' })
+  assert.equal(added.status, 201)
+  assert.equal(added.body.book.title, 'The Night Library')
+  assert.ok(googleCalls.some((u) => u.pathname.endsWith('/volumes/fakeVol001')))
+
+  assert.equal((await call('GET', '/api/books/gb-fakeVol001')).body.pages, 384)
+  assert.equal((await call('POST', '/api/my-books', { bookId: 'gb-fakeVol001' })).status, 409)
+})
+
+test('a Google id Google does not know, or any other unknown id, is not found', async () => {
+  assert.equal((await call('POST', '/api/my-books', { bookId: 'gb-missing999' })).status, 404)
+  googleCalls = []
+  assert.equal((await call('POST', '/api/my-books', { bookId: 'not-a-book' })).status, 404)
+  assert.equal(googleCalls.length, 0, 'only gb- ids are looked up on Google')
+})
+
+test('a cover is passed through from Google for the Library Room', async () => {
+  const response = await fetch(`${base}/api/covers/b08`)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'image/jpeg')
+  assert.equal((await response.arrayBuffer()).byteLength, 4)
+  assert.equal(googleCalls.at(-1).hostname, 'books.google.com')
+
+  assert.equal((await fetch(`${base}/api/covers/no-such-book`)).status, 404)
+})
+
+// ------------------------------------------------------------ shelf spots
+
+test('a book can be put anywhere on the shelves, and taken back', async () => {
+  const spot = { bookcase: 'main', row: 2, x: -0.4 }
+  const moved = await call('PATCH', '/api/my-books/b08', { shelfSpot: spot })
+  assert.equal(moved.status, 200)
+  assert.equal(moved.body.shelfSpot.bookcase, 'main')
+  assert.equal(moved.body.shelfSpot.row, 2)
+  assert.ok(Math.abs(moved.body.shelfSpot.x + 0.4) < 1e-6)
+
+  const cleared = await call('PATCH', '/api/my-books/b08', { shelfSpot: null })
+  assert.equal(cleared.body.shelfSpot, null)
+})
+
+test('a spot must be on a real shelf of a bookcase the reader owns', async () => {
+  for (const shelfSpot of [
+    { bookcase: 'main', row: 10, x: 0 },
+    { bookcase: 'main', row: 1, x: 2 },
+    { bookcase: 'attic', row: 1, x: 0 },
+    { bookcase: 'main', row: 1.5, x: 0 },
+    'main',
+  ]) {
+    assert.equal((await call('PATCH', '/api/my-books/b08', { shelfSpot })).status, 400, JSON.stringify(shelfSpot))
+  }
+  assert.equal((await call('PATCH', '/api/my-books/b08', { shelfSpot: { bookcase: '999', row: 0, x: 0 } })).status, 400)
+
+  const bought = await call('POST', '/api/shop/checkout', { items: ['bookcase-small'] })
+  const id = String(bought.body.items.find((i) => i.kind === 'bookcase-small').id)
+  const onIt = await call('PATCH', '/api/my-books/b08', { shelfSpot: { bookcase: id, row: 1, x: 0.1 } })
+  assert.equal(onIt.status, 200)
+  assert.equal(onIt.body.shelfSpot.bookcase, id)
+})
+
+test('a book that leaves the shelves for Want to Read loses its spot', async () => {
+  await call('PATCH', '/api/my-books/b08', { shelfSpot: { bookcase: 'main', row: 0, x: 0 } })
+  const wanted = await call('PATCH', '/api/my-books/b08', { status: 'want-to-read' })
+  assert.equal(wanted.body.shelfSpot, null)
+})
+
+test('the Google Books mapping is the same file on the client and the server', () => {
+  const server = readFileSync(new URL('../bookFromGoogle.js', import.meta.url), 'utf8')
+  const client = readFileSync(new URL('../../client/src/api/bookFromGoogle.js', import.meta.url), 'utf8')
+  assert.equal(client, server)
 })

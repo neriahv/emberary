@@ -4,10 +4,13 @@
 // Returns null once the data is ready, so a page can write
 //   <AsyncState {...result} /> {result.status === 'ready' && ...}
 
+import mark from '../assets/emberary-mark.svg'
+
 export default function AsyncState({ status, error, slow, reload, label = 'Loading' }) {
   if (status === 'loading') {
     return (
-      <p className="muted" role="status">
+      <p className="muted loading" role="status">
+        <img className="loading-flame" src={mark} alt="" />
         {label}
         {slow ? '. The server may be waking up, which can take up to a minute.' : '...'}
       </p>

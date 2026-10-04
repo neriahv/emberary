@@ -41,6 +41,8 @@ export const STATUS_LABELS = {
 
 export const {
   listBooks,
+  searchBooks,
+  coverImageUrl,
   getBook,
   listMyBooks,
   removeFromCollection,

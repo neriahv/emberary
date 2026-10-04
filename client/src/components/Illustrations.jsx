@@ -1,7 +1,7 @@
-// Flat illustrations in Emberary's palette for the Home hero, the Library Room
-// card and the My Books banner. Purely decorative, so hidden from screen
-// readers. The colours are fixed: they are pictures, and read the same in
-// light and dark mode.
+// Flat illustrations in Emberary's palette for the Library Room card and the
+// My Books banner. Purely decorative, so hidden from screen readers. The
+// colours are fixed: they are pictures, and read the same in light and dark
+// mode.
 const EMBER = '#a4431f'
 const HONEY = '#c7771c'
 const AMBER = '#e2a35a'
@@ -9,35 +9,6 @@ const WOOD = '#5a3a22'
 const DARK_WOOD = '#3a2a1e'
 const BRICK = '#6b3f2a'
 const PAPER = '#fff8ef'
-const GLOW = '#f6e2d6'
-
-// A reading nook: a window of warm light, a stack of books, a mug, and leaves
-// drifting past.
-export function HeroArt({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 260 180" aria-hidden="true">
-      <circle cx="160" cy="78" r="74" fill={GLOW} opacity="0.75" />
-      <path d="M118 120V58a42 42 0 0 1 84 0v62Z" fill={PAPER} stroke={WOOD} strokeWidth="6" />
-      <path d="M160 18v102M118 76h84" stroke={WOOD} strokeWidth="4" />
-      <circle cx="182" cy="44" r="10" fill={AMBER} opacity="0.55" />
-      <rect x="40" y="138" width="196" height="10" rx="5" fill={WOOD} />
-      <rect x="54" y="148" width="10" height="26" rx="3" fill={DARK_WOOD} />
-      <rect x="212" y="148" width="10" height="26" rx="3" fill={DARK_WOOD} />
-      <rect x="60" y="120" width="78" height="18" rx="4" fill={EMBER} />
-      <path d="M66 129h64" stroke={PAPER} strokeWidth="2" opacity="0.5" />
-      <rect x="68" y="104" width="66" height="16" rx="4" fill={HONEY} />
-      <path d="M74 112h54" stroke={PAPER} strokeWidth="2" opacity="0.5" />
-      <rect x="62" y="90" width="70" height="14" rx="4" fill={BRICK} />
-      <rect x="156" y="106" width="34" height="32" rx="7" fill={PAPER} stroke={EMBER} strokeWidth="4" />
-      <path d="M190 114a8 8 0 0 1 0 16" fill="none" stroke={EMBER} strokeWidth="4" />
-      <path d="M166 98c-4-6 4-8 0-14M178 98c-4-6 4-8 0-14" fill="none" stroke={HONEY} strokeWidth="3" strokeLinecap="round" opacity="0.7" />
-      <Leaf x={34} y={40} rotate={-30} fill={HONEY} />
-      <Leaf x={226} y={60} rotate={40} fill={EMBER} />
-      <Leaf x={90} y={30} rotate={15} fill={AMBER} scale={0.7} />
-      <Leaf x={238} y={118} rotate={-60} fill={AMBER} scale={0.8} />
-    </svg>
-  )
-}
 
 // A tiny version of the 3D room: two walls, a round window, a bookcase and a rug.
 export function RoomArt({ className }) {

@@ -2,7 +2,9 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
 GRANT USAGE ON SCHEMA public TO emberary_app;
 
-GRANT SELECT ON books TO emberary_app;
+-- Books found on Google join the catalogue when a reader adds one, so the app
+-- may add books, but never change or delete them.
+GRANT SELECT, INSERT ON books TO emberary_app;
 
 GRANT SELECT, UPDATE ON readers TO emberary_app;
 

@@ -32,6 +32,15 @@ const json = (method, body) => ({ method, body: JSON.stringify(body) })
 export const listBooks = ({ query = '', genre = '' } = {}) =>
   request(`/api/books?${new URLSearchParams({ q: query, genre })}`)
 
+// Every book on Google Books, through the server, which holds the API key.
+export const searchBooks = ({ query = '', genre = '' } = {}) =>
+  request(`/api/books/search?${new URLSearchParams({ q: query, genre })}`)
+
+// The server passes a book's cover through from Google, so the Library Room can
+// paint it onto a spine.
+export const coverImageUrl = (book) =>
+  book.coverUrl ? `${BASE}/api/covers/${encodeURIComponent(book.id)}` : null
+
 export const getBook = (id) => request(`/api/books/${encodeURIComponent(id)}`)
 
 // my books

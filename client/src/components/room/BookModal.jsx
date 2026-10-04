@@ -17,7 +17,7 @@ const TIMING = { grow: 320, turn: 850 } // must match the CSS transitions
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-export default function BookModal({ entry, shelf, onSaved, onRemoved, onMove, onClosed }) {
+export default function BookModal({ entry, onShelves, onSaved, onRemoved, onClosed }) {
   const dialog = useRef(null)
   // entering -> closed (grown, cover shut) -> open -> closing -> leaving
   const [phase, setPhase] = useState('entering')
@@ -102,34 +102,11 @@ export default function BookModal({ entry, shelf, onSaved, onRemoved, onMove, on
             <h3 className="page-heading">Your notes</h3>
             <BookEditForm key={entry.bookId} entry={entry} onSaved={onSaved} onRemoved={handleRemoved} heading={null} />
             {/* Gone if the book is changed to Want to Read here: it leaves the shelves. */}
-            {shelf.index >= 0 && (
+            {onShelves && (
               <div className="page-shelf">
                 <p className="muted">
-                  Book {shelf.index + 1} of {shelf.count} on your shelves
+                  Want it somewhere else? In <strong>Edit room</strong>, drag it to any shelf.
                 </p>
-                <div className="detail-actions">
-                  <button
-                    type="button"
-                    className="button-quiet button-small"
-                    onClick={() => onMove(-1)}
-                    disabled={shelf.busy || shelf.index <= 0}
-                  >
-                    ← Move left
-                  </button>
-                  <button
-                    type="button"
-                    className="button-quiet button-small"
-                    onClick={() => onMove(1)}
-                    disabled={shelf.busy || shelf.index >= shelf.count - 1}
-                  >
-                    Move right →
-                  </button>
-                </div>
-                {shelf.error && (
-                  <p className="error" role="alert">
-                    Could not move the book: {shelf.error.message}
-                  </p>
-                )}
               </div>
             )}
           </div>

@@ -4,6 +4,7 @@ import { USING_MOCK_API } from '../api'
 import DemoNotice from './DemoNotice.jsx'
 import EmberBadge from './EmberBadge.jsx'
 import Icon from './Icon.jsx'
+import mark from '../assets/emberary-mark.svg'
 
 const LINKS = [
   { to: '/', label: 'Home', icon: 'home', end: true },
@@ -36,9 +37,7 @@ export default function Layout() {
       <header className="site-header" ref={header}>
         <div className="site-header-inner">
           <NavLink to="/" className="brand" end>
-            <span className="brand-mark" aria-hidden="true">
-              <Icon name="flame" />
-            </span>
+            <img className="brand-logo" src={mark} alt="" />
             Emberary
           </NavLink>
           <EmberBadge />
@@ -66,9 +65,7 @@ export default function Layout() {
 
       <footer className="site-footer">
         <p className="footer-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <Icon name="flame" />
-          </span>
+          <img className="brand-logo" src={mark} alt="" />
           Emberary · a cozy home for your books
         </p>
         {/* Say what the live app keeps. Demo mode says it in DemoNotice instead. */}

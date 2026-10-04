@@ -93,9 +93,14 @@ The rotation is the fix; the cleanup is hygiene.
       protect against yet and doesn't count as done
 - [x] The deployed API does not connect as the database owner. It uses
       `emberary_app`, a role with only the permissions the app uses
-      (`server/db/roles.sql`): it cannot create, change or drop tables, cannot
-      edit the book catalogue, and can only add to the Ember ledger, never
-      change or delete it. `server/test/roles.test.js` checks each of these
+      (`server/db/roles.sql`): it cannot create, change or drop tables; it can
+      add a book found on Google to the catalogue but never change or delete
+      one; and it can only add to the Ember ledger, never change or delete it.
+      `server/test/roles.test.js` checks each of these
+- [x] The Google Books key stays on the server. Discover's searches go
+      through the API, which adds the key; a book is saved only after the
+      server fetches it from Google itself, and the cover route only fetches
+      covers already in the catalogue, from Google's cover host
 - [x] The database connection checks the server's certificate
       (`sslmode=verify-full`)
 - [x] No debug, seed or reset routes. Seeding and schema changes run only from

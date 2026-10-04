@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { listBooks, listMyBooks, getRecommendations } from '../api'
+import { listBooks, searchBooks, listMyBooks, getRecommendations } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
 import BookCard from '../components/BookCard.jsx'
@@ -34,9 +34,18 @@ export default function DiscoverPage() {
     setParams(next, { replace: true })
   }
 
-  const results = useAsync(() => listBooks({ query, genre }), [query, genre])
+  // A search or a genre goes to Google Books; with neither, Discover shows the
+  // books already on Emberary's shelf.
+  const searching = Boolean(query.trim() || genre)
+  const results = useAsync(
+    () => (searching ? searchBooks({ query, genre }) : listBooks()),
+    [query, genre]
+  )
   const mine = useAsync(listMyBooks)
   const recs = useAsync(() => getRecommendations(4))
+
+  // The demo falls back to its own shelf when Google refuses it.
+  const fromGoogle = searching && results.data?.source !== 'catalogue'
 
   const owned = new Set((mine.data ?? []).map((e) => e.bookId))
   const selected = (results.data ?? []).find((b) => b.id === selectedId)
@@ -50,7 +59,7 @@ export default function DiscoverPage() {
     <>
       <div className="page-head">
         <h1>Discover</h1>
-        <p className="lede">Search the catalogue by title or author, or browse by genre.</p>
+        <p className="lede">Search every book on Google Books by title or author, or browse by genre.</p>
       </div>
 
       <form
@@ -116,11 +125,18 @@ export default function DiscoverPage() {
 
       <section aria-labelledby="results-heading" className="section">
         <h2 id="results-heading">
-          {query || genre ? 'Results' : 'All books'}
+          {fromGoogle ? 'From Google Books' : "On Emberary's shelf"}
           {results.status === 'ready' && <span className="muted"> · {results.data.length}</span>}
         </h2>
 
-        <AsyncState {...results} label="Searching" />
+        <AsyncState {...results} label={searching ? 'Searching Google Books' : 'Loading the catalogue'} />
+        {searching && results.status === 'ready' && !fromGoogle && (
+          <p className="demo-notice">
+            Google Books is not answering the demo right now (without a key it shares a small daily
+            limit with everyone), so these are matches from Emberary's own shelf. The live app searches
+            all of Google Books with its own key.
+          </p>
+        )}
 
         {results.status === 'ready' && results.data.length === 0 && (
           <p className="empty">
@@ -151,7 +167,8 @@ export default function DiscoverPage() {
                   <div>
                     <h2 id="discover-detail">{selected.title}</h2>
                     <p className="detail-author">
-                      {selected.author} · {selected.year}
+                      {selected.author}
+                      {selected.year ? ` · ${selected.year}` : ''}
                     </p>
                     <p className="book-card-meta">
                       {selected.genre} · {selected.pages} pages

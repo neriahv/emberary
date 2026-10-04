@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { MeshStandardMaterial, Plane, Vector3 } from 'three'
-import { ROOM_BOUNDS, SHELVED_STATUSES, catalogEntry } from '../../api'
-import { BOOKCASES, BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, shelfLevels } from './models.jsx'
-import { floorTexture, skyTexture, spineTexture, wallpaperTexture } from './textures.js'
+import { ROOM_BOUNDS, SHELVED_STATUSES, catalogEntry, coverImageUrl } from '../../api'
+import { BOOKCASES, BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, shelfGap, shelfLevels } from './models.jsx'
+import { coverSpineTexture, floorTexture, loadCover, skyTexture, spineTexture, wallpaperTexture } from './textures.js'
 
 // The 3D Library Room: a cut-away diorama seen from above one corner, like a
 // dollhouse. Two walls meet at the back: the window wall on the left (x = -2.5)
@@ -59,28 +59,67 @@ export function bookcasesIn(room) {
   return [{ id: 'main', spec: MAIN }, ...bought.map((i) => ({ id: i.id, spec: MODELS[i.kind].spec }))]
 }
 
-// Fill the shelves: left to right along each shelf, top shelf to bottom, one
-// bookcase after another. Returns each bookcase's books, and how many did not
-// fit anywhere (the room says so, rather than drawing them through a wall).
+const GAP = 0.006 // between neighbouring books
+
+// Where a book of this thickness can stand on a shelf, as close to `desired`
+// as the books already there allow: the centre of the nearest free space, or
+// null if no space is wide enough. A `desired` of -Infinity means leftmost.
+export function fitOnShelf(occupied, width, thickness, desired) {
+  const sorted = [...occupied].sort((a, b) => a.x - b.x)
+  let best = null
+  const consider = (from, to) => {
+    if (to - from < thickness - 1e-9) return
+    const x = Math.min(to - thickness / 2, Math.max(from + thickness / 2, desired))
+    if (best === null || Math.abs(x - desired) < Math.abs(best - desired)) best = x
+  }
+  let start = -width / 2
+  for (const book of sorted) {
+    consider(start, book.x - book.size[0] / 2 - GAP)
+    start = book.x + book.size[0] / 2 + GAP
+  }
+  consider(start, width / 2)
+  return best
+}
+
+// Every shelf in the room, top shelf first, one bookcase after another.
+function shelvesOf(cases) {
+  return cases.flatMap(({ id, spec }) =>
+    shelfLevels(spec).map((y, row) => ({ id, row, y, width: innerWidth(spec) }))
+  )
+}
+
+// Put the books on the shelves. A book the reader placed goes where they put
+// it, if there is still room there; every other book fills the free space,
+// left to right along each shelf, top shelf to bottom, one bookcase after
+// another. Returns each bookcase's books, and how many did not fit anywhere
+// (the room says so, rather than drawing them through a wall).
 export function layoutBookcases(entries, cases) {
   const placed = Object.fromEntries(cases.map((c) => [c.id, []]))
-  const queue = shelfOrder(entries)
+  const shelves = shelvesOf(cases)
+  const onShelf = (shelf) => placed[shelf.id].filter((b) => b.row === shelf.row)
+  const put = (entry, size, shelf, x) => placed[shelf.id].push({ entry, size, x, y: shelf.y, row: shelf.row })
+
+  const waiting = []
+  for (const entry of shelfOrder(entries)) {
+    const spot = entry.shelfSpot
+    const shelf = spot && shelves.find((s) => String(s.id) === spot.bookcase && s.row === spot.row)
+    const size = bookSize(entry.book)
+    const x = shelf ? fitOnShelf(onShelf(shelf), shelf.width, size[0], spot.x) : null
+    if (x === null) waiting.push(entry)
+    else put(entry, size, shelf, x)
+  }
+
   let next = 0
-  for (const { id, spec } of cases) {
-    const width = innerWidth(spec)
-    for (const y of shelfLevels(spec)) {
-      let x = -width / 2
-      while (next < queue.length) {
-        const entry = queue[next]
-        const size = bookSize(entry.book)
-        if (x + size[0] > width / 2) break
-        placed[id].push({ entry, size, x: x + size[0] / 2, y })
-        x += size[0] + 0.006
-        next += 1
-      }
+  for (const shelf of shelves) {
+    while (next < waiting.length) {
+      const size = bookSize(waiting[next].book)
+      const x = fitOnShelf(onShelf(shelf), shelf.width, size[0], -Infinity)
+      if (x === null) break
+      put(waiting[next], size, shelf, x)
+      next += 1
     }
   }
-  return { placed, overflow: queue.length - next }
+  return { placed, overflow: waiting.length - next }
 }
 
 // Ease `current` towards `target`; true while there is still somewhere to go.
@@ -98,9 +137,28 @@ function approach(object, axis, target, delta, speed = 9) {
 
 // ------------------------------------------------------------ books
 
-function Book({ entry, size, x, y, selected, interactive, onSelect }) {
+// The spine starts as the drawn one; in the live app the real cover is then
+// fetched through the server and painted on instead.
+function useSpine(book, material) {
+  const invalidate = useThree((state) => state.invalidate)
+  useEffect(() => {
+    let alive = true
+    loadCover(coverImageUrl(book)).then((image) => {
+      if (!alive || !image) return
+      material.map = coverSpineTexture(book, image)
+      material.needsUpdate = true
+      invalidate()
+    })
+    return () => {
+      alive = false
+    }
+  }, [book, material, invalidate])
+}
+
+function Book({ entry, size, x, y, selected, interactive, editing, dimmed, onSelect, onDragStart }) {
   const ref = useRef()
   const [hovered, setHovered] = useState(false)
+  const invalidate = useThree((state) => state.invalidate)
   const { book } = entry
 
   // Covers on the sides, paper on top, bottom and back, the printed spine
@@ -112,6 +170,7 @@ function Book({ entry, size, x, y, selected, interactive, onSelect }) {
     return { list: [cover, cover, pages, pages, spine, pages], spine, all: [cover, pages, spine] }
   }, [book])
   useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
+  useSpine(book, materials.spine)
 
   // Glow while it is the open book.
   useEffect(() => {
@@ -119,43 +178,67 @@ function Book({ entry, size, x, y, selected, interactive, onSelect }) {
     materials.spine.emissiveIntensity = selected ? 0.25 : 0
   }, [selected, materials])
 
+  // Faded while it is being carried somewhere else.
+  useEffect(() => {
+    for (const material of materials.all) {
+      material.transparent = dimmed
+      material.opacity = dimmed ? 0.3 : 1
+    }
+    invalidate()
+  }, [dimmed, materials, invalidate])
+
   const restY = y + size[1] / 2
   useLayoutEffect(() => {
     ref.current.position.set(0, restY, 0)
   }, [restY])
 
   useFrame((state, delta) => {
-    const pullTo = selected ? PULL : hovered && interactive ? 0.05 : 0
+    const pullTo = selected ? PULL : hovered && (interactive || editing) ? 0.05 : 0
     const liftTo = selected ? restY + 0.03 : restY
     const moving = approach(ref.current, 'z', pullTo, delta) | approach(ref.current, 'y', liftTo, delta)
     if (moving) state.invalidate()
   })
 
-  const handlers = interactive
-    ? {
-        onClick: (event) => {
-          event.stopPropagation()
-          onSelect(entry.bookId)
-        },
-        onPointerOver: (event) => {
-          event.stopPropagation()
-          setHovered(true)
-          document.body.style.cursor = 'pointer'
-        },
-        onPointerOut: () => {
-          setHovered(false)
-          document.body.style.cursor = ''
-        },
-      }
-    : {}
+  const hover = {
+    onPointerOver: (event) => {
+      event.stopPropagation()
+      setHovered(true)
+      document.body.style.cursor = editing ? 'grab' : 'pointer'
+    },
+    onPointerOut: () => {
+      setHovered(false)
+      document.body.style.cursor = ''
+    },
+  }
+  let handlers = {}
+  if (editing) {
+    // In Edit room a book is picked up and carried to any shelf.
+    handlers = {
+      ...hover,
+      onPointerDown: (event) => {
+        event.stopPropagation()
+        setHovered(false)
+        document.body.style.cursor = 'grabbing'
+        onDragStart(entry, size)
+      },
+    }
+  } else if (interactive) {
+    handlers = {
+      ...hover,
+      onClick: (event) => {
+        event.stopPropagation()
+        onSelect(entry.bookId)
+      },
+    }
+  }
 
   return (
     <group position={[x, 0, 0]}>
       <mesh ref={ref} material={materials.list} castShadow receiveShadow {...handlers}>
         <boxGeometry args={size} />
-        {hovered && interactive && !selected && (
+        {hovered && !selected && !dimmed && (
           <Html zIndexRange={[4, 0]} position={[0, size[1] / 2 + 0.07, 0.1]} center className="room-tooltip">
-            {book.title}
+            {editing ? `${book.title} · drag to move` : book.title}
           </Html>
         )}
       </mesh>
@@ -163,15 +246,67 @@ function Book({ entry, size, x, y, selected, interactive, onSelect }) {
   )
 }
 
+// Where the carried book would land, drawn in place before it is dropped.
+function GhostBook({ book, size, x, y }) {
+  const materials = useMemo(() => {
+    const cover = new MeshStandardMaterial({ color: book.color, transparent: true, opacity: 0.8, emissive: '#ffb070', emissiveIntensity: 0.25 })
+    const spine = new MeshStandardMaterial({ map: spineTexture(book), transparent: true, opacity: 0.9, emissive: '#ffb070', emissiveIntensity: 0.2 })
+    return { list: [cover, cover, cover, cover, spine, cover], all: [cover, spine] }
+  }, [book])
+  useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
+  return (
+    <mesh position={[x, y + size[1] / 2, 0.02]} material={materials.list}>
+      <boxGeometry args={size} />
+    </mesh>
+  )
+}
+
+// While a book is carried, every shelf becomes a drop target. The targets are
+// invisible boards in front of the books, so they catch the pointer first; the
+// one under the pointer glows.
+function ShelfTargets({ caseId, spec, frame, target, onHover, onDrop }) {
+  const width = innerWidth(spec)
+  const gap = shelfGap(spec)
+  return shelfLevels(spec).map((y, row) => {
+    const active = target?.caseId === caseId && target.row === row
+    return (
+      <mesh
+        key={row}
+        position={[0, y + gap / 2, 0.24]}
+        onPointerMove={(event) => {
+          event.stopPropagation()
+          const local = frame.current.worldToLocal(event.point.clone())
+          onHover(caseId, row, local.x)
+        }}
+        onPointerUp={(event) => {
+          event.stopPropagation()
+          onDrop()
+        }}
+      >
+        <boxGeometry args={[width, gap * 0.94, 0.02]} />
+        <meshBasicMaterial
+          color={active && target.x === null ? '#d96a5a' : '#ffb070'}
+          transparent
+          opacity={active ? 0.22 : 0}
+          depthWrite={false}
+        />
+      </mesh>
+    )
+  })
+}
+
 // A bookcase and the reader's books on it. Used for the built-in one and for
 // every bookcase the reader bought.
-function Bookcase({ spec, books, color, selectedId, interactive, onSelect }) {
+function Bookcase({ caseId, spec, books, color, selectedId, interactive, editing, onSelect, drag, onDragStart, onHover, onDrop }) {
+  const frame = useRef()
+  const target = drag?.target
+  const ghostHere = target && target.caseId === caseId && target.x !== null
   return (
     <>
       <Shadowed>
         <BookcaseFrame spec={spec} color={color} />
       </Shadowed>
-      <group position={[0, 0, bookRowZ(spec)]}>
+      <group ref={frame} position={[0, 0, bookRowZ(spec)]}>
         {books.map(({ entry, size, x, y }) => (
           <Book
             key={entry.bookId}
@@ -181,9 +316,18 @@ function Bookcase({ spec, books, color, selectedId, interactive, onSelect }) {
             y={y}
             selected={entry.bookId === selectedId}
             interactive={interactive}
+            editing={editing}
+            dimmed={drag?.entry.bookId === entry.bookId}
             onSelect={onSelect}
+            onDragStart={onDragStart}
           />
         ))}
+        {ghostHere && (
+          <GhostBook book={drag.entry.book} size={drag.size} x={target.x} y={shelfLevels(spec)[target.row]} />
+        )}
+        {drag && (
+          <ShelfTargets caseId={caseId} spec={spec} frame={frame} target={target} onHover={onHover} onDrop={onDrop} />
+        )}
       </group>
     </>
   )
@@ -466,19 +610,73 @@ export default function LibraryScene({
   selectedItemId,
   onSelectItem,
   onItemChange,
+  onMoveBook,
 }) {
   // Stored furniture is not in the room at all.
   const items = room.items.filter((i) => i.placed)
   const lights = new Set(
     items.filter((i) => MODELS[i.kind]?.light).slice(0, MAX_ITEM_LIGHTS).map((i) => i.id)
   )
-  const { placed: shelved } = layoutBookcases(entries, bookcasesIn(room))
+  const cases = bookcasesIn(room)
+  const { placed: shelved } = layoutBookcases(entries, cases)
+
+  // The book being carried in Edit room: { entry, size, target }, where target
+  // is the shelf under the pointer and the x the book would land at there
+  // (null when that shelf is full).
+  const [drag, setDrag] = useState(null)
+  const dragRef = useRef(null)
+  dragRef.current = drag
+
+  // Let go anywhere that is not a shelf, and the book goes back where it was.
+  useEffect(() => {
+    if (!drag) return
+    const cancel = () => {
+      setDrag(null)
+      document.body.style.cursor = ''
+    }
+    window.addEventListener('pointerup', cancel)
+    return () => window.removeEventListener('pointerup', cancel)
+  }, [Boolean(drag)])
+  useEffect(() => {
+    if (!editing) setDrag(null)
+  }, [editing])
+
+  function hoverShelf(caseId, row, desired) {
+    const current = dragRef.current
+    if (!current) return
+    // Where it fits among the other books, as if it had already left its place.
+    const others = layoutBookcases(entries.filter((e) => e.bookId !== current.entry.bookId), cases).placed
+    const spec = cases.find((c) => c.id === caseId).spec
+    const onRow = (others[caseId] ?? []).filter((b) => b.row === row)
+    const x = fitOnShelf(onRow, innerWidth(spec), current.size[0], desired)
+    setDrag({ ...current, target: { caseId, row, x } })
+  }
+
+  function dropBook() {
+    const current = dragRef.current
+    setDrag(null)
+    document.body.style.cursor = ''
+    const target = current?.target
+    if (!target || target.x === null) return
+    onMoveBook(current.entry.bookId, {
+      bookcase: String(target.caseId),
+      row: target.row,
+      x: Math.round(target.x * 1000) / 1000,
+    })
+  }
+
   const shelfProps = (id) => ({
+    caseId: id,
     books: shelved[id] ?? [],
     color: room.shelfColor,
     selectedId: selectedBookId,
     interactive: !editing,
+    editing,
     onSelect: onSelectBook,
+    drag,
+    onDragStart: (entry, size) => setDrag({ entry, size, target: null }),
+    onHover: hoverShelf,
+    onDrop: dropBook,
   })
 
   return (

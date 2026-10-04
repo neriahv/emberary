@@ -194,66 +194,128 @@ a:hover { color: var(--accent-deep); }
   gap: var(--space-2);
   font-family: var(--font-display);
   font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: var(--fg);
+  color: var(--accent-deep);
   text-decoration: none;
 }
-.brand:hover { color: var(--fg); }
-.brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  color: var(--accent-fg);
-  background: radial-gradient(circle at 35% 30%, var(--honey), var(--accent) 70%);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
-  font-size: 1rem;
-}
+.brand:hover { color: var(--accent-deep); }
+@media (prefers-color-scheme: dark) { .brand, .brand:hover { color: var(--accent); } }
+/* The Emberary mark: the little flame in its open book. */
+.brand-logo { width: 2.9rem; height: auto; flex: none; margin: -0.4rem 0; filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--honey) 40%, transparent)); }
 
 /* The Ember wallet sits beside the brand; the nav keeps the right-hand side. */
 .ember-wallet { position: relative; display: flex; align-items: center; gap: var(--space-2); margin-right: auto; }
 .ember-icon { width: 1em; height: 1em; fill: currentColor; flex: none; }
+/* Ember, Emberary's currency: an ember stamped on a gold coin. */
+.ember-coin {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  color: #fff6e6;
+  background: radial-gradient(circle at 35% 30%, #ffd98a, #f2a93b 45%, #c46a1c 100%);
+  box-shadow: inset 0 -2px 0 rgb(120 50 10 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 3px rgb(120 50 10 / 0.3);
+}
+.ember-coin .ember-icon { width: 58%; height: 58%; filter: drop-shadow(0 1px 0 rgb(120 40 10 / 0.5)); }
+.ember-coin-xs { width: 1rem; height: 1rem; }
+.ember-coin-sm { width: 1.35rem; height: 1.35rem; }
+.ember-coin-lg { width: 2.6rem; height: 2.6rem; }
+
 .ember-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid transparent;
+  gap: var(--space-2);
+  background: var(--card);
+  color: var(--fg);
+  border: 1.5px solid color-mix(in srgb, var(--honey) 45%, var(--line));
   border-radius: var(--pill);
-  padding: 3px var(--space-3);
+  padding: 3px var(--space-3) 3px 4px;
   font-weight: 800;
 }
-.ember-badge:hover { border-color: var(--accent); filter: none; }
+.ember-badge:hover:not(:disabled) { border-color: var(--honey); background: var(--surface-warm); filter: none; color: var(--fg); }
+.ember-amount { font-size: 1rem; }
+.ember-unit { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+@media (max-width: 44rem) { .ember-unit { display: none; } }
 .ember-badge.is-gaining { animation: ember-gain 1.2s ease-out; }
 @keyframes ember-gain {
-  0% { box-shadow: 0 0 0 0 rgb(240 138 93 / 0.8); transform: scale(1); }
-  30% { transform: scale(1.12); }
-  100% { box-shadow: 0 0 0 12px rgb(240 138 93 / 0); transform: scale(1); }
+  0% { box-shadow: 0 0 0 0 rgb(240 168 70 / 0.8); transform: scale(1); }
+  30% { transform: scale(1.1); }
+  100% { box-shadow: 0 0 0 12px rgb(240 168 70 / 0); transform: scale(1); }
 }
 .ember-claim { padding: 3px var(--space-3); }
+
 .ember-popover {
   position: absolute;
   top: calc(100% + var(--space-2));
   left: 0;
   z-index: 30;
-  width: min(19rem, calc(100vw - 2rem));
+  width: min(21rem, calc(100vw - 1.5rem));
+  max-height: min(36rem, calc(100vh - 7rem));
+  overflow-y: auto;
   background: var(--card);
   color: var(--fg);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3);
   font-size: var(--text-sm);
+  animation: drawer-in 0.15s ease-out;
 }
-.ember-popover h3 { font-size: var(--text-sm); margin: var(--space-3) 0 var(--space-1); }
-.ember-popover-balance { display: flex; align-items: center; gap: var(--space-1); margin: 0; font-size: var(--text-lg); font-weight: 800; color: var(--accent); }
-.ember-popover-today, .ember-popover-spend { margin: var(--space-1) 0 0; }
-.ember-rules, .ember-history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
-.ember-rules li, .ember-history li { display: flex; justify-content: space-between; gap: var(--space-3); }
-.ember-rules strong, .is-earned { color: var(--status-reading); }
+@media (max-width: 44rem) { .ember-popover { left: auto; right: calc(-1 * var(--space-3)); } }
+
+/* The wallet card at the top: the balance, and what Ember is for. */
+.ember-card {
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  color: #fff6e6;
+  background:
+    radial-gradient(14rem 8rem at 90% 0%, rgb(255 210 120 / 0.45), transparent 70%),
+    linear-gradient(135deg, #b8501f, #7a2a12);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+.ember-card p { margin: 0; }
+.ember-card-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+.ember-card-balance { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 !important; }
+.ember-card-balance strong { font-family: var(--font-display); font-size: 2.2rem; line-height: 1; }
+.ember-card-balance span:last-child { font-weight: 800; opacity: 0.9; }
+.ember-card-about { font-size: 0.8rem; line-height: 1.45; opacity: 0.92; }
+
+.ember-section { padding: var(--space-3) var(--space-1) 0; }
+.ember-section h3 { font-size: 0.95rem; margin: 0 0 var(--space-2); }
+.ember-done { margin: var(--space-1) 0 0; color: var(--status-reading); font-weight: 700; }
+.ember-section .ember-claim { margin-top: var(--space-2); }
+
+.ember-ways { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.ember-ways li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-warm);
+  line-height: 1.3;
+}
+.ember-gain { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 800; font-size: 1rem; color: var(--accent); }
+
+.ember-shop { width: 100%; margin-top: var(--space-3); }
+
+.ember-history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.ember-history li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px dashed var(--line); }
+.ember-history li:last-child { border-bottom: none; }
+.ember-history-dot {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  border-radius: 50%;
+  font-weight: 800;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.ember-history-what { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; font-weight: 600; }
+.ember-history-what small { color: var(--muted); font-weight: 400; font-size: 0.74rem; }
+.is-earned { color: var(--status-reading); }
 .is-spent { color: var(--danger); }
 .reward-note { color: var(--accent); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ember-badge.is-gaining, .item-thumb-wait { animation: none; } }
@@ -325,7 +387,7 @@ a:hover { color: var(--accent-deep); }
 .section-head a { font-size: var(--text-sm); font-weight: 700; text-decoration: none; }
 .section-head a:hover { text-decoration: underline; }
 
-/* Section titles carry the brand's little ember diamond, like a ribbon tab. */
+/* Section titles carry the gold star from the cover of the book in the logo. */
 .section-head h2, .section > h2, .panel > h2, .panel > h3, .feature-panel > h2 {
   display: flex;
   align-items: center;
@@ -333,12 +395,11 @@ a:hover { color: var(--accent-deep); }
 }
 .section-head h2::before, .section > h2::before, .panel > h2::before, .panel > h3::before, .feature-panel > h2::before {
   content: '';
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 0.85rem;
+  height: 0.85rem;
   flex: none;
-  border-radius: 2px;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, var(--honey), var(--accent));
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  background: linear-gradient(135deg, #f2c46a, var(--honey));
 }
 
 .two-col { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); margin-bottom: var(--space-5); }
@@ -351,6 +412,11 @@ a:hover { color: var(--accent-deep); }
   margin-bottom: var(--space-5);
   font-size: var(--text-sm);
 }
+
+.loading { display: flex; align-items: center; gap: var(--space-3); }
+.loading-flame { width: 2.6rem; flex: none; transform-origin: 50% 80%; animation: flicker 1.1s ease-in-out infinite alternate; }
+@keyframes flicker { from { transform: scale(0.94) rotate(-2deg); } to { transform: scale(1.04) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-flame { animation: none; } }
 
 .error {
   background: var(--error-bg);
@@ -396,7 +462,27 @@ a:hover { color: var(--accent-deep); }
 .hero h1 { font-size: clamp(1.9rem, 4vw, 2.8rem); }
 .hero .lede { font-size: 1.05rem; max-width: 32rem; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
-.hero-art { width: 100%; max-width: 22rem; justify-self: end; filter: drop-shadow(0 10px 18px rgb(var(--shadow-color) / 0.12)); }
+.hero-mascot {
+  position: relative;
+  justify-self: center;
+  width: min(100%, 19rem);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+/* firelight behind the mascot */
+.hero-mascot::before {
+  content: '';
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, #ffb35c 45%, transparent), transparent 68%);
+  animation: firelight 3.2s ease-in-out infinite alternate;
+}
+.hero-mascot img { position: relative; width: 100%; animation: bob 3.6s ease-in-out infinite; filter: drop-shadow(0 14px 18px rgb(var(--shadow-color) / 0.18)); }
+@keyframes bob { 50% { transform: translateY(-6px) rotate(-1deg); } }
+@keyframes firelight { from { opacity: 0.7; transform: scale(0.96); } to { opacity: 1; transform: scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { .hero-mascot img, .hero-mascot::before { animation: none; } }
 
 .page-banner { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-5) var(--space-6); margin-bottom: var(--space-5); }
 .page-banner .lede { margin-bottom: 0; }
@@ -404,7 +490,7 @@ a:hover { color: var(--accent-deep); }
 
 @media (max-width: 44rem) {
   .hero { grid-template-columns: 1fr; padding: var(--space-5); }
-  .hero-art { order: -1; max-width: 13rem; justify-self: center; margin-bottom: calc(-1 * var(--space-3)); }
+  .hero-mascot { order: -1; width: 11rem; margin-bottom: calc(-1 * var(--space-4)); }
   .page-banner { padding: var(--space-4) var(--space-5); }
   .page-banner-art { width: 4.5rem; }
 }
@@ -547,7 +633,10 @@ button:disabled { opacity: 0.55; cursor: default; }
 .book-tile-title { font-weight: 800; font-size: var(--text-sm); line-height: 1.25; margin-top: var(--space-2); }
 .book-tile-link:hover .book-tile-title { color: var(--accent); }
 .book-tile-author { font-size: 0.78rem; color: var(--muted); }
-.book-tile-extra .rec-reason { margin: 0; }
+/* The extra line is small, so its line height has to be set here: inherited
+   from the tile it would leave a full-size gap between wrapped lines. */
+.book-tile-extra { margin-top: 2px; font-size: 0.76rem; line-height: 1.3; }
+.book-tile-extra .rec-reason { display: block; margin: 0; }
 @media (prefers-reduced-motion: reduce) { .book-tile-link .book-cover { transition: none; } }
 
 .book-card { padding: 0; display: flex; flex-direction: column; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
@@ -688,6 +777,37 @@ button.book-card-select:hover .book-card-title { color: var(--accent); }
 
 .add-control { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
 .add-control select { font-size: var(--text-sm); padding: var(--space-1) var(--space-5) var(--space-1) var(--space-3); }
+.add-control { position: relative; }
+.add-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 8;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+  min-width: 12rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  animation: drawer-in 0.15s ease-out;
+}
+.add-menu button {
+  width: 100%;
+  justify-content: flex-start;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--fg);
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+.add-menu button:hover:not(:disabled), .add-menu button:focus-visible { background: var(--accent-soft); color: var(--accent); filter: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { .add-menu { animation: none; } }
+/* The card with an open menu sits above its neighbours, so they cannot cover it. */
+.book-card:has(.add-menu), .rec:has(.add-menu) { position: relative; z-index: 4; }
 
 /* "Recommended for You" sits in its own lit-up panel, as in the wireframe. */
 .feature-panel {
@@ -705,8 +825,13 @@ button.book-card-select:hover .book-card-title { color: var(--accent); }
 
 /* ------------------------------------------------------------------ home */
 
-.home-row { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); margin-bottom: var(--space-6); align-items: start; }
-.home-row-even { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.home-row { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); margin-bottom: var(--space-6); align-items: stretch; }
+.home-row-even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Cards side by side are the same height; their content fills the extra room. */
+.home-row > .panel { display: flex; flex-direction: column; }
+.home-row .quick-grid { flex: 1; grid-auto-rows: 1fr; }
+.home-row .quick-grid li { display: flex; }
+.home-row .quick-tile { flex: 1; justify-content: center; }
 @media (max-width: 52rem) { .home-row, .home-row-even { grid-template-columns: minmax(0, 1fr); } }
 
 .reading-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-3); }
@@ -1256,5 +1381,62 @@ body.room-open { overflow: hidden; }
 }
 .site-footer p { margin: 0; }
 .footer-brand { display: inline-flex; align-items: center; gap: var(--space-2); font-family: var(--font-display); font-weight: 700; color: var(--fg); }
-.footer-brand .brand-mark { width: 1.6rem; height: 1.6rem; font-size: 0.8rem; }
+.footer-brand { color: var(--accent-deep); }
+.footer-brand .brand-logo { width: 2.2rem; margin: -0.3rem 0; }
 .site-footer .privacy-note { flex-basis: 100%; order: 3; }
+
+/* ------------------------------------------------------------------ find a book */
+
+.book-cover-xs { width: 2.1rem; height: 3rem; padding: 2px; font-size: 0.32rem; border-radius: 2px 4px 4px 2px; }
+
+.book-finder { position: relative; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.book-finder-field { position: relative; display: flex; width: min(22rem, 70vw); }
+.book-finder-field .icon { z-index: 1; position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: #ffd9a8; pointer-events: none; }
+.book-finder-field input {
+  width: 100%;
+  padding: 0.6rem 1rem 0.6rem 2.5rem;
+  border-radius: var(--pill);
+  color: #fff8ef;
+  background: rgb(28 18 12 / 0.62);
+  border: 1px solid rgb(255 240 220 / 0.28);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.2);
+  font-weight: 700;
+}
+.book-finder-field input::placeholder { color: rgb(255 240 220 / 0.7); font-weight: 600; }
+.book-finder-field input:focus { border-color: #ffd9a8; box-shadow: 0 0 0 4px rgb(255 200 140 / 0.25); }
+
+/* The list opens upwards, since the finder sits at the bottom of the room. */
+.book-finder-list {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: 15;
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: min(22rem, 55vh);
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: drawer-in 0.15s ease-out;
+}
+.book-finder-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.book-finder-list li.is-active { background: var(--accent-soft); }
+.book-finder-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.book-finder-text strong { font-family: var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-finder-text span { color: var(--muted); font-size: 0.8rem; }
+.book-finder-list .badge { flex: none; }
+.book-finder-empty { color: var(--muted); cursor: default !important; }
+@media (prefers-reduced-motion: reduce) { .book-finder-list { animation: none; } }
