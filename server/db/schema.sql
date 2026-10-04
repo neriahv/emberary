@@ -65,6 +65,20 @@ CREATE TABLE IF NOT EXISTS user_books (
   PRIMARY KEY (reader_id, book_id)
 );
 
+-- Where the reader put a book in the Library Room: which bookcase ('main', or
+-- the id of a bookcase they bought), which shelf (0 is the top), and how far
+-- along it (metres from the shelf's centre). All three, or none: NULL means
+-- the room places the book itself, in the next free space.
+ALTER TABLE user_books
+  ADD COLUMN IF NOT EXISTS shelf_case TEXT     CHECK (shelf_case ~ '^(main|[0-9]{1,9})$'),
+  ADD COLUMN IF NOT EXISTS shelf_row  SMALLINT CHECK (shelf_row BETWEEN 0 AND 9),
+  ADD COLUMN IF NOT EXISTS shelf_x    REAL     CHECK (shelf_x BETWEEN -1.5::real AND 1.5::real);
+DO $$ BEGIN
+  ALTER TABLE user_books ADD CONSTRAINT user_books_shelf_spot_whole
+    CHECK ((shelf_case IS NULL) = (shelf_row IS NULL) AND (shelf_row IS NULL) = (shelf_x IS NULL));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- My Books and the Home dashboard list a reader's books newest first.
 CREATE INDEX IF NOT EXISTS user_books_reader_updated_idx
   ON user_books (reader_id, updated_at DESC);

@@ -68,8 +68,26 @@ export function validateEntryPatch(body, pages) {
     }
   }
 
+  // Where the book stands in the Library Room, or null to let the room place it.
+  if (has(body, 'shelfSpot')) {
+    const spot = body.shelfSpot
+    if (spot === null) {
+      value.shelfSpot = null
+    } else if (
+      typeof spot !== 'object' ||
+      typeof spot.bookcase !== 'string' ||
+      !/^(main|[0-9]{1,9})$/.test(spot.bookcase) ||
+      !Number.isInteger(spot.row) || spot.row < 0 || spot.row > 9 ||
+      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -1.5 || spot.x > 1.5
+    ) {
+      errors.push('shelfSpot must be { bookcase: "main" or a bookcase id, row: 0 to 9, x: -1.5 to 1.5 }, or null')
+    } else {
+      value.shelfSpot = { bookcase: spot.bookcase, row: spot.row, x: spot.x }
+    }
+  }
+
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of status, currentPage, rating, review, shelfPosition')
+    errors.push('send at least one of status, currentPage, rating, review, shelfPosition, shelfSpot')
   }
 
   return { errors, value }

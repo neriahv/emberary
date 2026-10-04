@@ -7,6 +7,8 @@ import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
 import { MAX_PLACED_ITEMS } from './catalog.js'
+import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
+import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
 import {
   validateCheckout,
   validateStatus,
@@ -49,8 +51,19 @@ async function transaction(pool, work) {
 
 // Build the app without starting it, so the tests can run it on a spare port.
 // timezone decides when "today" starts for the daily check-in and reading goal.
-export function createApp(pool, { corsOrigins = ['http://localhost:5173'], timezone = 'Asia/Manila' } = {}) {
+// googleKey is the Google Books API key, and fetch is how the server reaches
+// Google; tests pass their own instead of going to the internet.
+export function createApp(
+  pool,
+  {
+    corsOrigins = ['http://localhost:5173'],
+    timezone = 'Asia/Manila',
+    googleKey = '',
+    fetch: fetchImpl = globalThis.fetch,
+  } = {}
+) {
   const app = express()
+  const google = createGoogleBooks({ key: googleKey, fetch: fetchImpl })
 
   // Express announces itself in an X-Powered-By header on every response. It
   // helps nobody but someone looking for a known Express vulnerability.
@@ -91,6 +104,67 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'], timez
     response.json(await books.search(pool, { query, genre }))
   }))
 
+  // GET /api/books/search?q=dune&genre=Fantasy searches every book on Google
+  // Books, not only the catalogue. A result that is already in the catalogue
+  // comes back as the catalogue's book, so it keeps its id, colour and cover.
+  // Registered before /:id so "search" is never read as a book id.
+  app.get('/api/books/search', route(async (request, response) => {
+    const query = typeof request.query.q === 'string' ? request.query.q.trim() : ''
+    const genre = typeof request.query.genre === 'string' ? request.query.genre : ''
+    if (!query && !genre) return badRequest(response, ['send a search (q), a genre, or both'])
+    if (query.length > 100 || genre.length > 40) return badRequest(response, ['that search is too long'])
+
+    let found
+    try {
+      found = await google.search(query, genre)
+    } catch (error) {
+      if (error instanceof GoogleBooksError) return response.status(502).json({ error: error.message })
+      throw error
+    }
+
+    const known = new Map((await books.all(pool)).map((book) => [bookKey(book), book]))
+    const seen = new Set()
+    const results = []
+    for (const book of found) {
+      const key = bookKey(book)
+      const shown = known.get(key) ?? book
+      if (seen.has(key) || seen.has(shown.id)) continue
+      seen.add(key)
+      seen.add(shown.id)
+      results.push(shown)
+    }
+    response.json(results)
+  }))
+
+  // A book's cover, fetched from Google by the server and passed through, so
+  // the Library Room can paint it onto a spine: WebGL may only read images from
+  // the page's own address. Only covers already saved in the catalogue, and
+  // only from Google's cover host, are ever fetched.
+  app.get('/api/covers/:id', route(async (request, response) => {
+    const book = await books.getById(pool, request.params.id)
+    const url = book?.coverUrl ? new URL(book.coverUrl) : null
+    if (!url || url.protocol !== 'https:' || url.hostname !== 'books.google.com') {
+      return response.status(404).json({ error: 'No cover for that book' })
+    }
+
+    let upstream
+    try {
+      upstream = await fetchImpl(url, { signal: AbortSignal.timeout(6000) })
+    } catch {
+      return response.status(502).json({ error: 'Google Books did not answer' })
+    }
+    const type = upstream.headers.get('content-type') ?? ''
+    if (!upstream.ok || !type.startsWith('image/')) {
+      return response.status(502).json({ error: 'Google Books did not send a cover' })
+    }
+    const image = Buffer.from(await upstream.arrayBuffer())
+    if (image.length > 2_000_000) return response.status(502).json({ error: 'That cover is too large' })
+
+    response.set('Content-Type', type)
+    response.set('Cache-Control', 'private, max-age=604800')
+    response.send(image)
+  }))
+
   app.get('/api/books/:id', route(async (request, response) => {
     const book = await books.getById(pool, request.params.id)
     if (!book) return response.status(404).json({ error: 'Book not found' })
@@ -116,11 +190,25 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'], timez
     const errors = validateStatus(status)
     if (errors.length > 0) return badRequest(response, errors)
 
-    const book = await books.getById(pool, bookId)
+    // A book found on Google joins the catalogue the first time anyone adds it.
+    // The server fetches it from Google itself rather than trusting a title or
+    // cover sent by the browser.
+    let book = await books.getById(pool, bookId)
+    let fromGoogle = null
+    if (!book && isGoogleId(bookId)) {
+      try {
+        fromGoogle = await google.volume(volumeIdOf(bookId))
+      } catch (error) {
+        if (error instanceof GoogleBooksError) return response.status(502).json({ error: error.message })
+        throw error
+      }
+      book = fromGoogle
+    }
     if (!book) return response.status(404).json({ error: 'Book not found' })
 
     // A book added as Read has been finished, and earns what finishing earns.
     const entry = await transaction(pool, async (db) => {
+      if (fromGoogle) await books.insertIfMissing(db, fromGoogle)
       const added = await myBooks.add(db, READER_ID, bookId, status)
       if (!added) return null
       const rewards = await ember.rewardReading(db, READER_ID, bookId, null, added, timezone)
@@ -141,13 +229,20 @@ export function createApp(pool, { corsOrigins = ['http://localhost:5173'], timez
     response.status(204).end()
   }))
 
-  // Body: any of { status, currentPage, rating, review, shelfPosition }.
+  // Body: any of { status, currentPage, rating, review, shelfPosition, shelfSpot }.
   app.patch('/api/my-books/:bookId', route(async (request, response) => {
     const existing = await myBooks.get(pool, READER_ID, request.params.bookId)
     if (!existing) return response.status(404).json({ error: 'That book is not in your collection' })
 
     const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
     if (errors.length > 0) return badRequest(response, errors)
+
+    // A book can only stand in the built-in bookcase or one the reader owns.
+    const bookcase = value.shelfSpot?.bookcase
+    if (bookcase && bookcase !== 'main') {
+      const item = await room.getItem(pool, READER_ID, Number(bookcase))
+      if (!item?.kind.startsWith('bookcase')) return badRequest(response, ['That bookcase is not in your room'])
+    }
 
     // The reply carries the Ember this save earned, as `rewards` (often []).
     const bookId = request.params.bookId

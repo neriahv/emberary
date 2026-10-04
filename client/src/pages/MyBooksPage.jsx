@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listMyBooks, STATUSES, STATUS_LABELS } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
 import BookCard from '../components/BookCard.jsx'
 import BookDetailPanel from '../components/BookDetailPanel.jsx'
+import Icon from '../components/Icon.jsx'
+import { BooksArt } from '../components/Illustrations.jsx'
 
 // The traditional half of Emberary: your collection, sorted into the four
 // reading statuses. The tab and selected book live in the URL, so a link from
@@ -14,8 +17,18 @@ export default function MyBooksPage() {
   const tab = STATUSES.includes(params.get('status')) ? params.get('status') : 'all'
   const selectedId = params.get('book')
 
+  const [filter, setFilter] = useState('')
+
   const entries = result.data ?? []
-  const visible = tab === 'all' ? entries : entries.filter((e) => e.status === tab)
+  const needle = filter.trim().toLowerCase()
+  const visible = entries
+    .filter((e) => tab === 'all' || e.status === tab)
+    .filter(
+      (e) =>
+        !needle ||
+        e.book.title.toLowerCase().includes(needle) ||
+        e.book.author.toLowerCase().includes(needle),
+    )
   const selected = entries.find((e) => e.bookId === selectedId)
 
   function update(next) {
@@ -40,9 +53,12 @@ export default function MyBooksPage() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>My Books</h1>
-        <p className="lede">Everything on your shelves, sorted by where you are with it.</p>
+      <div className="page-banner">
+        <div>
+          <h1>My Books</h1>
+          <p className="lede">Everything on your shelves, sorted by where you are with it.</p>
+        </div>
+        <BooksArt className="page-banner-art" />
       </div>
 
       <div className="tabs" role="tablist" aria-label="Reading status">
@@ -63,6 +79,26 @@ export default function MyBooksPage() {
         ))}
       </div>
 
+      <div className="toolbar">
+        <div className="search-field">
+          <Icon name="search" />
+          <label htmlFor="my-books-search" className="visually-hidden">
+            Search your books
+          </label>
+          <input
+            id="my-books-search"
+            type="search"
+            placeholder="Search your books"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        </div>
+        <Link className="button" to="/discover">
+          <Icon name="plus" />
+          Add Book
+        </Link>
+      </div>
+
       <AsyncState {...result} label="Loading your books" />
 
       {result.status === 'ready' && entries.length === 0 && (
@@ -75,7 +111,11 @@ export default function MyBooksPage() {
         <div className={`split${selected ? ' has-detail' : ''}`}>
           <div>
             {visible.length === 0 ? (
-              <p className="empty">No books marked {STATUS_LABELS[tab]} yet.</p>
+              <p className="empty">
+                {needle
+                  ? `Nothing on these shelves matches "${filter.trim()}".`
+                  : `No books marked ${STATUS_LABELS[tab]} yet.`}
+              </p>
             ) : (
               <div className="book-grid">
                 {visible.map((entry) => (

@@ -45,19 +45,54 @@ needs 4.5:1 for normal text):
 | `--accent-fg` on `--accent` (buttons) | 6.17:1 | pass |
 | dark `--fg` on dark `--bg` | 15.35:1 | pass |
 | dark `--accent-fg` on dark `--accent` | 7.61:1 | pass |
+| `--muted` on `--surface-warm` (tinted panels) | 5.62:1 | pass |
+| `--accent-fg` on `--accent-glow` (lightest edge of a button) | 4.83:1 | pass |
+| dark `--muted` on dark `--surface-warm` | 6.45:1 | pass |
+
+**Tints, not new colours.** The cozy autumn look (Week 3) added no new hues.
+Every glow, gradient and shadow is mixed from the palette above with
+`color-mix()`:
+
+| Token | Mixed from | Role |
+| --- | --- | --- |
+| `--honey` | `--star` | The second warm colour in gradients and glows |
+| `--accent-glow` / `--accent-deep` | `--accent` with white / black | The top and edge of every ember button and active tab |
+| `--surface` | `--card`, 82% opaque | The frosted header and cover tiles |
+| `--surface-warm` | `--accent-soft` and `--card` | Tinted panels: reading items, Quick Access tiles, stats, ranked lists |
+| `--line-soft` | `--line`, 70% opaque | Card borders |
+
+The page background is `--bg` with soft radial pools of `--honey` and
+`--accent` in the corners, and a few blurred "embers" behind everything.
 
 ## Type
 
 | Style | Size | Weight | Font | Used for |
 | --- | --- | --- | --- | --- |
-| `--text-xl` | 2rem (32px) | 700 | `--font-display` | Page titles (`h1`) |
-| `--text-lg` | 1.2rem (19.2px) | 700 | `--font-display` | Section titles (`h2`, `h3`) |
+| `--text-xl` | 2.1rem (33.6px) | 650 | `--font-display` | Page titles (`h1`); the Home welcome scales up to 2.8rem |
+| `--text-lg` | 1.3rem (20.8px) | 650 | `--font-display` | Section titles (`h2`) |
 | `--text-md` | 1rem (16px) | 400 | `--font-body` | Body text, form fields |
-| `--text-sm` | 0.85rem (13.6px) | 400 | `--font-body` | Captions, labels, metadata |
+| `--text-sm` | 0.875rem (14px) | 400–800 | `--font-body` | Captions, labels, buttons, metadata |
 
-`--font-display` is Georgia (serif) and `--font-body` is the system UI font
-stack — every heading is serif, everything else is the system sans, which is
-the one type decision the plan didn't originally make.
+`--font-display` is **Fraunces**, a soft serif with its "soft" and "wonky"
+axes turned on for rounded, bookish headings. `--font-body` is **Nunito**, a
+rounded sans. Both are variable fonts under the SIL Open Font License,
+installed from npm (`@fontsource-variable/*`) and bundled with the app, so
+no request goes to Google Fonts and the deployed security policy needed no
+change. Georgia and the system sans remain as fallbacks.
+
+## Shape and depth
+
+| Token | Value | Used for |
+| --- | --- | --- |
+| `--radius-sm` | 0.7rem | Inputs, small tiles, ranked rows |
+| `--radius` | 1.1rem | Cards and panels |
+| `--radius-lg` | 1.75rem | Banners, the room's edit drawer, the phone tab bar |
+| `--pill` | 999px | Buttons, chips, tabs, the header, search fields |
+| `--shadow-sm` / `--shadow` / `--shadow-lg` | warm brown, layered | Resting cards / hovered cards and banners / popovers and the tab bar |
+
+Buttons are pills of ember (a gradient from `--accent-glow` to `--accent`)
+with a faint top highlight and a warm drop shadow, lifting 1px on hover.
+Section titles carry the brand's diamond as a small ribbon mark.
 
 ## Spacing
 
@@ -67,6 +102,13 @@ page container's own max-width and padding rather than a separate desktop/
 mobile constant.
 
 ## Components
+
+Added with the cozy autumn redesign: `Icon` (`name`, `label`), a small set of
+line icons drawn on a 24px grid in the current text colour, used in the
+navigation, Quick Access and search fields; and `Illustrations.jsx`
+(`HeroArt`, `RoomArt`, `BooksArt`, each taking `className`), flat
+decorative pictures in the palette for the Home welcome, the Library Room
+card and the My Books banner.
 
 The shared pieces, and the real props each one takes:
 
@@ -127,9 +169,14 @@ finalised during the build, and several things changed:
   `--color-accent` / `--color-bg` / `--color-surface` / `--color-text` became
   `--accent` / `--bg` / `--card` / `--fg` under different names and different
   values, and grew a full dark-mode set the plan didn't include.
-- **The type scale changed.** 28px/16px/14px became a four-step rem scale
-  (32/19.2/16/13.6px), and headings picked up a serif display font the plan
-  didn't specify.
+- **The type scale changed.** 28px/16px/14px became a four-step rem scale,
+  and headings picked up a serif display font the plan didn't specify. In
+  Week 3 that became Fraunces and Nunito, with the scale nudged up
+  (33.6/20.8/16/14px).
+- **The look changed in Week 3, the palette did not.** The interface was
+  restyled as a cozy autumn reading nook (rounded cards, pill buttons, warm
+  glows, illustrations), using reference designs for shape and layout only.
+  Every colour still comes from the palette above.
 - **The spacing base changed.** The plan's 8px base with named 8/32px
   spacings and 24px/16px edge padding became a six-step 4px-based scale used
   the same way everywhere, without a separate edge-padding constant.
@@ -137,10 +184,11 @@ finalised during the build, and several things changed:
   own components.** Their jobs are done directly inside `Layout.jsx` and
   ordinary `<button>`/`<a>` elements, because the app never grew enough
   distinct nav or icon-button variants to justify pulling them out on their
-  own.
+  own. The icons themselves did become one component, `Icon`, in Week 3.
 - **`SearchBar` and `SectionHeader` were never built as their own components
   either** — every page that needs a search input or a section heading
-  writes its own, since the markup around each one differs enough
-  (Discover's search bar also has a genre `<select>`; each section's heading
-  differs in whether it has a "See all" link) that a shared wrapper would
-  have taken more props than markup.
+  writes its own, since the markup around each one differs enough (Discover's
+  has a Search button and genre chips; My Books' sits beside "Add Book"; each
+  section's heading differs in whether it has a "See all" link) that a
+  shared wrapper would have taken more props than markup. They share one
+  `.search-field` style instead.

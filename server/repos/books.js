@@ -33,3 +33,22 @@ export async function getById(pool, id) {
   const result = await pool.query(`SELECT ${BOOK_JSON} AS book FROM books b WHERE b.id = $1`, [id])
   return result.rows[0]?.book ?? null
 }
+
+// Every catalogue book, for matching Google results against books Emberary
+// already has. The catalogue is small: the seed plus books readers added.
+export async function all(pool) {
+  const result = await pool.query(`SELECT ${BOOK_JSON} AS book FROM books b ORDER BY b.id`)
+  return result.rows.map((row) => row.book)
+}
+
+// Save a book found on Google, the first time any reader adds it. An existing
+// row is never changed, which is also all the app's database role may do: it
+// can add to the catalogue, not rewrite it.
+export async function insertIfMissing(db, book) {
+  await db.query(
+    `INSERT INTO books (id, title, author, genre, pages, year, color, description, cover_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (id) DO NOTHING`,
+    [book.id, book.title, book.author, book.genre, book.pages, book.year, book.color, book.description, book.coverUrl]
+  )
+}

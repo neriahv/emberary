@@ -14,7 +14,11 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
 // name, such as Asia/Manila or Europe/London.
 const timezone = process.env.APP_TIMEZONE || 'Asia/Manila'
 
-const api = createApp(pool, { corsOrigins, timezone })
+// Searching Discover goes to Google Books through the server, with this key.
+// Without one, Google still answers, but with a much smaller shared quota.
+const googleKey = process.env.GOOGLE_BOOKS_API_KEY || ''
+
+const api = createApp(pool, { corsOrigins, timezone, googleKey })
 
 const app = process.env.NODE_ENV === 'production'
   ? createWebApp({

@@ -14,16 +14,19 @@ data shown is exactly what a first-time visitor sees.
 ![Home, desktop](assets/mockup-home-desktop.png)
 ![Home, phone](assets/mockup-home-mobile.png)
 
-Currently Reading with progress bars, library-wide stats, and cover rows for
-recently updated and recommended books.
+Laid out like the wireframe: a welcome banner with a "Continue reading" button,
+Currently Reading beside Quick Access, rows of covers for recommended and
+recently updated books, then Your Stats beside a card that leads into the
+Library Room.
 
 ## Discover
 
 ![Discover, desktop](assets/mockup-discover-desktop.png)
 ![Discover, phone](assets/mockup-discover-mobile.png)
 
-Search and genre filter at the top, personalised recommendations, then the
-full catalogue — 18 real books, each with its real cover.
+A search bar with a Search button and genre chips, as in the wireframe, then
+personalised recommendations in their own panel, then the full catalogue —
+18 real books, each with its real cover.
 
 ## My Books
 
@@ -31,7 +34,8 @@ full catalogue — 18 real books, each with its real cover.
 ![My Books, phone](assets/mockup-my-books-mobile.png)
 ![My Books, empty state](assets/mockup-my-books-empty.png)
 
-Status tabs across the top; selecting a book (desktop, above) opens its full
+A banner, the status tabs as one segmented control, then a search box and an
+**Add Book** button, as in the wireframe. Selecting a book (desktop, above) opens its full
 detail panel beside the grid — cover, description, and the form to change
 status, page, rating and review. The empty state is what a reader sees before
 they've added a single book.
@@ -72,18 +76,23 @@ says how much more is needed when the reader cannot afford it yet.
 A few things in the original wireframes did not survive into the built app,
 and a few things in the built app go further than the wireframes planned:
 
-- **Cut.** Home's "Get started" hero banner and "Streak" stat, and Discover's
-  separate "New Releases" and "Popular This Week" rows, were never built. Home
-  kept a plainer stat row (books in library, read, want to read, pages read)
-  instead of a streak, and Discover has one browsing section
-  ("Recommended for you") plus the full catalogue, not three.
-- **Cut.** The wireframe's mobile bottom tab bar was not built. The phone
-  layout reuses the same top navigation as desktop, wrapped onto two lines,
-  rather than a persistent bottom bar.
+- **Cut, then built in Week 3.** Home's welcome banner, Quick Access tiles and
+  "Your Library Room" card, Discover's genre chips, My Books' search and Add
+  Book button, and the phone's bottom tab bar were all missing from the
+  first build. The Week 3 redesign added them, following the wireframe.
+- **Still cut.** The "Streak" stat, and Discover's separate "New Releases"
+  and "Popular This Week" rows. Home shows books read, pages read, books in
+  the library and Want to Read instead of a streak, and Discover has one
+  browsing section ("Recommended for You") plus the full catalogue.
+- **Restyled in Week 3.** The plain first build became a cozy autumn reading
+  nook: rounded cards, pill buttons, warm glows, soft serif headings and
+  small illustrations, in the same colour palette (see
+  [03-design-system.md](03-design-system.md)).
 - **Changed.** The wireframe's Library Room had separate Furniture / Decor /
   Tools categories and explicit Add / Move / Rotate / Remove buttons. The
-  built room has one **Edit room** mode instead: furniture is added from a
-  single list, then dragged, turned or removed directly.
+  built room has one **Edit room** mode instead, with a shop in eight
+  categories (closer to the wireframe's idea than its labels): furniture is
+  bought with Ember, then dragged, turned or put in storage directly.
 - **Changed.** The wireframe's book selection was a view-only info panel. The
   built app opens a whole two-page spread — details on one page, an editable
   status/page/rating/review form on the other — closer to a real book than a

@@ -14,6 +14,9 @@ const ENTRY_COLUMNS = `
   ub.rating,
   ub.review,
   ub.shelf_position AS "shelfPosition",
+  CASE WHEN ub.shelf_case IS NULL THEN NULL
+       ELSE json_build_object('bookcase', ub.shelf_case, 'row', ub.shelf_row, 'x', ub.shelf_x)
+  END               AS "shelfSpot",
   ub.added_at       AS "addedAt",
   ub.updated_at     AS "updatedAt",
   ub.finished_at    AS "finishedAt",
@@ -83,8 +86,9 @@ export async function add(pool, readerId, bookId, status) {
 //   - finished_at is stamped when a book becomes Read and cleared when it
 //     stops being Read, so the activity chart counts it in the right month
 //   - a book that joins or leaves the Library Room's shelves (Want to Read is
-//     not on them) loses its old shelf_position, so it arrives at the end;
-//     moving between Currently Reading, Read and Did Not Finish keeps its place
+//     not on them) loses its old shelf_position and spot, so it arrives at the
+//     end; moving between Currently Reading, Read and Did Not Finish keeps its
+//     place
 export async function update(pool, readerId, bookId, patch) {
   const result = await pool.query(
     `WITH updated AS (
@@ -98,6 +102,18 @@ export async function update(pool, readerId, bookId, patch) {
                                WHEN $3::text IS NOT NULL AND $3::text <> ub.status
                                     AND 'want-to-read' IN ($3::text, ub.status) THEN NULL
                                ELSE ub.shelf_position END,
+         shelf_case     = CASE WHEN $10::boolean THEN $11::text
+                               WHEN $3::text IS NOT NULL AND $3::text <> ub.status
+                                    AND 'want-to-read' IN ($3::text, ub.status) THEN NULL
+                               ELSE ub.shelf_case END,
+         shelf_row      = CASE WHEN $10::boolean THEN $12::smallint
+                               WHEN $3::text IS NOT NULL AND $3::text <> ub.status
+                                    AND 'want-to-read' IN ($3::text, ub.status) THEN NULL
+                               ELSE ub.shelf_row END,
+         shelf_x        = CASE WHEN $10::boolean THEN $13::real
+                               WHEN $3::text IS NOT NULL AND $3::text <> ub.status
+                                    AND 'want-to-read' IN ($3::text, ub.status) THEN NULL
+                               ELSE ub.shelf_x END,
          finished_at    = CASE WHEN $3::text IS NULL OR $3::text = ub.status THEN ub.finished_at
                                WHEN $3::text = 'read' THEN now()
                                ELSE NULL END,
@@ -118,6 +134,10 @@ export async function update(pool, readerId, bookId, patch) {
       patch.review ?? null,
       'shelfPosition' in patch,
       patch.shelfPosition ?? null,
+      'shelfSpot' in patch,
+      patch.shelfSpot?.bookcase ?? null,
+      patch.shelfSpot?.row ?? null,
+      patch.shelfSpot?.x ?? null,
     ]
   )
   return result.rows[0] ?? null

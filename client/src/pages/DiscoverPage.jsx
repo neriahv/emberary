@@ -6,6 +6,7 @@ import AsyncState from '../components/AsyncState.jsx'
 import BookCard from '../components/BookCard.jsx'
 import BookCover from '../components/BookCover.jsx'
 import AddToCollection from '../components/AddToCollection.jsx'
+import Icon from '../components/Icon.jsx'
 
 const GENRES = ['Classic', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Science Fiction']
 
@@ -52,32 +53,46 @@ export default function DiscoverPage() {
         <p className="lede">Search the catalogue by title or author, or browse by genre.</p>
       </div>
 
-      <form className="search-bar" role="search" onSubmit={(event) => event.preventDefault()}>
-        <label htmlFor="search" className="visually-hidden">
-          Search books
-        </label>
-        <input
-          id="search"
-          type="search"
-          placeholder="Search by title or author"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <label htmlFor="genre" className="visually-hidden">
-          Genre
-        </label>
-        <select id="genre" value={genre} onChange={(event) => setFilter('genre', event.target.value)}>
-          <option value="">All genres</option>
-          {GENRES.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
+      <form
+        className="search-bar"
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setFilter('q', draft)
+        }}
+      >
+        <div className="search-field">
+          <Icon name="search" />
+          <label htmlFor="search" className="visually-hidden">
+            Search books
+          </label>
+          <input
+            id="search"
+            type="search"
+            placeholder="Search by title or author"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+        </div>
+        <button type="submit">Search</button>
       </form>
 
-      <section aria-labelledby="recs-heading" className="section">
-        <h2 id="recs-heading">Recommended for you</h2>
+      <div className="genre-chips" role="group" aria-label="Genre">
+        {['', ...GENRES].map((g) => (
+          <button
+            key={g || 'all'}
+            type="button"
+            className="chip"
+            aria-pressed={genre === g}
+            onClick={() => setFilter('genre', g)}
+          >
+            {g || 'All'}
+          </button>
+        ))}
+      </div>
+
+      <section aria-labelledby="recs-heading" className="section feature-panel">
+        <h2 id="recs-heading">Recommended for You</h2>
         <AsyncState {...recs} label="Finding recommendations" />
         {recs.status === 'ready' && recs.data.length === 0 && (
           <p className="empty">You own every book in the catalogue. Impressive.</p>

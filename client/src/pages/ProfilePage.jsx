@@ -82,60 +82,68 @@ function Insights({ stats, goal }) {
 
   return (
     <>
-      <div className="stat-grid">
-        <StatCard label="Books read" value={stats.read} />
-        <StatCard label="Currently Reading" value={stats.currentlyReading} />
-        <StatCard label="Want to Read" value={stats.wantToRead} />
-        <StatCard
-          label="Average rating"
-          value={stats.averageRating ?? '–'}
-          hint={stats.averageRating ? 'out of 5' : 'nothing rated yet'}
-        />
+      <div className="insight-row">
+        <div className="stat-grid">
+          <StatCard label="Books read" value={stats.read} />
+          <StatCard label="Pages read" value={stats.pagesRead.toLocaleString()} />
+          <StatCard label="Currently Reading" value={stats.currentlyReading} />
+          <StatCard
+            label="Average rating"
+            value={stats.averageRating ?? '–'}
+            hint={stats.averageRating ? 'out of 5' : 'nothing rated yet'}
+          />
+        </div>
+
+        {goal && (
+          <div className="card panel goal">
+            <h3>{year} Reading Goal</h3>
+            <GoalRing done={readThisYear} goal={goal} year={year} />
+          </div>
+        )}
       </div>
 
-      {goal && (
-        <div className="card goal">
-          <h3>{year} reading goal</h3>
-          <GoalRing done={readThisYear} goal={goal} year={year} />
-        </div>
-      )}
-
-      <div className="two-col">
-        <div className="card">
-          <h3>Favorite genres</h3>
+      <div className="insight-row">
+        <div className="card panel">
+          <h3>Favourite Genres</h3>
           <RankList items={stats.favoriteGenres} empty="Finish a book to see your genres." />
         </div>
-        <div className="card">
-          <h3>Favorite authors</h3>
-          <RankList items={stats.favoriteAuthors} empty="Finish a book to see your authors." />
-        </div>
+        <ReadingActivity stats={stats} months={months} peak={peak} />
       </div>
 
-      <div className="card">
-        <h3>Reading activity</h3>
-        <p className="muted">Books finished per month, last six months.</p>
-        <ol className="bar-chart">
-          {months.map((m) => (
-            <li key={m.key}>
-              <span className="bar-value">{m.count}</span>
-              <span
-                className="bar"
-                style={{ height: `calc((100% - 3rem) * ${m.count / peak})` }}
-                aria-hidden="true"
-              />
-              <span className="bar-label">{m.label}</span>
-              <span className="visually-hidden">
-                {m.count} {m.count === 1 ? 'book' : 'books'} finished in {m.label}
-              </span>
-            </li>
-          ))}
-        </ol>
-        <p className="muted">
-          {stats.pagesRead.toLocaleString()} pages read in total
-          {stats.didNotFinish > 0 && `, ${stats.didNotFinish} set aside as Did Not Finish`}.
-        </p>
+      <div className="card panel">
+        <h3>Favourite Authors</h3>
+        <RankList items={stats.favoriteAuthors} empty="Finish a book to see your authors." />
       </div>
     </>
+  )
+}
+
+function ReadingActivity({ stats, months, peak }) {
+  return (
+    <div className="card panel">
+      <h3>Reading Progress</h3>
+      <p className="muted">Books finished per month, last six months.</p>
+      <ol className="bar-chart">
+        {months.map((m) => (
+          <li key={m.key}>
+            <span className="bar-value">{m.count}</span>
+            <span
+              className="bar"
+              style={{ height: `calc((100% - 3rem) * ${m.count / peak})` }}
+              aria-hidden="true"
+            />
+            <span className="bar-label">{m.label}</span>
+            <span className="visually-hidden">
+              {m.count} {m.count === 1 ? 'book' : 'books'} finished in {m.label}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="muted">
+        {stats.pagesRead.toLocaleString()} pages read in total
+        {stats.didNotFinish > 0 && `, ${stats.didNotFinish} set aside as Did Not Finish`}.
+      </p>
+    </div>
   )
 }
 
