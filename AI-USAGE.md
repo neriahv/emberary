@@ -526,3 +526,20 @@ At least six entries. One per real use. Every entry needs a commit link.
   SQL. Splitting it this way is why I could ask for the schema and the query
   layer separately from the basic Express server I wrote myself — they don't
   depend on each other's implementation, only on the same function names.
+
+  ### Other work I completed myself
+
+These activities show my involvement but are not included as independently written source code.
+
+- **Book-cover setup and review:** I created the Google Cloud project and Books API key, restricted it to that API, put it in my local environment file, and ran the AI-written cover-fetch script. I reviewed the results, including the scanned title pages, before loading the covers into the database. **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
+- **GitHub identity and privacy:** I configured my no-reply email, enabled GitHub's email privacy settings, and ran the AI-guided history rewrite for older commits containing my personal email. **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
+- **Deployment and verification:** I created the Neon database and Render service, loaded the schema and seed, configured the restricted role and environment variables, and checked login refusal, database readiness, adding and finishing books, buying furniture, persistence after reload, and the `/my-books` deep link. Credentials were kept outside the public repository. **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
+
+## README credit
+The repository README already includes an AI-assistance badge, credits Claude Code and ChatGPT, and links to this file. The following is a shorter alternative credit that can be used in the README.
+
+```md
+[![AI-assisted](https://img.shields.io/badge/AI-assisted-blue)](./AI-USAGE.md)
+
+Built with assistance from Claude Code, with ChatGPT used to revise documentation wording. My requests, revisions, AI mistakes, and code contributions are documented in [AI-USAGE.md](./AI-USAGE.md).
+```
