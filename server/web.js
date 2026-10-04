@@ -32,7 +32,8 @@ export function createWebApp({ api, clientDir, username, password }) {
     limit: 10,
     skipSuccessfulRequests: true,
     standardHeaders: 'draft-8',
-    legacyHeaders: false
+    legacyHeaders: false,
+    requestWasSuccessful: (request, response) => response.statusCode !== 401,
   }))
 
   app.use(basicAuth({ username, password }))

@@ -114,6 +114,16 @@ test('too many wrong passwords from one address are slowed down with a 429', asy
   assert.equal((await fresh('/api/ping', BAD)).status, 429)
 })
 
+test('only failed logins count: a logged-in reader is never locked out by 4xx answers', async () => {
+  // A 404, or a 409 such as "You already checked in today", is the API
+  // answering a logged-in reader. None of them is a wrong password.
+  const fresh = await start()
+  for (let request = 1; request <= 15; request += 1) {
+    assert.equal((await fresh('/api/no-such-thing', GOOD)).status, 404, `request ${request}`)
+  }
+  assert.equal((await fresh('/api/ping', GOOD)).status, 200)
+})
+
 test('the right password is never rate limited by normal use', async () => {
   const fresh = await start()
   for (let request = 0; request < 30; request += 1) {
