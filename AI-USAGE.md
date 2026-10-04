@@ -160,10 +160,36 @@ At least six entries. One per real use. Every entry needs a commit link.
   include these cases, all pass.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-## 2. Where the AI got it wrong
+### 2026-10-03 - Tests and setup for going live (Week 3)
 
-Three cases. Be specific. If you write that the AI was never wrong, this section
-scores zero.
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** Help getting the app ready to deploy safely. Before
+  making the API public it needed an access gate, security headers, and a
+  database login with limited permissions. I chose to write those parts myself
+  (see section 3), so I asked the AI to set up everything around them.
+- **What it gave back:**
+  - The course's secret scan over my git history. It found no real secret,
+    only the placeholder local password `devpassword`.
+  - Three test files that describe what my code had to do, before I wrote it:
+    `basicAuth.test.js` (8 tests), `web.test.js` (8) and `roles.test.js` (5).
+  - Empty starting files for me to fill in: `basicAuth.js`, `web.js` and
+    `roles.sql`.
+  - A root `package.json` with Render's build and start commands.
+  - A privacy line in the footer of the live app, saying what it stores.
+  - The `BASIC_AUTH_*` placeholders in `.env.example`.
+  - The README's deploy section.
+  - A local step-by-step guide for my tasks, which is not committed.
+- **What I kept, what I changed, and why:**
+  - Kept all of it.
+  - I chose the options myself:
+    - the gate: Basic Auth (Option B), because I have no domain;
+    - hosting: Render for the API and Neon for the database;
+    - GitHub Pages stays a public demo that never touches the database.
+  - Writing the tests first meant I could tell when my own code was right
+    without asking the AI to check it each time.
+- **Commit:** https://github.com/neriahv/emberary/commit/d59a306889bfde1f723afbdda7dd1e23c40b6a7b
+
+## 2. Where the AI got it wrong
 
 ### Case 1 - covers that were scanned title pages, not covers (Week 2)
 
@@ -212,14 +238,7 @@ scores zero.
   to check that every card had a picture and the console showed no errors.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-
 ## 3. Who wrote what
-
-At least a fifth of this project is code you wrote yourself. Name it, and explain
-it in your own words.
-
-> Group projects: give each member their own heading below, and use your GitHub
-> handle as the heading. You are graded on your own section.
 
 ### Written by me
 **Linkage of pages and components**
@@ -275,6 +294,112 @@ it in your own words.
   tests), are the AI-usage entry above; running the account-level fixes and
   the history rewrite against my own real GitHub account is not something the
   AI could do for me.
+
+**The access gate**
+
+- **File:** `server/basicAuth.js`
+- **Commit:** https://github.com/neriahv/emberary/commit/c88cb8e6733777d14f32ece107cf876cd4d143a0
+- **What it does and why it is built this way:** HTTP Basic Authentication in
+  front of the whole deployed app. The browser sends
+  `Authorization: Basic <base64 of username:password>`.
+  - **No password means no start.** If the username or password is missing or
+    empty, the function throws an error naming `BASIC_AUTH_USER` and
+    `BASIC_AUTH_PASSWORD` before the server starts. A missing environment
+    variable on Render then crashes the boot instead of leaving the app open.
+    One `if (!username || !password)` covers both cases, because an empty
+    string is falsy.
+  - **Reading the header.** The middleware reads the header with a `?? ''`
+    fallback, splits off the scheme, and checks for `basic` in any case. The
+    `&& encoded` check is there because `''.split(' ')` and `'Basic'.split(' ')`
+    both leave the encoded part `undefined`.
+  - **Decoding.** It decodes with `Buffer.from(encoded, 'base64')` and splits
+    on the first colon only, using `indexOf` and `slice`. A password may
+    contain a colon; a username cannot.
+  - **Comparing.** `same()` hashes both sides with SHA-256, so
+    `timingSafeEqual` always gets buffers of the same length (it throws when
+    they differ). We compute userOk and passOk separately because `&&`
+    short-circuits: if the username comparison returns false, it skips the
+    password comparison. Running both comparisons every time reduces timing
+    differences that could reveal whether the username matched.
+  - **Refusing.** Anything that fails falls through to a 401 with
+    `WWW-Authenticate: Basic realm="Emberary"`, which is what makes the browser
+    show its login box.
+  - **My mistake along the way.** My first full version changed the parameters
+    to `basicAuth(username, password)`. The callers pass one options object,
+    so `username` would have been the whole object, and my own check would
+    have thrown. I put the `{ username, password, realm }` destructuring back.
+    8 of 8 tests pass.
+
+**The deployed app**
+
+- **Files:** `server/web.js`, `server/server.js`
+- **Commit:** https://github.com/neriahv/emberary/commit/09ed7d0ab2d633f5ee2587b35ff86d55a4dcbfa5
+- **What it does and why it is built this way:** One Express app serves the
+  security headers, the gate, the API and the built React client from one
+  address, so there is no CORS and one login covers everything. I worked out
+  the middleware order before writing any code:
+  1. **helmet:** adds security headers to every response, including
+     `/healthz` and login refusals. Its image policy allows `data:` and
+     `blob:` for the shop's pictures, and `https://books.google.com` for the
+     covers.
+  2. **`GET /healthz`:** answers health checks without requiring a password
+     or using the rate limit, so Render can tell the app is alive.
+  3. **Rate limit:** runs before the gate so failed login attempts count:
+     10 per 15 minutes. `skipSuccessfulRequests` means normal browsing with
+     the right password is never limited.
+  4. **The gate (`basicAuth`):** protects the client files and the API.
+  5. **Static files:** serve the built React files before the SPA fallback.
+  6. **SPA fallback:** sends `index.html` for client routes such as
+     `/my-books`, so refreshing a page works. It must skip API paths so they
+     reach `api`: I skip `/api`, `/api/...` and `/readyz`.
+  7. **`api`:** comes last, because its catch-all 404 answers any request
+     that reaches it.
+  - **`trust proxy`.** I set `trust proxy` to 1 because on Render every
+    request arrives through Render's proxy. Without it, every visitor would
+    share one IP address, and ten wrong passwords from anyone would lock out
+    everyone.
+  - **`server.js`.** It builds the API, and only in production wraps it in
+    `createWebApp`, with the client folder found relative to the file
+    (`fileURLToPath(new URL('../client/dist', import.meta.url))`), because
+    Render starts the app from a different folder. If BASIC_AUTH_PASSWORD is
+    missing or empty in production, createWebApp calls basicAuth, which
+    throws the error naming the required environment variables. Execution
+    stops before app.listen, so the server refuses to start.
+  - **Results.** 8 of 8 tests pass. In a local run in production mode,
+    `/healthz` answered without a login, `/` and `/api/books` refused without
+    one, and with it the site, a `/my-books` deep link and the database all
+    worked.
+
+**The database role**
+
+- **File:** `server/db/roles.sql`
+- **Commit:** https://github.com/neriahv/emberary/commit/2f712bf97775ceeda71201a861760e9f98e11323
+- **What it does and why it is built this way:** The deployed API logs in as
+  `emberary_app`, not as the database owner. Then a bug or someone getting past
+  the gate cannot drop tables or rewrite data the app never changes. I searched
+  every query in `server/repos/` for inserts, updates, deletes and locks, and
+  worked out what each table actually needs:
+
+  | Table | Granted | Why |
+  | --- | --- | --- |
+  | `books` | SELECT | the catalogue is loaded from my laptop, never written by the app |
+  | `readers` | SELECT, UPDATE | profile edits, and the `FOR UPDATE` lock during checkout |
+  | `user_books` | SELECT, INSERT, UPDATE, DELETE | the only table the app deletes from |
+  | `room_settings`, `room_items`, `reading_days` | SELECT, INSERT, UPDATE | furniture is stored, never deleted; the daily pages use `ON CONFLICT DO UPDATE` |
+  | `room_unlocks`, `ember_ledger` | SELECT, INSERT | the ledger is append-only: once Ember is recorded, the app cannot change or delete it |
+
+  - **Creating things.** `REVOKE CREATE ON SCHEMA public FROM PUBLIC` stops
+    any role from creating tables. `USAGE` on the schema lets the app role see
+    the tables at all.
+  - **Sequences.** The two `SERIAL` id sequences the app inserts into need
+    their own `USAGE` grant.
+  - **The one thing I verified before writing it.** I checked that the
+    ledger's `ON CONFLICT` clause is `DO NOTHING`, not `DO UPDATE`, which is
+    what lets `ember_ledger` stay append-only.
+  - **Results.** 5 of 5 tests pass: the whole app works as this role, and it
+    is refused when it tries to change tables, edit the catalogue, rewrite
+    Ember history, or delete readers or furniture. With these, the whole
+    server suite passes, 74 of 74.
 
 ### The AI-written part I understand best
 
