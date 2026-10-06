@@ -279,9 +279,10 @@ At least six entries. One per real use. Every entry needs a commit link.
     - **Shop:** I took out the shop's mood filter and kept furniture types only.
     - **Room changes:** I asked for moving and taking away blocks, and for
       moving the built-in pieces.
-  - Kept the AI's suggestion that a block taken away gives back half its price,
-    the same as selling furniture.
-- **Commit:** _(link to be added once committed)_
+  - **Refunds:** I removed full-price refunds and changed them to half price,
+    so a block taken away or a piece of furniture sold gives back half what it
+    cost.
+- **Commit:** https://github.com/neriahv/emberary/commit/d609d9ec226a2096813e2529784fb362ba39c7bf
 
 ## 2. Where the AI got it wrong
 
