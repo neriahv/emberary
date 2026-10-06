@@ -77,6 +77,11 @@ export const updateRoomItem = (id, patch) =>
 
 export const checkout = (items) => request('/api/shop/checkout', json('POST', { items }))
 
+export const changeRoomBlocks = (change) => request('/api/room/blocks', json('POST', change))
+
+export const sellRoomItem = (id) =>
+  request(`/api/room/items/${encodeURIComponent(id)}/sell`, json('POST', {}))
+
 // ember
 export const getEmber = () => request('/api/ember')
 

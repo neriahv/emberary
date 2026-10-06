@@ -1149,6 +1149,138 @@ body.room-open { overflow: hidden; }
 .thumb-choice.is-stored { opacity: 0.9; }
 .thumb-choice.is-stored button { width: 100%; }
 .customizer .hint { margin: 0; font-size: var(--text-sm); }
+
+/* "Build your dream library": the room's title, and the library's level. */
+.room-screen.time-dusk { background: radial-gradient(ellipse at 50% 45%, #9a5a7e, #6a3e60 75%); }
+.room-screen.time-night { background: radial-gradient(ellipse at 50% 45%, #2a2850, #15132b 75%); }
+.hud-dream { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+.hud-dream .hud-title {
+  font-size: clamp(1.15rem, 1rem + 1vw, 1.7rem);
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.35), 0 0 18px rgb(255 190 120 / 0.35);
+}
+.hud-level {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: #fff8ef;
+  background: rgb(28 18 12 / 0.62);
+  border: 1px solid rgb(255 240 220 / 0.28);
+  border-radius: 999px;
+  padding: 3px var(--space-3) 3px 3px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.2);
+}
+.hud-level:hover { background: rgb(28 18 12 / 0.8); filter: none; }
+.hud-level:focus-visible { outline: 2px solid #fff1dc; outline-offset: 2px; }
+.hud-level-badge { background: linear-gradient(180deg, #ffc27a, #e0783c); color: #3a1a08; border-radius: 999px; padding: 1px var(--space-2); }
+.hud-level-bar { width: 4.5rem; height: 0.4rem; border-radius: 999px; background: rgb(255 240 220 / 0.2); overflow: hidden; }
+.hud-level-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffd27a, #ff9a4a); transition: width 0.4s ease; }
+@media (max-width: 40rem) { .hud-dream .hud-title { display: block; font-size: 1.05rem; } .hud-level-bar { display: none; } }
+
+/* The first-visit card that explains what the room is for. */
+.room-welcome {
+  position: absolute;
+  top: 7.5rem;
+  left: var(--space-4);
+  z-index: 12;
+  width: min(23rem, calc(100vw - 2rem));
+  background: var(--card);
+  color: var(--fg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+  padding: var(--space-4) var(--space-5);
+  animation: drawer-in 0.25s ease-out;
+}
+.room-welcome h2 { font-size: var(--text-lg); margin-bottom: var(--space-2); }
+.room-welcome ol { margin: 0 0 var(--space-2); padding-left: 1.2rem; display: grid; gap: var(--space-2); font-size: var(--text-sm); }
+.room-welcome p { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+@media (max-width: 40rem) { .room-welcome { top: auto; bottom: var(--space-3); left: var(--space-3); right: var(--space-3); width: auto; } }
+@media (prefers-reduced-motion: reduce) { .room-welcome { animation: none; } }
+
+/* The Build tab: the room's own options, bought once and then switched. */
+.build-intro { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--muted); }
+.build-note { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--status-reading); font-weight: 700; }
+.build-choices { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.build-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+}
+.build-card.is-in-use { border-color: var(--accent); background: var(--surface-warm); }
+.build-card .finish-swatch { width: 100%; height: 4.5rem; margin-bottom: var(--space-1); }
+.build-card button { width: 100%; margin-top: var(--space-1); display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+.build-card-name { font-weight: 700; font-size: var(--text-sm); line-height: 1.25; }
+.build-card-note { font-size: 0.72rem; color: var(--muted); }
+.build-card-state { font-size: var(--text-sm); font-weight: 700; color: var(--accent); padding: var(--space-1) 0; margin-top: var(--space-1); }
+.structure-swatch { background: radial-gradient(circle at 50% 40%, #fff8ef, #f1e2cf); }
+.structure-swatch svg { width: 88%; height: 88%; }
+
+/* Room blocks: buying them, and the banner while one is being put down. */
+.block-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+.block-step {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+.block-step:hover, .block-step:focus-within { border-color: var(--accent); }
+.block-step-name { font-weight: 700; font-size: var(--text-sm); }
+.block-step-note { grid-column: 1; font-size: 0.75rem; color: var(--muted); }
+.block-step-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: var(--space-1); }
+.block-step-actions button { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.hud-place { top: 7.5rem; justify-content: center; }
+.place-banner {
+  margin: 0;
+  max-width: 38rem;
+  font-size: var(--text-sm);
+  background: rgb(28 18 12 / 0.78);
+  border: 1px solid rgb(255 176 112 / 0.6);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  backdrop-filter: blur(6px);
+}
+.place-banner strong { color: #ffb070; }
+.hud-remove { background: #b8402f; border-color: transparent; }
+.hud-remove:hover { background: #d04a36; }
+.build-card .item-thumb { width: 100%; height: 4.5rem; margin-bottom: var(--space-1); }
+
+/* Selling furniture back. */
+.button-sell { display: inline-flex; align-items: center; gap: 3px; }
+.sell-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.sell-confirm > span { flex-basis: 100%; }
+.thumb-choice.is-stored .button-sell { width: 100%; justify-content: center; }
+
+.palettes { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--space-2); }
+.palette {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  background: transparent;
+  color: var(--fg);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+}
+.palette:hover { border-color: var(--accent); filter: none; }
+.palette-dots { display: inline-flex; }
+.palette-dots span { width: 1rem; height: 1rem; border-radius: 50%; border: 1.5px solid var(--card); margin-left: -0.3rem; }
+.palette-dots span:first-child { margin-left: 0; }
+.segmented { display: flex; gap: var(--space-1); flex-wrap: wrap; }
 .item-editor label { font-size: var(--text-sm); color: var(--muted); }
 .item-editor input[type='range'] { width: 100%; accent-color: var(--accent); }
 .item-editor .detail-actions { margin-top: var(--space-2); }

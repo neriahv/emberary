@@ -2,33 +2,59 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { MeshStandardMaterial, Plane, Vector3 } from 'three'
-import { ROOM_BOUNDS, SHELVED_STATUSES, catalogEntry, coverImageUrl } from '../../api'
+import {
+  BLOCKS,
+  FIXTURES,
+  FIXTURE_CLEARANCE,
+  LOFT,
+  SHELVED_STATUSES,
+  catalogEntry,
+  cellBox,
+  coverImageUrl,
+  fixturesOf,
+  floorSpots,
+  moveSpots,
+  nearestSpot,
+  onWallAt,
+  pickSpots,
+  wallSpots,
+} from '../../api'
 import { BOOKCASES, BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, shelfGap, shelfLevels } from './models.jsx'
-import { coverSpineTexture, floorTexture, loadCover, skyTexture, spineTexture, wallpaperTexture } from './textures.js'
+import RoomShell, { BlockGhost, CORNER, roomGeometry, wallFrames } from './structure.jsx'
+import { alongOf, fitWindow } from './windows.jsx'
+import { coverImageTexture, coverSpineTexture, coverTexture, loadCover, spineTexture } from './textures.js'
 
 // The 3D Library Room: a cut-away diorama seen from above one corner, like a
-// dollhouse. Two walls meet at the back: the window wall on the left (x = -2.5)
-// and the bookcase wall on the right (z = -2.5). The open sides face the viewer.
+// dollhouse. Two walls meet at the back: the window wall on the left
+// (x = -2.5) and the bookcase wall on the right (z = -2.5). The open sides
+// face the viewer, and a room bought bigger grows towards them. structure.jsx
+// builds the room itself; this file fills it.
 //
 // Every book the reader has started (reading, read, or set aside) stands on
 // the shelves, in the order they arranged it, like a real bookcase: the
-// built-in one first, then any bookcases they bought. Want to Read books are
-// not on the shelves yet. Units are roughly metres.
-
-const HALF = 2.5 // the floor runs -HALF..HALF on x and z
-const WALL_HEIGHT = 3
-const WALL = 0.18 // wall thickness
-const BACKDROP = '#d9764f'
+// built-in one first, then any bookcases they bought. A book the reader laid
+// on a table lies there instead. Want to Read books are not in the room yet.
+// Units are roughly metres.
 
 // Only a few lights may shine at once. Every point light costs every pixel of
 // every frame, and a room with thirty lanterns should still turn smoothly.
-const MAX_ITEM_LIGHTS = 4
+const MAX_ITEM_LIGHTS = 6
 
 // The built-in bookcase, against the right-hand wall.
 const MAIN = BOOKCASES.main
-const MAIN_AT = [1.05, 0, -HALF + MAIN.depth / 2 + 0.02]
 // How far a book slides towards you when it is opened.
 const PULL = 0.34
+// Books lying on a table are drawn smaller than the ones on the shelves,
+// which are made big enough to read from across the room.
+const LYING = 0.62
+
+// The light at each time of day. At night the room is dark until the reader
+// switches its lamps on.
+const LIGHTING = {
+  day: { background: '#d9764f', ambient: [0.55, '#ffe2c4'], sky: ['#ffe9d0', '#6b3a1f', 0.55], sun: [1.5, '#ffe0b8'] },
+  dusk: { background: '#7a4a6e', ambient: [0.4, '#ffc9b0'], sky: ['#ffc4a8', '#4a2a3a', 0.42], sun: [0.95, '#ff9d6b'] },
+  night: { background: '#1c1a36', ambient: [0.28, '#8b8fd6'], sky: ['#5a5fa8', '#1a1226', 0.25], sun: [0.35, '#9fb4ff'] },
+}
 
 // Thicker books for longer books, taller for older ones, so a shelf does not
 // look like a row of identical bricks.
@@ -57,6 +83,13 @@ export function shelfOrder(entries) {
 export function bookcasesIn(room) {
   const bought = room.items.filter((i) => i.placed && MODELS[i.kind]?.spec)
   return [{ id: 'main', spec: MAIN }, ...bought.map((i) => ({ id: i.id, spec: MODELS[i.kind].spec }))]
+}
+
+// The tables standing in the room, and how many books each can hold.
+export function tablesIn(room) {
+  return room.items
+    .filter((i) => i.placed && MODELS[i.kind]?.surfaces)
+    .map((i) => ({ id: i.id, slots: MODELS[i.kind].surfaces.length }))
 }
 
 const GAP = 0.006 // between neighbouring books
@@ -88,13 +121,16 @@ function shelvesOf(cases) {
   )
 }
 
-// Put the books on the shelves. A book the reader placed goes where they put
-// it, if there is still room there; every other book fills the free space,
-// left to right along each shelf, top shelf to bottom, one bookcase after
-// another. Returns each bookcase's books, and how many did not fit anywhere
-// (the room says so, rather than drawing them through a wall).
-export function layoutBookcases(entries, cases) {
+// Put the books in the room. A book the reader laid on a table lies there, if
+// the table still stands and that spot is free. A book they placed on a shelf
+// goes where they put it, if there is still room there; every other book
+// fills the free space, left to right along each shelf, top shelf to bottom,
+// one bookcase after another. Returns each bookcase's books, each table's,
+// and how many did not fit anywhere (the room says so, rather than drawing
+// them through a wall).
+export function layoutBookcases(entries, cases, tables = []) {
   const placed = Object.fromEntries(cases.map((c) => [c.id, []]))
+  const onTables = Object.fromEntries(tables.map((t) => [t.id, []]))
   const shelves = shelvesOf(cases)
   const onShelf = (shelf) => placed[shelf.id].filter((b) => b.row === shelf.row)
   const put = (entry, size, shelf, x) => placed[shelf.id].push({ entry, size, x, y: shelf.y, row: shelf.row })
@@ -102,8 +138,15 @@ export function layoutBookcases(entries, cases) {
   const waiting = []
   for (const entry of shelfOrder(entries)) {
     const spot = entry.shelfSpot
-    const shelf = spot && shelves.find((s) => String(s.id) === spot.bookcase && s.row === spot.row)
     const size = bookSize(entry.book)
+    const table = spot && tables.find((t) => String(t.id) === spot.bookcase)
+    if (table) {
+      const free = spot.row < table.slots && !onTables[table.id].some((b) => b.slot === spot.row)
+      if (free) onTables[table.id].push({ entry, size, slot: spot.row })
+      else waiting.push(entry)
+      continue
+    }
+    const shelf = spot && shelves.find((s) => String(s.id) === spot.bookcase && s.row === spot.row)
     const x = shelf ? fitOnShelf(onShelf(shelf), shelf.width, size[0], spot.x) : null
     if (x === null) waiting.push(entry)
     else put(entry, size, shelf, x)
@@ -119,7 +162,7 @@ export function layoutBookcases(entries, cases) {
       next += 1
     }
   }
-  return { placed, overflow: waiting.length - next }
+  return { placed, onTables, overflow: waiting.length - next }
 }
 
 // Ease `current` towards `target`; true while there is still somewhere to go.
@@ -139,66 +182,26 @@ function approach(object, axis, target, delta, speed = 9) {
 
 // The spine starts as the drawn one; in the live app the real cover is then
 // fetched through the server and painted on instead.
-function useSpine(book, material) {
+function useCover(book, material, paint) {
   const invalidate = useThree((state) => state.invalidate)
   useEffect(() => {
     let alive = true
     loadCover(coverImageUrl(book)).then((image) => {
       if (!alive || !image) return
-      material.map = coverSpineTexture(book, image)
+      material.map = paint(book, image)
       material.needsUpdate = true
       invalidate()
     })
     return () => {
       alive = false
     }
-  }, [book, material, invalidate])
+  }, [book, material, paint, invalidate])
 }
 
-function Book({ entry, size, x, y, selected, interactive, editing, dimmed, onSelect, onDragStart }) {
-  const ref = useRef()
+// Pointer handlers shared by a book on a shelf and a book on a table: click to
+// open it, or in Edit room, press to pick it up.
+function useBookHandlers({ entry, size, interactive, editing, onSelect, onDragStart }) {
   const [hovered, setHovered] = useState(false)
-  const invalidate = useThree((state) => state.invalidate)
-  const { book } = entry
-
-  // Covers on the sides, paper on top, bottom and back, the printed spine
-  // facing the room. Made once per book, not on every render.
-  const materials = useMemo(() => {
-    const cover = new MeshStandardMaterial({ color: book.color, roughness: 0.7 })
-    const pages = new MeshStandardMaterial({ color: '#efe4cc', roughness: 0.95 })
-    const spine = new MeshStandardMaterial({ map: spineTexture(book), roughness: 0.6 })
-    return { list: [cover, cover, pages, pages, spine, pages], spine, all: [cover, pages, spine] }
-  }, [book])
-  useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
-  useSpine(book, materials.spine)
-
-  // Glow while it is the open book.
-  useEffect(() => {
-    materials.spine.emissive.set(selected ? '#ff9a4a' : '#000000')
-    materials.spine.emissiveIntensity = selected ? 0.25 : 0
-  }, [selected, materials])
-
-  // Faded while it is being carried somewhere else.
-  useEffect(() => {
-    for (const material of materials.all) {
-      material.transparent = dimmed
-      material.opacity = dimmed ? 0.3 : 1
-    }
-    invalidate()
-  }, [dimmed, materials, invalidate])
-
-  const restY = y + size[1] / 2
-  useLayoutEffect(() => {
-    ref.current.position.set(0, restY, 0)
-  }, [restY])
-
-  useFrame((state, delta) => {
-    const pullTo = selected ? PULL : hovered && (interactive || editing) ? 0.05 : 0
-    const liftTo = selected ? restY + 0.03 : restY
-    const moving = approach(ref.current, 'z', pullTo, delta) | approach(ref.current, 'y', liftTo, delta)
-    if (moving) state.invalidate()
-  })
-
   const hover = {
     onPointerOver: (event) => {
       event.stopPropagation()
@@ -212,7 +215,6 @@ function Book({ entry, size, x, y, selected, interactive, editing, dimmed, onSel
   }
   let handlers = {}
   if (editing) {
-    // In Edit room a book is picked up and carried to any shelf.
     handlers = {
       ...hover,
       onPointerDown: (event) => {
@@ -231,32 +233,170 @@ function Book({ entry, size, x, y, selected, interactive, editing, dimmed, onSel
       },
     }
   }
+  return { hovered, handlers }
+}
+
+// Faded while it is being carried somewhere else; glowing while it is open.
+function useBookLook(materials, { selected, dimmed }) {
+  const invalidate = useThree((state) => state.invalidate)
+  useEffect(() => {
+    materials.highlight.emissive.set(selected ? '#ff9a4a' : '#000000')
+    materials.highlight.emissiveIntensity = selected ? 0.25 : 0
+  }, [selected, materials])
+  useEffect(() => {
+    for (const material of materials.all) {
+      material.transparent = dimmed
+      material.opacity = dimmed ? 0.3 : 1
+    }
+    invalidate()
+  }, [dimmed, materials, invalidate])
+}
+
+function BookTooltip({ book, editing, y, z = 0.1 }) {
+  return (
+    <Html zIndexRange={[4, 0]} position={[0, y, z]} center className="room-tooltip">
+      {editing ? `${book.title} · drag to move` : book.title}
+    </Html>
+  )
+}
+
+function Book({ entry, size, x, y, selected, interactive, editing, dimmed, onSelect, onDragStart }) {
+  const ref = useRef()
+  const { book } = entry
+  const { hovered, handlers } = useBookHandlers({ entry, size, interactive, editing, onSelect, onDragStart })
+
+  // Covers on the sides, paper on top, bottom and back, the printed spine
+  // facing the room. Made once per book, not on every render.
+  const materials = useMemo(() => {
+    const cover = new MeshStandardMaterial({ color: book.color, roughness: 0.7 })
+    const pages = new MeshStandardMaterial({ color: '#efe4cc', roughness: 0.95 })
+    const spine = new MeshStandardMaterial({ map: spineTexture(book), roughness: 0.6 })
+    return { list: [cover, cover, pages, pages, spine, pages], highlight: spine, all: [cover, pages, spine] }
+  }, [book])
+  useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
+  useCover(book, materials.highlight, coverSpineTexture)
+  useBookLook(materials, { selected, dimmed })
+
+  const restY = y + size[1] / 2
+  useLayoutEffect(() => {
+    ref.current.position.set(0, restY, 0)
+  }, [restY])
+
+  useFrame((state, delta) => {
+    const pullTo = selected ? PULL : hovered && (interactive || editing) ? 0.05 : 0
+    const liftTo = selected ? restY + 0.03 : restY
+    const moving = approach(ref.current, 'z', pullTo, delta) | approach(ref.current, 'y', liftTo, delta)
+    if (moving) state.invalidate()
+  })
 
   return (
     <group position={[x, 0, 0]}>
       <mesh ref={ref} material={materials.list} castShadow receiveShadow {...handlers}>
         <boxGeometry args={size} />
-        {hovered && !selected && !dimmed && (
-          <Html zIndexRange={[4, 0]} position={[0, size[1] / 2 + 0.07, 0.1]} center className="room-tooltip">
-            {editing ? `${book.title} · drag to move` : book.title}
-          </Html>
-        )}
+        {hovered && !selected && !dimmed && <BookTooltip book={book} editing={editing} y={size[1] / 2 + 0.07} />}
       </mesh>
     </group>
   )
 }
 
+// A book lying on a table, its cover up. A book being read lies open at the
+// reader's page instead, with a ribbon in it.
+function TableBook({ entry, size, at, selected, interactive, editing, dimmed, onSelect, onDragStart }) {
+  const ref = useRef()
+  const { book } = entry
+  const { hovered, handlers } = useBookHandlers({ entry, size, interactive, editing, onSelect, onDragStart })
+  const reading = entry.status === 'currently-reading'
+  const [x, y, z, turn] = at
+  const width = 0.3 * LYING
+  const length = size[1] * LYING
+  const thick = size[0] * LYING
+
+  const materials = useMemo(() => {
+    const cover = new MeshStandardMaterial({ color: book.color, roughness: 0.7 })
+    const pages = new MeshStandardMaterial({ color: '#efe4cc', roughness: 0.95 })
+    const front = new MeshStandardMaterial({ map: coverTexture(book), roughness: 0.6 })
+    return { list: [pages, cover, front, cover, pages, pages], highlight: reading ? pages : front, front, all: [cover, pages, front] }
+  }, [book, reading])
+  useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
+  useCover(book, materials.front, coverImageTexture)
+  useBookLook(materials, { selected, dimmed })
+
+  useFrame((state, delta) => {
+    const liftTo = selected ? 0.14 : hovered && (interactive || editing) ? 0.03 : 0
+    if (approach(ref.current, 'y', liftTo, delta)) state.invalidate()
+  })
+
+  return (
+    <group position={[x, y, z]} rotation={[0, turn, 0]}>
+      <group ref={ref}>
+        {reading ? (
+          <group {...handlers}>
+            {[-1, 1].map((side) => (
+              <group key={side} rotation={[0, 0, side * -0.06]}>
+                <mesh position={[(side * width) / 2, 0.006, 0]} material={materials.all[0]} castShadow>
+                  <boxGeometry args={[width, 0.012, length]} />
+                </mesh>
+                <mesh position={[(side * (width - 0.01)) / 2, 0.012 + thick / 4, 0]} material={materials.all[1]} castShadow>
+                  <boxGeometry args={[width - 0.012, thick / 2, length - 0.02]} />
+                </mesh>
+              </group>
+            ))}
+            <mesh position={[0.01, thick / 2 + 0.02, length / 2]} rotation={[0.3, 0, 0]}>
+              <boxGeometry args={[0.012, 0.002, 0.12]} />
+              <meshStandardMaterial color="#b0262b" />
+            </mesh>
+          </group>
+        ) : (
+          <mesh position={[0, thick / 2, 0]} material={materials.list} castShadow receiveShadow {...handlers}>
+            <boxGeometry args={[width, thick, length]} />
+          </mesh>
+        )}
+        {hovered && !selected && !dimmed && <BookTooltip book={book} editing={editing} y={0.2} z={0} />}
+      </group>
+    </group>
+  )
+}
+
 // Where the carried book would land, drawn in place before it is dropped.
-function GhostBook({ book, size, x, y }) {
+function GhostBook({ book, size, x, y, lying = false }) {
   const materials = useMemo(() => {
     const cover = new MeshStandardMaterial({ color: book.color, transparent: true, opacity: 0.8, emissive: '#ffb070', emissiveIntensity: 0.25 })
     const spine = new MeshStandardMaterial({ map: spineTexture(book), transparent: true, opacity: 0.9, emissive: '#ffb070', emissiveIntensity: 0.2 })
     return { list: [cover, cover, cover, cover, spine, cover], all: [cover, spine] }
   }, [book])
   useEffect(() => () => materials.all.forEach((m) => m.dispose()), [materials])
+  if (lying) {
+    const thick = size[0] * LYING
+    return (
+      <mesh position={[0, y + thick / 2 + 0.01, 0]} material={materials.all[0]}>
+        <boxGeometry args={[0.3 * LYING, thick, size[1] * LYING]} />
+      </mesh>
+    )
+  }
   return (
     <mesh position={[x, y + size[1] / 2, 0.02]} material={materials.list}>
       <boxGeometry args={size} />
+    </mesh>
+  )
+}
+
+// A board that catches the pointer while a book is carried, glowing when the
+// book would land on it (red when there is no room).
+function DropTarget({ active, full, onMove, onDrop, args, ...props }) {
+  return (
+    <mesh
+      {...props}
+      onPointerMove={(event) => {
+        event.stopPropagation()
+        onMove(event)
+      }}
+      onPointerUp={(event) => {
+        event.stopPropagation()
+        onDrop()
+      }}
+    >
+      <boxGeometry args={args} />
+      <meshBasicMaterial color={active && full ? '#d96a5a' : '#ffb070'} transparent opacity={active ? 0.22 : 0} depthWrite={false} />
     </mesh>
   )
 }
@@ -270,27 +410,15 @@ function ShelfTargets({ caseId, spec, frame, target, onHover, onDrop }) {
   return shelfLevels(spec).map((y, row) => {
     const active = target?.caseId === caseId && target.row === row
     return (
-      <mesh
+      <DropTarget
         key={row}
         position={[0, y + gap / 2, 0.24]}
-        onPointerMove={(event) => {
-          event.stopPropagation()
-          const local = frame.current.worldToLocal(event.point.clone())
-          onHover(caseId, row, local.x)
-        }}
-        onPointerUp={(event) => {
-          event.stopPropagation()
-          onDrop()
-        }}
-      >
-        <boxGeometry args={[width, gap * 0.94, 0.02]} />
-        <meshBasicMaterial
-          color={active && target.x === null ? '#d96a5a' : '#ffb070'}
-          transparent
-          opacity={active ? 0.22 : 0}
-          depthWrite={false}
-        />
-      </mesh>
+        args={[width, gap * 0.94, 0.02]}
+        active={active}
+        full={active && target.x === null}
+        onMove={(event) => onHover(caseId, row, frame.current.worldToLocal(event.point.clone()).x)}
+        onDrop={onDrop}
+      />
     )
   })
 }
@@ -300,7 +428,7 @@ function ShelfTargets({ caseId, spec, frame, target, onHover, onDrop }) {
 function Bookcase({ caseId, spec, books, color, selectedId, interactive, editing, onSelect, drag, onDragStart, onHover, onDrop }) {
   const frame = useRef()
   const target = drag?.target
-  const ghostHere = target && target.caseId === caseId && target.x !== null
+  const ghostHere = target && target.caseId === caseId && target.x !== null && !target.table
   return (
     <>
       <Shadowed>
@@ -333,233 +461,249 @@ function Bookcase({ caseId, spec, books, color, selectedId, interactive, editing
   )
 }
 
-// A smaller bookcase on the window wall, filled with the room's own old
-// volumes: set dressing, not the reader's books, so they cannot be opened.
-function DecorBookcase({ color }) {
-  const volumes = useMemo(() => {
-    const leather = ['#5b2a1e', '#2f4a3a', '#6a4a24', '#3a2c4a', '#7a3a24', '#294056', '#4d3a2a']
-    const rows = []
-    for (let shelf = 0; shelf < 3; shelf++) {
-      let x = -0.4
-      let i = shelf * 7
-      while (x < 0.36) {
-        const thick = 0.045 + ((i * 29) % 7) / 200
-        const tall = 0.26 + ((i * 17) % 9) / 100
-        rows.push({ key: `${shelf}-${i}`, x: x + thick / 2, y: 0.12 + shelf * 0.55 + tall / 2, size: [thick, tall, 0.22], color: leather[i % leather.length] })
-        x += thick + 0.004
-        i++
-      }
-    }
-    return rows
-  }, [])
-
-  return (
-    <group position={[-HALF + 0.19, 0, -1.8]} rotation={[0, Math.PI / 2, 0]}>
-      <Shadowed>
-        <mesh position={[0, 0.95, -0.17]}>
-          <boxGeometry args={[0.95, 1.9, 0.03]} />
-          <meshStandardMaterial color={color} roughness={0.9} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={side} position={[side * 0.45, 0.95, 0]}>
-            <boxGeometry args={[0.05, 1.9, 0.36]} />
-            <meshStandardMaterial color={color} roughness={0.75} />
-          </mesh>
-        ))}
-        {[0.1, 0.65, 1.2, 1.75, 1.91].map((y) => (
-          <mesh key={y} position={[0, y, 0]}>
-            <boxGeometry args={[0.9, 0.035, 0.36]} />
-            <meshStandardMaterial color={color} roughness={0.75} />
-          </mesh>
-        ))}
-        {volumes.map((v) => (
-          <mesh key={v.key} position={[v.x, v.y, 0]}>
-            <boxGeometry args={v.size} />
-            <meshStandardMaterial color={v.color} roughness={0.7} />
-          </mesh>
-        ))}
-        {/* a candle on the top, as in the reference */}
-        <mesh position={[0.2, 2.0, 0]}>
-          <cylinderGeometry args={[0.03, 0.03, 0.14, 12]} />
-          <meshStandardMaterial color="#f6ecd6" />
-        </mesh>
-      </Shadowed>
-    </group>
-  )
-}
-
-// ------------------------------------------------------------ the room itself
-
-function RoundWindow() {
-  const frame = '#c98a4b'
-  return (
-    <group position={[-HALF + 0.01, 1.75, -0.35]} rotation={[0, Math.PI / 2, 0]}>
-      {/* The wall is solid, so the "opening" is drawn on its face: sky glass,
-          a deep frame standing out from the wall, and the cross of glazing bars. */}
-      <mesh position={[0, 0, 0.012]}>
-        <circleGeometry args={[0.74, 48]} />
-        <meshStandardMaterial map={skyTexture()} emissive="#ffffff" emissiveMap={skyTexture()} emissiveIntensity={0.85} />
-      </mesh>
-      <mesh position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.76, 0.76, 0.12, 48, 1, true]} />
-        <meshStandardMaterial color="#e0a868" side={2} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0, 0.12]}>
-        <torusGeometry args={[0.77, 0.06, 12, 64]} />
-        <meshStandardMaterial color={frame} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 0, 0.04]}>
-        <boxGeometry args={[0.05, 1.5, 0.04]} />
-        <meshStandardMaterial color={frame} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 0.05, 0.04]}>
-        <boxGeometry args={[1.5, 0.05, 0.04]} />
-        <meshStandardMaterial color={frame} roughness={0.6} />
-      </mesh>
-      {/* sill */}
-      <mesh position={[0, -0.8, 0.06]}>
-        <boxGeometry args={[0.7, 0.05, 0.14]} />
-        <meshStandardMaterial color={frame} roughness={0.6} />
-      </mesh>
-    </group>
-  )
-}
-
-// The walls and floor, in the reader's colours and whatever wallpaper and
-// floor they have put down. The patterns are pale, so the colour tints them.
-function RoomShell({ wallColor, floorColor, wallpaper, floor }) {
-  const trim = '#5a2f17'
-  const floorMap = floorTexture(floor)
-  const wallMap = wallpaperTexture(wallpaper)
-  const span = HALF * 2 + WALL
-
+// The reader's books lying on a table, and, while a book is carried, a pad on
+// each free spot to drop it on.
+function TableTop({ caseId, surfaces, books, selectedId, interactive, editing, onSelect, drag, onDragStart, onHover, onDrop }) {
+  const target = drag?.target
   return (
     <>
-      {/* floor slab, and the planked floor on top of it */}
-      <mesh position={[-WALL / 2, -0.16, -WALL / 2]} receiveShadow>
-        <boxGeometry args={[span, 0.32, span]} />
-        <meshStandardMaterial color={floorColor} roughness={0.9} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
-        <planeGeometry args={[HALF * 2, HALF * 2]} />
-        <meshStandardMaterial key={floor} color={floorColor} map={floorMap} roughness={0.8} />
-      </mesh>
-      {/* a thin dark edge along the slab's top, as on a diorama base */}
-      <mesh position={[HALF, 0.005, -WALL / 2]}>
-        <boxGeometry args={[0.02, 0.02, span]} />
-        <meshStandardMaterial color={trim} />
-      </mesh>
-      <mesh position={[-WALL / 2, 0.005, HALF]}>
-        <boxGeometry args={[span, 0.02, 0.02]} />
-        <meshStandardMaterial color={trim} />
-      </mesh>
-
-      <Shadowed receiveOnly>
-        {/* window wall (left) and bookcase wall (right) */}
-        <mesh position={[-HALF - WALL / 2, WALL_HEIGHT / 2, -WALL / 2]}>
-          <boxGeometry args={[WALL, WALL_HEIGHT, span]} />
-          <meshStandardMaterial key={wallpaper} color={wallColor} map={wallMap} roughness={0.95} />
-        </mesh>
-        <mesh position={[-WALL / 2, WALL_HEIGHT / 2, -HALF - WALL / 2]}>
-          <boxGeometry args={[span, WALL_HEIGHT, WALL]} />
-          <meshStandardMaterial key={wallpaper} color={wallColor} map={wallMap} roughness={0.95} />
-        </mesh>
-      </Shadowed>
-      {/* wooden caps along the top of both walls */}
-      <mesh position={[-HALF - WALL / 2, WALL_HEIGHT + 0.03, -WALL / 2]}>
-        <boxGeometry args={[WALL + 0.04, 0.06, span + 0.04]} />
-        <meshStandardMaterial color={trim} roughness={0.6} />
-      </mesh>
-      <mesh position={[-WALL / 2, WALL_HEIGHT + 0.03, -HALF - WALL / 2]}>
-        <boxGeometry args={[span + 0.04, 0.06, WALL + 0.04]} />
-        <meshStandardMaterial color={trim} roughness={0.6} />
-      </mesh>
-      {/* skirting boards */}
-      <mesh position={[-HALF + 0.01, 0.06, 0]}>
-        <boxGeometry args={[0.02, 0.12, HALF * 2]} />
-        <meshStandardMaterial color={trim} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 0.06, -HALF + 0.01]}>
-        <boxGeometry args={[HALF * 2, 0.12, 0.02]} />
-        <meshStandardMaterial color={trim} roughness={0.7} />
-      </mesh>
-
-      <RoundWindow />
-      {/* afternoon light coming in through the window */}
-      <pointLight position={[-HALF + 0.5, 1.8, -0.35]} intensity={1.6} distance={5} decay={1.5} color="#ffe2b8" />
+      {books.map(({ entry, size, slot }) => (
+        <TableBook
+          key={entry.bookId}
+          entry={entry}
+          size={size}
+          at={surfaces[slot]}
+          selected={entry.bookId === selectedId}
+          interactive={interactive}
+          editing={editing}
+          dimmed={drag?.entry.bookId === entry.bookId}
+          onSelect={onSelect}
+          onDragStart={onDragStart}
+        />
+      ))}
+      {drag &&
+        surfaces.map(([x, y, z, turn], slot) => {
+          const active = target?.caseId === caseId && target.row === slot
+          return (
+            <group key={slot} position={[x, y, z]} rotation={[0, turn, 0]}>
+              {active && target.x !== null && <GhostBook book={drag.entry.book} size={drag.size} y={0} lying />}
+              <DropTarget
+                position={[0, 0.1, 0]}
+                args={[0.36, 0.2, 0.42]}
+                active={active}
+                full={active && target.x === null}
+                onMove={() => onHover(caseId, slot, 0, true)}
+                onDrop={onDrop}
+              />
+            </group>
+          )
+        })}
     </>
   )
 }
 
 // ------------------------------------------------------------ furniture
 
-const floorPlane = new Plane(new Vector3(0, 1, 0), 0)
 const hit = new Vector3()
-const clamp = (value, [min, max]) => Math.round(Math.min(max, Math.max(min, value)) * 100) / 100
+
+// Where a staircase's top step is, in the room, so the loft's railing can
+// open there.
+function landingOf(item) {
+  const [lx, lz] = MODELS[item.kind].landing
+  const turn = (item.rotation * Math.PI) / 180
+  return [item.x + lx * Math.cos(turn) + lz * Math.sin(turn), item.z - lx * Math.sin(turn) + lz * Math.cos(turn)]
+}
+
+function itemTip(def, item, editing) {
+  if (editing) return catalogEntry(item.kind)?.name ?? FIXTURES[item.id]?.name
+  if (def.light) return item.lit === false ? 'Click to switch on' : 'Click to switch off'
+  return def.interact
+}
 
 // One piece of furniture. A bookcase also carries its share of the reader's
-// books (`shelf`), which can be clicked like any others.
-function RoomItem({ item, lit, editing, selected, onSelect, onChange, shelf }) {
-  const [hovered, setHovered] = useState(false)
-  const drag = useRef(null)
-  const { Model, radius, height, spec } = MODELS[item.kind] ?? MODELS.cushion
+// books (`shelf`), and a table the books lying on it (`table`); both can be
+// clicked like any others. Outside Edit room, clicking a light switches it,
+// and clicking a globe, a rocking chair or a cat does what you would expect.
+const wallHit = new Vector3()
+const facePlane = new Plane()
 
-  // In edit mode an item can be picked up and slid across the floor. The
-  // pointer is captured so the drag keeps working when it leaves the item.
-  const handlers = editing
+// The point on a wall's room-side face under the pointer, if it is on the
+// wall itself: { edge, along, y }, the nearest to the viewer.
+function pointOnWall(ray, room) {
+  let best = null
+  for (const wall of wallFrames(room)) {
+    const [nx, nz] = wall.normal
+    // Only faces turned towards the viewer.
+    if (ray.direction.x * nx + ray.direction.z * nz >= 0) continue
+    facePlane.normal.set(nx, 0, nz)
+    facePlane.constant = -wall.face * (nx + nz)
+    if (!ray.intersectPlane(facePlane, wallHit)) continue
+    const along = wall.side === 'x' ? wallHit.x : wallHit.z
+    if (along < wall.along[0] || along > wall.along[1] || wallHit.y < 0 || wallHit.y > wall.metres) continue
+    const distance = ray.origin.distanceTo(wallHit)
+    if (!best || distance < best.distance) best = { edge: { side: wall.side, i: wall.i, j: wall.j }, along, y: wallHit.y, distance }
+  }
+  return best
+}
+
+// The wall face nearest a point on the floor, for something that hangs on a
+// wall: { edge, along }.
+function nearestWall(room, x, z) {
+  let best = null
+  for (const wall of wallFrames(room)) {
+    const along = wall.side === 'x' ? x : z
+    const across = wall.side === 'x' ? z : x
+    const onIt = Math.min(wall.along[1], Math.max(wall.along[0], along))
+    const distance = Math.hypot(along - onIt, across - wall.face)
+    if (!best || distance < best.distance) best = { edge: { side: wall.side, i: wall.i, j: wall.j }, along, distance }
+  }
+  return best
+}
+
+function RoomItem({ item, room, geometry, time, shine, editing, placing, selected, onSelect, onChange, onToggleLight, shelf, table }) {
+  const [hovered, setHovered] = useState(false)
+  const [poke, setPoke] = useState(0)
+  const drag = useRef(null)
+  const def = MODELS[item.kind] ?? MODELS.cushion
+  const { Model, radius, height, spec, surfaces } = def
+  const level = item.level === 1 ? 1 : 0
+  const ceiling = geometry.height
+  const y = level === 1 ? LOFT.y : 0
+  // A window hangs at its own height on the wall, at its own size.
+  const lift = def.window ? item.y : 0
+  const size = def.window ? item.size ?? 1 : 1
+  const plane = useMemo(() => new Plane(new Vector3(0, 1, 0), -y), [y])
+  const lit = item.lit !== false
+  const clickable = !editing && (def.light || def.interact)
+
+  const hover = {
+    onPointerOver: (event) => {
+      event.stopPropagation()
+      setHovered(true)
+      if (!drag.current) document.body.style.cursor = editing ? 'grab' : 'pointer'
+    },
+    onPointerOut: () => {
+      setHovered(false)
+      if (!drag.current) document.body.style.cursor = ''
+    },
+  }
+
+  // A window is dragged over the walls themselves, from one to the other,
+  // up and down, but never off them.
+  const windowHandlers = {
+    ...hover,
+    onPointerDown: (event) => {
+      event.stopPropagation()
+      onSelect(item.id)
+      const point = pointOnWall(event.ray, room)
+      if (!point) return
+      drag.current = { edge: point.edge, along: alongOf(item) - point.along, y: item.y - point.y }
+      event.target.setPointerCapture(event.pointerId)
+      document.body.style.cursor = 'grabbing'
+    },
+    onPointerMove: (event) => {
+      if (!drag.current) return
+      const point = pointOnWall(event.ray, room)
+      if (!point) return
+      event.stopPropagation()
+      const same = ['side', 'i', 'j'].every((key) => point.edge[key] === drag.current.edge[key])
+      const next = fitWindow(room, item.kind, {
+        edge: point.edge,
+        along: point.along + (same ? drag.current.along : 0),
+        y: point.y + drag.current.y,
+        size,
+      })
+      if (next.x !== item.x || next.z !== item.z || next.y !== item.y || next.rotation !== item.rotation) {
+        onChange(item.id, { x: next.x, z: next.z, y: next.y, rotation: next.rotation })
+      }
+    },
+  }
+
+  // In edit mode an item can be picked up and slid across the floor (or the
+  // loft it stands on). The pointer is captured so the drag keeps working when
+  // it leaves the item. Something that hangs on a wall slides along the
+  // nearest wall instead, facing into the room.
+  const editHandlers = {
+    ...hover,
+    onPointerDown: (event) => {
+      event.stopPropagation()
+      onSelect(item.id)
+      if (!event.ray.intersectPlane(plane, hit)) return
+      drag.current = { dx: item.x - hit.x, dz: item.z - hit.z }
+      event.target.setPointerCapture(event.pointerId)
+      document.body.style.cursor = 'grabbing'
+    },
+    onPointerMove: (event) => {
+      if (!drag.current || !event.ray.intersectPlane(plane, hit)) return
+      event.stopPropagation()
+      const x = hit.x + drag.current.dx
+      const z = hit.z + drag.current.dz
+      let next
+      if (def.wall) {
+        const wall = nearestWall(room, x, z)
+        if (!wall) return
+        next = onWallAt(room, wall.edge, wall.along)
+      } else {
+        const spot = nearestSpot(room, level, x, z, def.fixture ? FIXTURE_CLEARANCE : undefined)
+        if (!spot) return
+        next = { ...spot, rotation: item.rotation }
+      }
+      if (next.x !== item.x || next.z !== item.z || next.rotation !== item.rotation) onChange(item.id, next)
+    },
+    onPointerUp: (event) => {
+      if (!drag.current) return
+      event.stopPropagation()
+      drag.current = null
+      event.target.releasePointerCapture(event.pointerId)
+      document.body.style.cursor = 'grab'
+    },
+  }
+  if (def.window) Object.assign(editHandlers, windowHandlers)
+
+  const viewHandlers = clickable
     ? {
-        onPointerDown: (event) => {
+        ...hover,
+        onClick: (event) => {
           event.stopPropagation()
-          onSelect(item.id)
-          if (!event.ray.intersectPlane(floorPlane, hit)) return
-          drag.current = { dx: item.x - hit.x, dz: item.z - hit.z }
-          event.target.setPointerCapture(event.pointerId)
-          document.body.style.cursor = 'grabbing'
-        },
-        onPointerMove: (event) => {
-          if (!drag.current || !event.ray.intersectPlane(floorPlane, hit)) return
-          event.stopPropagation()
-          const x = clamp(hit.x + drag.current.dx, ROOM_BOUNDS.x)
-          const z = clamp(hit.z + drag.current.dz, ROOM_BOUNDS.z)
-          if (x !== item.x || z !== item.z) onChange(item.id, { x, z })
-        },
-        onPointerUp: (event) => {
-          if (!drag.current) return
-          event.stopPropagation()
-          drag.current = null
-          event.target.releasePointerCapture(event.pointerId)
-          document.body.style.cursor = 'grab'
-        },
-        onPointerOver: (event) => {
-          event.stopPropagation()
-          setHovered(true)
-          if (!drag.current) document.body.style.cursor = 'grab'
-        },
-        onPointerOut: () => {
-          setHovered(false)
-          if (!drag.current) document.body.style.cursor = ''
+          if (def.light) onToggleLight(item)
+          else setPoke((n) => n + 1)
         },
       }
     : {}
 
+  const tip = itemTip(def, item, editing)
   return (
-    <group position={[item.x, 0, item.z]} rotation={[0, (item.rotation * Math.PI) / 180, 0]} {...handlers}>
+    <group
+      position={[item.x, y + lift, item.z]}
+      rotation={[0, (item.rotation * Math.PI) / 180, 0]}
+      scale={size}
+      {...(placing ? {} : editing ? editHandlers : viewHandlers)}
+    >
       {spec ? (
         <Bookcase spec={spec} {...shelf} />
+      ) : def.window ? (
+        <Model time={time} />
       ) : (
         <Shadowed>
-          <Model lit={lit} />
+          <Model lit={lit} shine={shine} poke={poke} ceiling={ceiling - y} time={time} color={room.shelfColor} />
         </Shadowed>
       )}
+      {surfaces && <TableTop caseId={item.id} surfaces={surfaces} {...table} />}
       {editing && (selected || hovered) && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-          <ringGeometry args={[radius, radius + 0.05, 48]} />
+        // On the floor around furniture; flat on the wall around a window.
+        <mesh rotation={def.window ? [0, 0, 0] : [-Math.PI / 2, 0, 0]} position={def.window ? [0, 0, -0.2] : [0, 0.02, 0]}>
+          <ringGeometry args={def.window ? [Math.max(...def.window.half) + 0.05, Math.max(...def.window.half) + 0.1, 48] : [radius, radius + 0.05, 48]} />
           <meshBasicMaterial color={selected ? '#ffb070' : '#fff1dc'} transparent opacity={0.95} />
         </mesh>
       )}
-      {editing && hovered && !selected && (
-        <Html zIndexRange={[4, 0]} position={[0, Math.max(height + 0.25, 0.9), 0]} center className="room-tooltip">
-          {catalogEntry(item.kind)?.name}
+      {hovered && tip && !(editing && selected) && (
+        <Html
+          zIndexRange={[4, 0]}
+          position={[0, def.window ? def.window.half[1] + 0.25 : Math.min(Math.max(height + 0.25, 0.9), ceiling - y), 0]}
+          center
+          className="room-tooltip"
+        >
+          {tip}
         </Html>
       )}
     </group>
@@ -568,20 +712,31 @@ function RoomItem({ item, lit, editing, selected, onSelect, onChange, shelf }) {
 
 // ------------------------------------------------------------ camera
 
-// Fit the whole diorama in the canvas at any window size.
-function useFitZoom() {
+// Fit the whole diorama in the canvas at any window size, however big the
+// reader has built it.
+function useFitZoom({ width, depth, height }) {
   const { size } = useThree()
-  return Math.max(20, Math.min(size.width / 7.2, size.height / 7.4))
+  const across = 0.72 * (width + depth)
+  const tall = 0.5 * (width + depth) + 0.8 * height
+  return Math.max(12, Math.min(size.width / across, size.height / tall))
 }
 
-// How far the view may wander: around the room, never off into empty space.
-const VIEW_BOUNDS = { x: [-2.6, 2.6], y: [0.2, 3.2], z: [-2.6, 2.6] }
-// Where the view starts, and where Re-centre brings it back to.
-const VIEW_FROM = [10, 8.6, 10]
-const VIEW_TARGET = [0, 1.05, 0]
+function useView(geometry) {
+  const { centre, height, minX, maxX, minZ, maxZ } = geometry
+  return useMemo(() => {
+    const target = [centre[0], 0.35 * height, centre[1]]
+    return {
+      target,
+      from: [target[0] + 10, target[1] + 7.55, target[2] + 10],
+      // How far the view may wander: around the room, never off into space.
+      bounds: { x: [minX - 0.1, maxX + 0.1], y: [0.2, height + 0.2], z: [minZ - 0.1, maxZ + 0.1] },
+    }
+  }, [centre, height, minX, maxX, minZ, maxZ])
+}
 
-function Camera({ editing, viewReset }) {
-  const fit = useFitZoom()
+function Camera({ editing, viewReset, geometry }) {
+  const fit = useFitZoom(geometry)
+  const view = useView(geometry)
   const camera = useRef()
   const controls = useRef()
 
@@ -591,9 +746,10 @@ function Camera({ editing, viewReset }) {
     camera.current.updateProjectionMatrix()
   }, [fit])
 
-  // "Re-centre" puts the view back exactly where it started.
+  // "Re-centre" puts the view back exactly where it started; so does building
+  // the room bigger or taller, so all of it is in view.
   useEffect(() => {
-    if (!viewReset || !controls.current) return
+    if (!controls.current) return
     // With gliding on, the controls only ever shrink the motion left over from
     // the last drag, so it would keep nudging the view after the reset. An
     // update with gliding off clears it; the second pass then lands exactly on
@@ -601,35 +757,36 @@ function Camera({ editing, viewReset }) {
     const glide = controls.current.enableDamping
     controls.current.enableDamping = false
     for (let pass = 0; pass < 2; pass += 1) {
-      controls.current.target.set(...VIEW_TARGET)
-      camera.current.position.set(...VIEW_FROM)
+      controls.current.target.set(...view.target)
+      camera.current.position.set(...view.from)
       camera.current.zoom = fit
       camera.current.updateProjectionMatrix()
       controls.current.update()
     }
     controls.current.enableDamping = glide
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewReset])
+  }, [viewReset, view])
 
   // Moving the view moves both the camera and the point it looks at. If that
   // point would leave the room, both are nudged back by the same amount.
   function keepInRoom() {
     const { target, object } = controls.current
+    const { bounds } = view
     const before = target.clone()
     target.set(
-      Math.min(VIEW_BOUNDS.x[1], Math.max(VIEW_BOUNDS.x[0], target.x)),
-      Math.min(VIEW_BOUNDS.y[1], Math.max(VIEW_BOUNDS.y[0], target.y)),
-      Math.min(VIEW_BOUNDS.z[1], Math.max(VIEW_BOUNDS.z[0], target.z))
+      Math.min(bounds.x[1], Math.max(bounds.x[0], target.x)),
+      Math.min(bounds.y[1], Math.max(bounds.y[0], target.y)),
+      Math.min(bounds.z[1], Math.max(bounds.z[0], target.z))
     )
     object.position.add(target.clone().sub(before))
   }
 
   return (
     <>
-      <OrthographicCamera ref={camera} makeDefault position={VIEW_FROM} near={0.1} far={60} />
+      <OrthographicCamera ref={camera} makeDefault position={view.from} near={0.1} far={80} />
       <OrbitControls
         ref={controls}
-        target={VIEW_TARGET}
+        target={view.target}
         // Right-drag (or Shift + drag, or two fingers) slides the view; the
         // wheel zooms towards the pointer, so you can zoom straight into a shelf.
         enablePan
@@ -639,7 +796,7 @@ function Camera({ editing, viewReset }) {
         // While editing, a left-drag moves furniture and books, not the view.
         enableRotate={!editing}
         minZoom={fit * 0.75}
-        maxZoom={fit * 4}
+        maxZoom={fit * 5}
         minPolarAngle={0.75}
         maxPolarAngle={1.2}
         minAzimuthAngle={Math.PI / 4 - 0.55}
@@ -649,34 +806,173 @@ function Camera({ editing, viewReset }) {
   )
 }
 
+// The sun (or moon), aimed at the middle of the room, its shadows covering the
+// whole of it.
+function Sun({ geometry, light }) {
+  const sun = useRef()
+  const { centre, width, depth, height } = geometry
+  const reach = Math.max(6, 0.75 * Math.max(width, depth) + 2.5)
+  useLayoutEffect(() => {
+    sun.current.target.position.set(centre[0], 0, centre[1])
+    sun.current.target.updateMatrixWorld()
+  }, [centre])
+  return (
+    <directionalLight
+      ref={sun}
+      position={[centre[0] + 6, 10 + height, centre[1] + 7]}
+      intensity={light[0]}
+      color={light[1]}
+      castShadow
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-reach}
+      shadow-camera-right={reach}
+      shadow-camera-top={reach}
+      shadow-camera-bottom={-reach}
+      shadow-camera-far={40 + height}
+      shadow-bias={-0.0004}
+      shadow-normalBias={0.02}
+    />
+  )
+}
+
+// ------------------------------------------------------------ placing a block
+
+const ground = new Plane(new Vector3(0, 1, 0), 0)
+const groundHit = new Vector3()
+
+// The spot nearest the pointer that a block may go: for floor, the empty
+// square under it; for a wall, the floor edge nearest it, within reach.
+function spotUnder(kind, spots, point) {
+  if (kind === 'floor') {
+    const i = Math.floor((point.x - CORNER) / BLOCKS.floor)
+    const j = Math.floor((point.z - CORNER) / BLOCKS.floor)
+    return spots.find((s) => s.i === i && s.j === j) ?? null
+  }
+  let best = null
+  for (const spot of spots) {
+    const box = cellBox(spot.i, spot.j)
+    const [along, across, from, edge] =
+      spot.side === 'x' ? [point.x, point.z, box.x[0], box.z[0]] : [point.z, point.x, box.z[0], box.x[0]]
+    const onIt = Math.min(from + BLOCKS.floor, Math.max(from, along))
+    const distance = Math.hypot(along - onIt, across - edge)
+    if (!best || distance < best.distance) best = { spot, distance }
+  }
+  return best && best.distance < 2.5 ? best.spot : null
+}
+
+// While the reader builds, the whole ground catches the pointer, and the spot
+// nearest it lights up: a see-through block where a new one would go, or the
+// block that would be picked up or taken away. A click (not a drag to turn
+// the view) chooses it.
+//
+// `mode` is { action: 'add' | 'move' | 'remove', kind, from?, at? }: moving
+// picks a block first (`from`), then where it goes; taking one away picks it
+// and waits (`at`) while the reader confirms.
+function spotsFor(room, mode) {
+  const { action, kind, from } = mode
+  if (action === 'add') return kind === 'floor' ? floorSpots(room) : wallSpots(room)
+  if (action === 'move' && from) return moveSpots(room, kind, from)
+  return pickSpots(room, kind, action)
+}
+
+function BlockBuilder({ room, mode, onSpot }) {
+  const spots = useMemo(() => spotsFor(room, mode), [room, mode])
+  const [hover, setHover] = useState(null)
+  const invalidate = useThree((state) => state.invalidate)
+  const waiting = Boolean(mode.at)
+  useEffect(() => {
+    document.body.style.cursor = waiting ? '' : 'crosshair'
+    return () => {
+      document.body.style.cursor = ''
+    }
+  }, [waiting])
+
+  const follow = (event) => {
+    if (waiting || !event.ray.intersectPlane(ground, groundHit)) return
+    const next = spotUnder(mode.kind, spots, groundHit)
+    if (next !== hover) {
+      setHover(next)
+      invalidate()
+    }
+  }
+  const choosing = mode.action === 'add' || (mode.action === 'move' && mode.from)
+  const tone = choosing ? 'add' : mode.action === 'remove' ? 'remove' : 'pick'
+  // The block being moved stays marked while the reader picks where it goes.
+  const picked = mode.from && (mode.kind === 'wall' ? { ...mode.from, level: 0, levels: mode.from.levels } : mode.from)
+  return (
+    <>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.03, 0]}
+        onPointerMove={follow}
+        onClick={(event) => {
+          event.stopPropagation()
+          if (waiting || event.delta > 6) return
+          follow(event)
+          const spot = spotUnder(mode.kind, spots, groundHit)
+          if (spot) onSpot(spot)
+        }}
+      >
+        <planeGeometry args={[80, 80]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <BlockGhost room={room} placing={{ kind: mode.kind, spots: waiting ? [] : spots, hover: waiting ? mode.at : hover, tone }} />
+      {picked && <BlockGhost room={room} placing={{ kind: mode.kind, spots: [], hover: picked, tone: 'pick' }} />}
+    </>
+  )
+}
+
 export default function LibraryScene({
   entries,
   room,
+  time = 'day',
   selectedBookId,
   onSelectBook,
   editing,
   selectedItemId,
   onSelectItem,
   onItemChange,
+  onToggleLight,
   onMoveBook,
+  blockMode = null,
+  onBlockSpot,
+  onFixtureChange,
   viewReset = 0,
 }) {
   // Stored furniture is not in the room at all.
   const items = room.items.filter((i) => i.placed)
-  const lights = new Set(
-    items.filter((i) => MODELS[i.kind]?.light).slice(0, MAX_ITEM_LIGHTS).map((i) => i.id)
+  // Only the blocks shape the room; keyed on them alone so moving a chair
+  // does not count as rebuilding the room (which re-centres the view).
+  const geometry = useMemo(() => roomGeometry({ blocks: room.blocks }), [room.blocks])
+  // Lights that are switched on get the few real lights first.
+  const lightItems = items.filter((i) => MODELS[i.kind]?.light)
+  const shining = new Set(
+    [...lightItems.filter((i) => i.lit !== false), ...lightItems.filter((i) => i.lit === false)]
+      .slice(0, MAX_ITEM_LIGHTS)
+      .map((i) => i.id)
   )
+  const landings = items.filter((i) => MODELS[i.kind]?.landing && (i.level ?? 0) === 0).map(landingOf)
+  // Light falls into the room in front of the first two windows.
+  const daylight = items
+    .filter((i) => MODELS[i.kind]?.window)
+    .slice(0, 2)
+    .map((i) => {
+      const turn = (i.rotation * Math.PI) / 180
+      return [i.x + Math.sin(turn) * 0.4, i.y, i.z + Math.cos(turn) * 0.4]
+    })
   const cases = bookcasesIn(room)
-  const { placed: shelved } = layoutBookcases(entries, cases)
+  const tables = tablesIn(room)
+  const { placed: shelved, onTables } = layoutBookcases(entries, cases, tables)
+  const lighting = LIGHTING[time] ?? LIGHTING.day
 
   // The book being carried in Edit room: { entry, size, target }, where target
-  // is the shelf under the pointer and the x the book would land at there
-  // (null when that shelf is full).
+  // is the shelf or table spot under the pointer and the x the book would land
+  // at there (null when there is no room).
   const [drag, setDrag] = useState(null)
   const dragRef = useRef(null)
   dragRef.current = drag
 
-  // Let go anywhere that is not a shelf, and the book goes back where it was.
+  // Let go anywhere that is not a shelf or table, and the book goes back.
   useEffect(() => {
     if (!drag) return
     const cancel = () => {
@@ -690,15 +986,22 @@ export default function LibraryScene({
     if (!editing) setDrag(null)
   }, [editing])
 
-  function hoverShelf(caseId, row, desired) {
+  function hoverShelf(caseId, row, desired, table = false) {
     const current = dragRef.current
     if (!current) return
     // Where it fits among the other books, as if it had already left its place.
-    const others = layoutBookcases(entries.filter((e) => e.bookId !== current.entry.bookId), cases).placed
-    const spec = cases.find((c) => c.id === caseId).spec
-    const onRow = (others[caseId] ?? []).filter((b) => b.row === row)
-    const x = fitOnShelf(onRow, innerWidth(spec), current.size[0], desired)
-    setDrag({ ...current, target: { caseId, row, x } })
+    const others = layoutBookcases(entries.filter((e) => e.bookId !== current.entry.bookId), cases, tables)
+    let x
+    if (table) {
+      x = others.onTables[caseId]?.some((b) => b.slot === row) ? null : 0
+    } else {
+      const spec = cases.find((c) => c.id === caseId).spec
+      const onRow = (others.placed[caseId] ?? []).filter((b) => b.row === row)
+      x = fitOnShelf(onRow, innerWidth(spec), current.size[0], desired)
+    }
+    const target = current.target
+    if (target && target.caseId === caseId && target.row === row && target.x === x) return
+    setDrag({ ...current, target: { caseId, row, x, table } })
   }
 
   function dropBook() {
@@ -714,69 +1017,74 @@ export default function LibraryScene({
     })
   }
 
-  const shelfProps = (id) => ({
-    caseId: id,
-    books: shelved[id] ?? [],
-    color: room.shelfColor,
+  // While a block is being placed, nothing else in the room answers the
+  // pointer.
+  const placing = Boolean(blockMode)
+  const bookProps = {
     selectedId: selectedBookId,
-    interactive: !editing,
-    editing,
+    interactive: !editing && !placing,
+    editing: editing && !placing,
     onSelect: onSelectBook,
     drag,
     onDragStart: (entry, size) => setDrag({ entry, size, target: null }),
     onHover: hoverShelf,
     onDrop: dropBook,
-  })
+  }
+  const shelfProps = (id) => ({ ...bookProps, caseId: id, books: shelved[id] ?? [], color: room.shelfColor })
+  const tableProps = (id) => ({ ...bookProps, books: onTables[id] ?? [] })
 
   return (
     <Canvas
       shadows
       frameloop="demand"
       dpr={[1, 2]}
-      onPointerMissed={() => (editing ? onSelectItem(null) : null)}
+      onPointerMissed={() => (editing && !placing ? onSelectItem(null) : null)}
     >
-      <color attach="background" args={[BACKDROP]} />
-      <Camera editing={editing} viewReset={viewReset} />
+      <color attach="background" args={[lighting.background]} />
+      <Camera editing={editing} viewReset={viewReset} geometry={geometry} />
 
-      <ambientLight intensity={0.55} color="#ffe2c4" />
-      <hemisphereLight args={['#ffe9d0', '#6b3a1f', 0.55]} />
-      <directionalLight
-        position={[6, 10, 7]}
-        intensity={1.5}
-        color="#ffe0b8"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-6}
-        shadow-camera-right={6}
-        shadow-camera-top={6}
-        shadow-camera-bottom={-6}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.02}
-      />
+      <ambientLight intensity={lighting.ambient[0]} color={lighting.ambient[1]} />
+      <hemisphereLight args={lighting.sky} />
+      <Sun geometry={geometry} light={lighting.sun} />
 
-      <RoomShell
-        wallColor={room.wallColor}
-        floorColor={room.floorColor}
-        wallpaper={room.wallpaper}
-        floor={room.floor}
-      />
-      <DecorBookcase color={room.shelfColor} />
-      <group position={MAIN_AT}>
-        <Bookcase spec={MAIN} {...shelfProps('main')} />
-      </group>
+      <RoomShell room={room} time={time} landings={landings} daylight={daylight} />
+      {/* the built-in bookcase and shelf, moved like furniture */}
+      {Object.entries(fixturesOf(room)).map(([id, f]) => (
+        <RoomItem
+          key={id}
+          item={{ id, kind: FIXTURES[id].kind, ...f, level: 0, placed: true }}
+          room={room}
+          geometry={geometry}
+          time={time}
+          editing={editing}
+          placing={placing}
+          selected={id === selectedItemId}
+          onSelect={onSelectItem}
+          onChange={onFixtureChange}
+          shelf={shelfProps(id)}
+        />
+      ))}
 
       {items.map((item) => (
         <RoomItem
           key={item.id}
           item={item}
-          lit={lights.has(item.id)}
+          room={room}
+          geometry={geometry}
+          time={time}
+          shine={shining.has(item.id)}
           editing={editing}
+          placing={placing}
           selected={item.id === selectedItemId}
           onSelect={onSelectItem}
           onChange={onItemChange}
+          onToggleLight={onToggleLight}
           shelf={shelfProps(item.id)}
+          table={tableProps(item.id)}
         />
       ))}
+
+      {blockMode && <BlockBuilder room={room} mode={blockMode} onSpot={onBlockSpot} />}
     </Canvas>
   )
 }

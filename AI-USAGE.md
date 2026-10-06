@@ -234,6 +234,55 @@ At least six entries. One per real use. Every entry needs a commit link.
     each book stands on the shelves.
 - **Commit:** https://github.com/neriahv/emberary/commit/5fa70520dc9984be25ceb205eb7307d54475c241
 
+### 2026-10-06 - Build Your Dream Library (Week 4)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** I gave eight reference pictures of cozy isometric
+  libraries and asked for the Library Room to become a place to build my
+  dream library, with "Build your dream library" as its headline. The room
+  should grow bigger and taller, with windows, roofs, wall shapes, stairs,
+  many kinds of lights and furniture for more than one mood. It should also
+  feel like a game: lamps I can switch by clicking, and books I can lay on
+  a table.
+- **What it gave back:**
+  - **Building the room:** floor and wall blocks I place myself. A see-through,
+    outlined block follows the mouse and snaps to the spots it can go, and a
+    click puts it down. Blocks can be moved or taken away for half their price
+    back. A room must keep one floor in one piece, and no wall may be left
+    standing on nothing.
+  - **The room's look:** windows bought one at a time and hung, sized and moved
+    on any wall. Also wall shapes (gable, arch, battlements, scallops), roofs
+    (beams, slate, glass, ivy), a reading loft, eight new wallpapers and
+    floors, and colour palettes.
+  - **Furniture:** about 50 new pieces, among them stairs, 14 kinds of lights,
+    plants and tables that hold books.
+  - **Furniture you can move or sell:** the built-in bookcase and shelf can be
+    moved and turned like furniture. Any piece sells back for half its price.
+  - **Playing in the room:** lamps that switch on and off, and a day, dusk and
+    night sky. Clicking spins the globe, rocks the chair and wakes the cat.
+  - **The headline:** a library level that grows with what I build, and a
+    welcome card.
+  - **Server and tests:** the same building rules on the server and in the
+    demo, a `room_blocks` table, and 15 more server tests (101 in all).
+- **What I kept, what I changed, and why:**
+  - Kept the models, the scene and the shared rules.
+  - I changed the design over several rounds after trying each version:
+    - **Sizes to blocks:** the first version sold set room sizes. I asked for
+      blocks priced one at a time instead, with one block of wall being just
+      one block, not added with the floor.
+    - **Placing blocks myself:** blocks no longer appear on their own; I place
+      each one where I choose.
+    - **Simpler buying:** I removed the "in hand" step and the Place button, so
+      buying goes straight to choosing the spot and is paid on the click.
+    - **Windows:** I asked for windows bought one at a time and hung where I
+      want, instead of added automatically when a wall grows.
+    - **Shop:** I took out the shop's mood filter and kept furniture types only.
+    - **Room changes:** I asked for moving and taking away blocks, and for
+      moving the built-in pieces.
+  - Kept the AI's suggestion that a block taken away gives back half its price,
+    the same as selling furniture.
+- **Commit:** _(link to be added once committed)_
+
 ## 2. Where the AI got it wrong
 
 ### Case 1 - A Database Constraint that Rejected its Own Boundary (Week 2)

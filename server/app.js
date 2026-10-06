@@ -6,7 +6,7 @@ import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
-import { MAX_PLACED_ITEMS } from './catalog.js'
+import { BLOCKS, FINISH_TYPES, FIXTURE_CLEARANCE, LOFT, catalogEntry, hasLoft, itemFits, placedLimit } from './catalog.js'
 import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
 import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
 import {
@@ -16,6 +16,7 @@ import {
   validateProfile,
   validateRoom,
   validateRoomItem,
+  validateBlockChange,
   validateShelfOrder,
 } from './validation.js'
 
@@ -237,11 +238,14 @@ export function createApp(
     const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
     if (errors.length > 0) return badRequest(response, errors)
 
-    // A book can only stand in the built-in bookcase or one the reader owns.
+    // A book can only stand in the built-in bookcase, or on a bookcase or
+    // table the reader owns.
     const bookcase = value.shelfSpot?.bookcase
     if (bookcase && bookcase !== 'main') {
       const item = await room.getItem(pool, READER_ID, Number(bookcase))
-      if (!item?.kind.startsWith('bookcase')) return badRequest(response, ['That bookcase is not in your room'])
+      if (!catalogEntry(item?.kind)?.holds) {
+        return badRequest(response, ['That bookcase or table is not in your room'])
+      }
     }
 
     // The reply carries the Ember this save earned, as `rewards` (often []).
@@ -317,14 +321,24 @@ export function createApp(
     response.json(await room.get(pool, READER_ID))
   }))
 
-  // Body: any of { wallColor, floorColor, shelfColor, wallpaper, floor }.
+  // Body: any of { wallColor, floorColor, shelfColor } and the finishes:
+  // { wallpaper, floor, wallShape, roof, loft }. How big the room is changes
+  // only by building blocks (below).
   app.patch('/api/room', route(async (request, response) => {
     const { errors, value } = validateRoom(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
     const owned = await room.unlocks(pool, READER_ID)
-    const locked = [value.wallpaper, value.floor].find((id) => id && !owned.includes(id))
+    const locked = FINISH_TYPES.map((key) => value[key]).find((id) => id && !owned.includes(id))
     if (locked) return response.status(409).json({ error: 'Buy that in the shop first' })
+    const current = await room.settings(pool, READER_ID)
+    if (value.loft === 'loft-gallery' && !hasLoft({ ...current, loft: value.loft })) {
+      return response.status(409).json({ error: `Build the window wall ${LOFT.wallBlocks} blocks high for a loft` })
+    }
+    const offFloor = Object.entries(value.fixtures ?? {}).find(
+      ([, f]) => !itemFits(current, 0, f.x, f.z, FIXTURE_CLEARANCE)
+    )
+    if (offFloor) return badRequest(response, [`${offFloor[0]} must stand on the room's floor`])
 
     response.json(await room.update(pool, READER_ID, value))
   }))
@@ -349,6 +363,31 @@ export function createApp(
     response.status(201).json(result)
   }))
 
+  // Body: { type: "add" | "move" | "remove", kind: "floor" | "wall", at } or,
+  // to move, { from, to }. A block is paid for when it is put down, and gives
+  // half its price back when taken away.
+  app.post('/api/room/blocks', route(async (request, response) => {
+    const { errors, value } = validateBlockChange(request.body ?? {})
+    if (errors.length > 0) return badRequest(response, errors)
+
+    const result = await transaction(pool, (db) => room.changeRoomBlocks(db, READER_ID, value))
+    const refusals = {
+      max: `A room can have ${BLOCKS.maxFloor} floor blocks`,
+      spot: value.kind === 'floor'
+        ? 'A floor block goes on an empty square beside the floor'
+        : `A wall block goes on an edge of the floor, up to ${BLOCKS.maxLevels} high`,
+      none: `There is no ${value.kind} block there`,
+      last: 'A room needs at least one floor block',
+      apart: 'The floor has to stay in one piece',
+      walls: 'Take away the walls standing on that floor block first',
+    }
+    if (result.error === 'funds') {
+      return response.status(409).json({ error: `That costs ${result.cost} Ember and you have ${result.balance}` })
+    }
+    if (result.error) return response.status(409).json({ error: refusals[result.error] })
+    response.status(value.type === 'add' ? 201 : 200).json(result)
+  }))
+
   // Item ids are integers. Anything else cannot match a row, so it is a 404
   // here rather than a PostgreSQL type error (a 500) further down.
   const itemId = (request) => {
@@ -356,23 +395,34 @@ export function createApp(
     return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null
   }
 
-  // Body: any of { x, z, rotation, placed }. placed: false puts the item in
-  // storage; nothing a reader bought is ever thrown away.
+  // Body: any of { x, z, rotation, level, placed, lit }. level 1 is the loft;
+  // lit switches a light on or off; placed: false puts the item in storage.
+  // Nothing a reader bought is ever thrown away.
   app.patch('/api/room/items/:id', route(async (request, response) => {
     const id = itemId(request)
     const current = id && (await room.getItem(pool, READER_ID, id))
     if (!current) return response.status(404).json({ error: 'Room item not found' })
 
-    const { errors, value } = validateRoomItem(request.body ?? {})
+    const settings = await room.settings(pool, READER_ID)
+    const { errors, value } = validateRoomItem(request.body ?? {}, settings, current)
     if (errors.length > 0) return badRequest(response, errors)
 
-    if (value.placed && !current.placed && (await room.countPlaced(pool, READER_ID)) >= MAX_PLACED_ITEMS) {
+    const limit = placedLimit(settings)
+    if (value.placed && !current.placed && (await room.countPlaced(pool, READER_ID)) >= limit) {
       return response.status(409).json({
-        error: `The room already holds ${MAX_PLACED_ITEMS} things. Store something first`,
+        error: `The room already holds ${limit} things. Store something first`,
       })
     }
 
     response.json(await room.updateItem(pool, READER_ID, id, value))
+  }))
+
+  // Sell an item back for half what it cost. Its books return to the shelves.
+  app.post('/api/room/items/:id/sell', route(async (request, response) => {
+    const id = itemId(request)
+    const result = id && (await transaction(pool, (db) => room.sell(db, READER_ID, id)))
+    if (!result) return response.status(404).json({ error: 'Room item not found' })
+    response.json(result)
   }))
 
   app.use((request, response) => {

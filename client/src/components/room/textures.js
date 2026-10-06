@@ -387,6 +387,125 @@ const WALLPAPERS = {
     }
     return repeating(el, 7, 1)
   },
+  // Painted brick, as on the reference's green cottage wall: staggered
+  // courses with pale mortar between.
+  'wallpaper-brick': () => {
+    const [el, ctx] = canvas(256, 128)
+    ctx.fillStyle = '#d6d6d6'
+    ctx.fillRect(0, 0, 256, 128)
+    let n = 0
+    for (let row = 0; row < 4; row++) {
+      const offset = row % 2 ? 32 : 0
+      for (let x = -64 + offset; x < 256; x += 64) {
+        const shade = 200 + Math.round(jitter(++n) * 40)
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+        ctx.fillRect(x + 2, row * 32 + 2, 60, 28)
+        ctx.fillStyle = 'rgba(255,255,255,0.18)'
+        ctx.fillRect(x + 2, row * 32 + 2, 60, 4)
+      }
+    }
+    return repeating(el, 10, 10)
+  },
+  // Maple leaves drifting down, each turned its own way.
+  'wallpaper-leaves': () => {
+    const [el, ctx] = canvas(160, 160)
+    ctx.fillStyle = '#f1f1f1'
+    ctx.fillRect(0, 0, 160, 160)
+    const leaf = (x, y, size, turn, shade) => {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(turn)
+      ctx.fillStyle = shade
+      ctx.beginPath()
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + ((i - 2) * Math.PI) / 3.2
+        const tip = i === 2 ? size : size * 0.78
+        ctx.lineTo(Math.cos(a) * tip, Math.sin(a) * tip)
+        ctx.lineTo(Math.cos(a + 0.33) * size * 0.35, Math.sin(a + 0.33) * size * 0.35)
+      }
+      ctx.lineTo(0, size * 0.25)
+      ctx.closePath()
+      ctx.fill()
+      ctx.strokeStyle = shade
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(0, size * 0.2)
+      ctx.lineTo(0, size * 0.55)
+      ctx.stroke()
+      ctx.restore()
+    }
+    for (let i = 0; i < 7; i++) {
+      const shade = 150 + Math.round(jitter(i + 40) * 60)
+      leaf(jitter(i + 1) * 160, jitter(i + 9) * 160, 13 + jitter(i + 5) * 6, jitter(i + 3) * 6, `rgb(${shade},${shade},${shade})`)
+    }
+    return repeating(el, 10, 6)
+  },
+  // Small five-petalled flowers and dots, like a nursery print.
+  'wallpaper-floral': () => {
+    const [el, ctx] = canvas(128, 128)
+    ctx.fillStyle = '#f6f6f6'
+    ctx.fillRect(0, 0, 128, 128)
+    const flower = (x, y, r) => {
+      ctx.fillStyle = '#c9c9c9'
+      for (let i = 0; i < 5; i++) {
+        const a = (i * 2 * Math.PI) / 5
+        ctx.beginPath()
+        ctx.arc(x + Math.cos(a) * r, y + Math.sin(a) * r, r * 0.8, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.fillStyle = '#a8a8a8'
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.6, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    flower(32, 32, 7)
+    flower(96, 96, 7)
+    ctx.fillStyle = '#d8d8d8'
+    for (const [x, y] of [[96, 30], [30, 96], [64, 64], [10, 64], [64, 10]]) {
+      ctx.beginPath()
+      ctx.arc(x, y, 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return repeating(el, 14, 8)
+  },
+  // Stars joined into constellations. The ground is mid-grey so the stars
+  // stay brighter than the wall colour, even a dark one.
+  'wallpaper-stars': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#8a8a8a'
+    ctx.fillRect(0, 0, 256, 256)
+    const star = (x, y, r) => {
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4
+        const d = i % 2 ? r * 0.35 : r
+        ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d)
+      }
+      ctx.closePath()
+      ctx.fill()
+    }
+    const groups = [
+      [[30, 40], [62, 30], [90, 52], [118, 44]],
+      [[160, 150], [190, 130], [215, 160], [195, 195]],
+      [[50, 180], [80, 210], [40, 230]],
+    ]
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'
+    ctx.lineWidth = 1.5
+    for (const points of groups) {
+      ctx.beginPath()
+      points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+      ctx.stroke()
+      for (const [x, y] of points) star(x, y, 6)
+    }
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.4 + jitter(i + 70) * 0.5})`
+      ctx.beginPath()
+      ctx.arc(jitter(i + 11) * 256, jitter(i + 31) * 256, 0.8 + jitter(i) * 1.3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return repeating(el, 5, 3)
+  },
 }
 
 const FLOORS = {
@@ -457,6 +576,81 @@ const FLOORS = {
     }
     return repeating(el, 3, 3)
   },
+  // Hexagonal tiles with pale grout.
+  'floor-terracotta': () => {
+    const r = 22
+    const w = Math.sqrt(3) * r
+    const [el, ctx] = canvas(Math.round(w * 4), r * 6)
+    ctx.fillStyle = '#e8e8e8'
+    ctx.fillRect(0, 0, el.width, el.height)
+    let n = 0
+    for (let row = -1; row < 5; row++) {
+      for (let col = -1; col < 6; col++) {
+        const cx = col * w + (row % 2 ? w / 2 : 0)
+        const cy = row * r * 1.5
+        const shade = 175 + Math.round(jitter(++n) * 45)
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+        ctx.beginPath()
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI) / 3
+          ctx.lineTo(cx + Math.cos(a) * (r - 2), cy + Math.sin(a) * (r - 2))
+        }
+        ctx.closePath()
+        ctx.fill()
+      }
+    }
+    return repeating(el, 9, 8)
+  },
+  // Flagstones with tufts of moss in the joints.
+  'floor-moss': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#7d7d7d'
+    ctx.fillRect(0, 0, 256, 256)
+    let n = 0
+    for (const [x, y, w, h] of [
+      [0, 0, 120, 100], [120, 0, 136, 70], [120, 70, 136, 90], [0, 100, 80, 156],
+      [80, 100, 40, 60], [80, 160, 176, 96],
+    ]) {
+      const shade = 190 + Math.round(jitter(++n) * 50)
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+      ctx.beginPath()
+      ctx.roundRect(x + 4, y + 4, w - 8, h - 8, 14)
+      ctx.fill()
+    }
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = `rgba(90,90,90,${0.35 + jitter(i + 3) * 0.4})`
+      ctx.beginPath()
+      ctx.arc(jitter(i + 7) * 256, jitter(i + 17) * 256, 2 + jitter(i + 27) * 5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return repeating(el, 3, 3)
+  },
+  // Large polished squares with soft veins.
+  'floor-marble': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#f2f2f2'
+    ctx.fillRect(0, 0, 256, 256)
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'
+    for (let i = 0; i < 9; i++) {
+      ctx.lineWidth = 1 + jitter(i + 50) * 2
+      ctx.beginPath()
+      let x = jitter(i + 1) * 256
+      let y = 0
+      ctx.moveTo(x, y)
+      while (y < 256) {
+        x += (jitter(i * 13 + y) - 0.5) * 40
+        y += 24
+        ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'
+    ctx.fillRect(0, 0, 256, 2)
+    ctx.fillRect(0, 0, 2, 256)
+    ctx.fillRect(0, 127, 256, 2)
+    ctx.fillRect(127, 0, 2, 256)
+    return repeating(el, 3, 3)
+  },
 }
 
 // The wallpaper for the walls, or null for plain paint.
@@ -476,24 +670,136 @@ export function finishSwatch(id) {
   return cached(`swatch|${id}`, () => texture.image.toDataURL())
 }
 
-// Afternoon sky for the round window.
-export function skyTexture() {
-  return cached('sky', () => {
+// The sky seen through the windows, at the time of day the reader chose: an
+// afternoon with clouds, a pink dusk, or a night of stars with a moon.
+const SKIES = {
+  day: { stops: ['#6f9ccc', '#b9d3ea', '#f4dcc0'], cloud: 'rgba(255,255,255,0.75)' },
+  dusk: { stops: ['#4b3a78', '#d9708a', '#ffc58a'], cloud: 'rgba(255,214,190,0.55)' },
+  night: { stops: ['#0d1030', '#1d2457', '#33366e'], cloud: null },
+}
+
+export function skyTexture(time = 'day') {
+  return cached(`sky|${time}`, () => {
+    const { stops, cloud } = SKIES[time] ?? SKIES.day
     const [el, ctx] = canvas(256, 256)
     const sky = ctx.createLinearGradient(0, 0, 0, 256)
-    sky.addColorStop(0, '#6f9ccc')
-    sky.addColorStop(0.6, '#b9d3ea')
-    sky.addColorStop(1, '#f4dcc0')
+    stops.forEach((colour, i) => sky.addColorStop(i / (stops.length - 1), colour))
     ctx.fillStyle = sky
     ctx.fillRect(0, 0, 256, 256)
-    ctx.fillStyle = 'rgba(255,255,255,0.75)'
-    for (const [x, y, r] of [
-      [60, 150, 28], [92, 140, 36], [128, 152, 26], [180, 90, 22], [205, 84, 30], [232, 94, 20],
-    ]) {
+    if (cloud) {
+      ctx.fillStyle = cloud
+      for (const [x, y, r] of [
+        [60, 150, 28], [92, 140, 36], [128, 152, 26], [180, 90, 22], [205, 84, 30], [232, 94, 20],
+      ]) {
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    } else {
+      for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = `rgba(255,255,240,${0.4 + jitter(i + 5) * 0.6})`
+        ctx.beginPath()
+        ctx.arc(jitter(i + 1) * 256, jitter(i + 99) * 256, 0.6 + jitter(i + 3) * 1.4, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      // A crescent: a pale disc with the sky's colour bitten out of it.
+      ctx.fillStyle = '#fff4d0'
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.arc(176, 72, 26, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = stops[0]
+      ctx.beginPath()
+      ctx.arc(188, 64, 24, 0, Math.PI * 2)
       ctx.fill()
     }
+    return makeTexture(el)
+  })
+}
+
+// Overlapping rows of rounded slates, for the eaves.
+export function slateTexture() {
+  return cached('slate', () => {
+    const [el, ctx] = canvas(128, 128)
+    ctx.fillStyle = '#4b5560'
+    ctx.fillRect(0, 0, 128, 128)
+    let n = 0
+    for (let row = 0; row < 5; row++) {
+      for (let col = -1; col < 5; col++) {
+        const x = col * 32 + (row % 2 ? 16 : 0)
+        const y = row * 26
+        const shade = 95 + Math.round(jitter(++n) * 40)
+        ctx.fillStyle = `rgb(${shade - 8},${shade},${shade + 12})`
+        ctx.beginPath()
+        ctx.roundRect(x + 1, y, 30, 30, [0, 0, 10, 10])
+        ctx.fill()
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'
+        ctx.fillRect(x + 1, y + 27, 30, 3)
+      }
+    }
+    return repeating(el, 4, 1)
+  })
+}
+
+// A woven check, for the plaid armchair and the tea table's cloth.
+export function checkTexture(base, stripe, repeat = 3) {
+  return cached(`check|${base}|${stripe}|${repeat}`, () => {
+    const [el, ctx] = canvas(64, 64)
+    ctx.fillStyle = base
+    ctx.fillRect(0, 0, 64, 64)
+    ctx.globalAlpha = 0.55
+    ctx.fillStyle = stripe
+    ctx.fillRect(0, 20, 64, 16)
+    ctx.fillRect(20, 0, 16, 64)
+    ctx.globalAlpha = 0.35
+    ctx.fillRect(0, 50, 64, 4)
+    ctx.fillRect(50, 0, 4, 64)
+    ctx.globalAlpha = 1
+    return repeating(el, repeat, repeat)
+  })
+}
+
+// The front of a book lying on a table: its colour, a frame of rules, and its
+// title and author. In the live app the real cover replaces it.
+export function coverTexture(book) {
+  return cached(`cover|${book.id}|${book.color}|${book.title}`, () => {
+    const [el, ctx] = canvas(256, 384)
+    const ink = inkFor(book.color)
+    ctx.fillStyle = book.color
+    ctx.fillRect(0, 0, 256, 384)
+    ctx.strokeStyle = ink
+    ctx.globalAlpha = 0.6
+    ctx.lineWidth = 3
+    ctx.strokeRect(16, 16, 224, 352)
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(24, 24, 208, 336)
+    ctx.globalAlpha = 1
+    ctx.fillStyle = ink
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    // The title, wrapped onto as many as three lines.
+    ctx.font = `700 30px ${SERIF}`
+    const lines = []
+    for (const word of book.title.split(' ')) {
+      const last = lines.at(-1)
+      if (last && ctx.measureText(`${last} ${word}`).width < 190) lines[lines.length - 1] = `${last} ${word}`
+      else lines.push(word)
+    }
+    lines.slice(0, 3).forEach((line, i) => {
+      fitFont(ctx, line, 200, 30, 14, SERIF)
+      ctx.fillText(line, 128, 120 + i * 38)
+    })
+    diamond(ctx, 128, 250, 10, ink)
+    fitFont(ctx, book.author, 190, 20, 11, SERIF)
+    ctx.fillText(book.author, 128, 310)
+    return makeTexture(el)
+  })
+}
+
+// A real cover photo, for a book lying face up.
+export function coverImageTexture(book, image) {
+  return cached(`cover-image|${book.id}`, () => {
+    const [el, ctx] = canvas(256, 384)
+    ctx.drawImage(image, 0, 0, 256, 384)
     return makeTexture(el)
   })
 }

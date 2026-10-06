@@ -13,10 +13,13 @@ ON user_books TO emberary_app;
 
 GRANT SELECT, INSERT, UPDATE
 ON room_settings, room_items, reading_days TO emberary_app;
+-- A reader moves and takes away room blocks, so the app may delete them.
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON room_blocks TO emberary_app;
 
 GRANT SELECT, INSERT
 ON room_unlocks, ember_ledger TO emberary_app;
 
 GRANT USAGE
-ON SEQUENCE room_items_id_seq, ember_ledger_id_seq
+ON SEQUENCE room_items_id_seq, room_blocks_id_seq, ember_ledger_id_seq
 TO emberary_app;

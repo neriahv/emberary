@@ -20,13 +20,43 @@ export const USING_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const implementation = USING_MOCK_API ? mockApi : httpApi
 
 export const STATUSES = mockApi.STATUSES
-export const ROOM_BOUNDS = mockApi.ROOM_BOUNDS
 export {
   CATALOG,
   SHOP_CATEGORIES,
   EMBER_RULES,
   MAX_PLACED_ITEMS,
+  BLOCKS,
+  FIXTURES,
+  FIXTURE_CLEARANCE,
+  LOFT,
+  WINDOW_LIMITS,
+  alongOf,
+  blockPrice,
+  blockRefund,
+  fixturesOf,
+  moveSpots,
+  onWallAt,
+  pickSpots,
+  wallFace,
+  wallOf,
+  blocksValue,
+  canPlace,
   catalogEntry,
+  cellBox,
+  edgeSides,
+  floorCells,
+  floorSpots,
+  hasLoft,
+  itemFits,
+  loftCells,
+  nearestSpot,
+  placedLimit,
+  roomExtent,
+  sellPrice,
+  standingAreas,
+  wallHeight,
+  walls,
+  wallSpots,
 } from './catalog.js'
 
 // Books on the Library Room shelves: every one the reader has started.
@@ -78,6 +108,8 @@ export const addToCollection = announcing(implementation.addToCollection)
 export const updateMyBook = announcing(implementation.updateMyBook)
 export const checkout = announcing(implementation.checkout)
 export const checkIn = announcing(implementation.checkIn)
+export const changeRoomBlocks = announcing(implementation.changeRoomBlocks)
+export const sellRoomItem = announcing(implementation.sellRoomItem)
 
 // "+15 Ember for finishing the book", from the `rewards` a save returns.
 const REWARD_REASONS = {

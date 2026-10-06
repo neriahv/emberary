@@ -105,7 +105,8 @@ export default function BookModal({ entry, onShelves, onSaved, onRemoved, onClos
             {onShelves && (
               <div className="page-shelf">
                 <p className="muted">
-                  Want it somewhere else? In <strong>Edit room</strong>, drag it to any shelf.
+                  Want it somewhere else? In <strong>Build &amp; decorate</strong>, drag it to any shelf, or lay
+                  it on a table.
                 </p>
               </div>
             )}

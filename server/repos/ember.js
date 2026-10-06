@@ -119,6 +119,14 @@ export async function rewardReading(db, readerId, bookId, before, after, timezon
 
 // Spend Ember. The caller has already checked the balance inside the same
 // transaction, with the reader's row locked.
+// Ember coming back to the reader, such as for furniture sold.
+export async function earn(db, readerId, amount, reason, ref) {
+  await db.query(
+    'INSERT INTO ember_ledger (reader_id, amount, reason, ref) VALUES ($1, $2, $3, $4)',
+    [readerId, amount, reason, ref]
+  )
+}
+
 export async function spend(db, readerId, amount, ref) {
   await db.query(
     `INSERT INTO ember_ledger (reader_id, amount, reason, ref) VALUES ($1, $2, 'purchase', $3)`,

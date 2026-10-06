@@ -29,10 +29,17 @@ const HISTORY_LABELS = {
   'book-finished': 'Finished a book',
   'pages-read': 'Pages read',
   purchase: 'Shop',
+  sale: 'Sold',
+}
+
+const BLOCK_NAMES = {
+  'block:floor': 'A floor block',
+  'block:wall': 'A wall block',
 }
 
 // What a purchase bought, by name, from the catalogue ids it was recorded with.
 function purchaseNames(ref) {
+  if (BLOCK_NAMES[ref]) return BLOCK_NAMES[ref]
   const names = String(ref ?? '')
     .split(',')
     .map((id) => catalogEntry(id.trim())?.name)
@@ -187,7 +194,13 @@ export default function EmberBadge() {
                       {row.amount < 0 ? '−' : '+'}
                     </span>
                     <span className="ember-history-what">
-                      {row.reason === 'purchase' ? purchaseNames(row.ref) : HISTORY_LABELS[row.reason] ?? row.reason}
+                      {row.reason === 'purchase'
+                        ? purchaseNames(row.ref)
+                        : row.reason === 'sale'
+                          ? BLOCK_NAMES[row.ref]
+                            ? `Took away ${BLOCK_NAMES[row.ref].toLowerCase()}`
+                            : `Sold ${catalogEntry(row.ref)?.name ?? 'furniture'}`
+                          : HISTORY_LABELS[row.reason] ?? row.reason}
                       <small>{row.reason === 'purchase' ? `Shop · ${when(row.createdAt)}` : when(row.createdAt)}</small>
                     </span>
                     <strong className={row.amount < 0 ? 'is-spent' : 'is-earned'}>

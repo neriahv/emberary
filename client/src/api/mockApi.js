@@ -9,11 +9,29 @@
 
 import seed from './seed.json'
 import {
+  BLOCKS,
+  BLOCK_KINDS,
+  DEFAULT_BLOCKS,
   EMBER_RULES,
+  FINISH_TYPES,
+  FIXTURES,
+  FIXTURE_CLEARANCE,
   FREE_FINISHES,
+  LOFT,
   MAX_OWNED_ITEMS,
-  MAX_PLACED_ITEMS,
+  ROOM_DEFAULTS,
+  WINDOW_LIMITS,
+  blockCount,
+  blockPrice,
+  blockRefund,
   catalogEntry,
+  changeBlocks,
+  fixturesOf,
+  hasLoft,
+  itemFits,
+  nearestSpot,
+  placedLimit,
+  sellPrice,
 } from './catalog.js'
 import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } from './bookFromGoogle.js'
 
@@ -23,9 +41,6 @@ import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } f
 const KEY = 'emberary:v4'
 
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
-
-// The floor an item may stand on, in metres. The same limits as the server.
-export const ROOM_BOUNDS = { x: [-2.2, 2.2], z: [-2.2, 2.2] }
 
 // A real network is not instant. Keeping this delay is what forces every screen
 // to have a loading state now, rather than the day the real API goes in.
@@ -40,7 +55,7 @@ function read() {
       // The catalogue always comes from the seed: nothing in the demo edits it,
       // and a returning visitor should see new books and covers without losing
       // their own shelves, profile and room.
-      return { ...JSON.parse(stored), books: clone(seed.books) }
+      return withRoomDefaults({ ...JSON.parse(stored), books: clone(seed.books) })
     } catch {
       // Corrupted storage. Start again rather than crashing the app.
       localStorage.removeItem(KEY)
@@ -73,10 +88,17 @@ function seedLedger() {
   return rows.map((row, index) => ({ id: index + 1, ...row }))
 }
 
-function freshDb() {
-  const db = clone(seed)
-  db.room.items = db.room.items.map((item) => ({ ...item, placed: item.placed ?? true }))
+// A room saved before the room could be built bigger has none of the new
+// settings; it gets what the database's column defaults would give it.
+function withRoomDefaults(db) {
+  db.room = { ...ROOM_DEFAULTS, blocks: DEFAULT_BLOCKS, ...db.room }
   db.room.unlocks = db.room.unlocks ?? []
+  db.room.items = db.room.items.map((item) => ({ placed: true, level: 0, lit: true, y: 0, size: 1, ...item }))
+  return db
+}
+
+function freshDb() {
+  const db = withRoomDefaults(clone(seed))
   db.ledger = seedLedger()
   db.readingDays = {}
   return db
@@ -265,7 +287,7 @@ export async function updateMyBook(bookId, patch) {
   const bookcase = patch.shelfSpot?.bookcase
   if (bookcase && bookcase !== 'main') {
     const item = db.room.items.find((i) => String(i.id) === bookcase)
-    if (!item?.kind.startsWith('bookcase')) throw new Error('That bookcase is not in your room')
+    if (!catalogEntry(item?.kind)?.holds) throw new Error('That bookcase or table is not in your room')
   }
 
   const before = { status: entry.status, currentPage: entry.currentPage }
@@ -500,9 +522,10 @@ export async function checkIn() {
 
 // ---------------------------------------------------------------- library room
 
-// The room as the server sends it: the free finishes count as owned.
+// The room as the server sends it: the free finishes count as owned, and the
+// built-in pieces stand where they were put, or where they always have.
 function roomView(db) {
-  return { ...db.room, unlocks: [...FREE_FINISHES, ...db.room.unlocks] }
+  return { ...db.room, fixtures: fixturesOf(db.room), unlocks: [...FREE_FINISHES, ...db.room.unlocks] }
 }
 
 export async function getRoom() {
@@ -522,23 +545,113 @@ export async function updateRoom(patch) {
     if (!hex.test(patch[key])) errors.push(`${key} must be a hex colour`)
     value[key] = patch[key]
   }
-  for (const key of ['wallpaper', 'floor']) {
+  for (const key of FINISH_TYPES) {
     if (!(key in patch)) continue
     if (catalogEntry(patch[key])?.type !== key) errors.push(`${key} must be one of the shop's ${key} finishes`)
     value[key] = patch[key]
   }
+  if ('fixtures' in patch) {
+    const fixtures = patch.fixtures
+    const ok =
+      fixtures !== null &&
+      typeof fixtures === 'object' &&
+      Object.entries(fixtures).every(
+        ([id, f]) =>
+          id in FIXTURES &&
+          f !== null &&
+          typeof f === 'object' &&
+          Number.isFinite(f.x) &&
+          Number.isFinite(f.z) &&
+          Number.isInteger(f.rotation) &&
+          f.rotation >= 0 &&
+          f.rotation <= 359
+      )
+    if (!ok) errors.push(`fixtures must be { ${Object.keys(FIXTURES).join(', ')} } of { x, z, rotation }`)
+    else {
+      value.fixtures = Object.fromEntries(
+        Object.entries(fixtures).map(([id, f]) => [id, { x: Math.round(f.x * 100) / 100, z: Math.round(f.z * 100) / 100, rotation: f.rotation }])
+      )
+    }
+  }
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of wallColor, floorColor, shelfColor, wallpaper, floor')
+    errors.push(`send at least one of wallColor, floorColor, shelfColor, ${FINISH_TYPES.join(', ')}, fixtures`)
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
 
   const owned = roomView(db).unlocks
-  if ([value.wallpaper, value.floor].some((id) => id && !owned.includes(id))) {
+  if (FINISH_TYPES.some((key) => value[key] && !owned.includes(value[key]))) {
     throw new Error('Buy that in the shop first')
   }
+  if (value.loft === 'loft-gallery' && !hasLoft({ ...db.room, loft: value.loft })) {
+    throw new Error(`Build the window wall ${LOFT.wallBlocks} blocks high for a loft`)
+  }
+  const offFloor = Object.entries(value.fixtures ?? {}).find(([, f]) => !itemFits(db.room, 0, f.x, f.z, FIXTURE_CLEARANCE))
+  if (offFloor) throw new Error(`${offFloor[0]} must stand on the room's floor`)
+  if (value.fixtures) value.fixtures = { ...db.room.fixtures, ...value.fixtures }
   db.room = { ...db.room, ...value }
+  // Without its loft, whatever stood up there comes down. The same as the server.
+  if (value.loft === 'loft-none') for (const item of db.room.items) item.level = 0
   write(db)
   return roomView(db)
+}
+
+// Add, move or take away a room block: { type, kind, at } or { type: 'move',
+// kind, from, to }. The same checks and messages as room.changeRoomBlocks()
+// on the server.
+export async function changeRoomBlocks(change) {
+  await delay()
+  const { type, kind } = change
+  if (!['add', 'move', 'remove'].includes(type)) throw new Error('type must be one of add, move, remove')
+  if (!BLOCK_KINDS.includes(kind)) throw new Error(`kind must be one of ${BLOCK_KINDS.join(', ')}`)
+  const db = read()
+  let cost = 0
+  if (type === 'add') {
+    if (kind === 'floor' && blockCount(db.room, 'floor') >= BLOCKS.maxFloor) {
+      throw new Error(`A room can have ${BLOCKS.maxFloor} floor blocks`)
+    }
+    cost = blockPrice(kind)
+    const funds = emberBalance(db)
+    if (funds < cost) throw new Error(`That costs ${cost} Ember and you have ${funds}`)
+  }
+  const result = changeBlocks(db.room, db.room.items, change)
+  if (result.error) {
+    throw new Error(
+      {
+        spot: kind === 'floor'
+          ? 'A floor block goes on an empty square beside the floor'
+          : `A wall block goes on an edge of the floor, up to ${BLOCKS.maxLevels} high`,
+        none: `There is no ${kind} block there`,
+        last: 'A room needs at least one floor block',
+        apart: 'The floor has to stay in one piece',
+        walls: 'Take away the walls standing on that floor block first',
+      }[result.error]
+    )
+  }
+  if (cost > 0) record(db, -cost, 'purchase', `block:${kind}`)
+  const refund = type === 'remove' ? blockRefund(kind) : 0
+  if (refund > 0) record(db, refund, 'sale', `block:${kind}`)
+  db.room.blocks = result.blocks
+  db.room.fixtures = result.fixtures
+  for (const { id, ...patch } of result.items) Object.assign(db.room.items.find((i) => i.id === id), patch)
+  write(db)
+  return { balance: emberBalance(db), refund, room: roomView(db) }
+}
+
+// Sell an item back for half its price, rounded down; books on it go back to
+// the shelves. The same as room.sell() on the server.
+export async function sellRoomItem(id) {
+  await delay()
+  const db = read()
+  const item = db.room.items.find((i) => i.id === id)
+  if (!item) throw new Error('Room item not found')
+  db.room.items = db.room.items.filter((i) => i.id !== id)
+  for (const entry of db.userBooks) {
+    if (entry.shelfSpot?.bookcase === String(id)) entry.shelfSpot = null
+  }
+  const refund = sellPrice(item.kind)
+  if (refund > 0) record(db, refund, 'sale', item.kind)
+  write(db)
+  return { balance: emberBalance(db), refund }
 }
 
 // New furniture arrives near the middle of the floor, side by side; a bookcase
@@ -549,6 +662,7 @@ const dropPoint = (n) => ({ x: DROP_X[n % DROP_X.length], z: n < DROP_X.length ?
 const WALL_SLOT = { x: -0.85, z: -2.2 }
 const slotTaken = (items) =>
   items.some((i) => i.placed && Math.abs(i.x - WALL_SLOT.x) < 0.8 && Math.abs(i.z - WALL_SLOT.z) < 0.6)
+const windowSpot = (n) => ({ x: -2.2, z: Math.min(2.2, -0.35 + n * 1.5), rotation: 90, y: 1.75 })
 
 // Buy everything in the cart, or nothing. The same checks, in the same order
 // and with the same messages, as room.checkout() on the server.
@@ -583,17 +697,28 @@ export async function checkout(ids) {
   record(db, -cost, 'purchase', ids.join(', '))
   db.room.unlocks.push(...finishes.map((e) => e.id))
   const placedCount = db.room.items.filter((i) => i.placed).length
+  const limit = placedLimit(db.room)
   let id = Math.max(0, ...db.room.items.map((i) => i.id))
   let wallFree = !slotTaken(db.room.items)
+  let windows = db.room.items.filter((i) => catalogEntry(i.kind)?.category === 'windows').length
   const items = furniture.map((entry, n) => {
-    const toWall = wallFree && entry.category === 'bookshelves'
-    if (toWall) wallFree = false
+    let spot
+    if (entry.category === 'windows') spot = windowSpot(windows++)
+    else if (wallFree && entry.category === 'bookshelves') {
+      spot = { ...WALL_SLOT, rotation: 0 }
+      wallFree = false
+    } else spot = { ...dropPoint(n), rotation: 0 }
     return {
       id: ++id,
       kind: entry.id,
-      ...(toWall ? WALL_SLOT : dropPoint(n)),
-      rotation: 0,
-      placed: placedCount + n < MAX_PLACED_ITEMS,
+      x: spot.x,
+      z: spot.z,
+      rotation: spot.rotation,
+      placed: placedCount + n < limit,
+      level: 0,
+      lit: true,
+      y: spot.y ?? 0,
+      size: 1,
     }
   })
   db.room.items.push(...items)
@@ -602,17 +727,29 @@ export async function checkout(ids) {
 }
 
 // The same checks as validateRoomItem on the server. Returns the clean fields.
-function validateRoomItem(fields) {
+function validateRoomItem(fields, room, current) {
   const errors = []
   const value = {}
+  if ('level' in fields) {
+    if (fields.level !== 0 && fields.level !== 1) errors.push('level must be 0 (the floor) or 1 (the loft)')
+    else if (fields.level === 1 && !hasLoft(room)) errors.push('level 1 is the loft: build one first')
+    value.level = fields.level
+  }
   for (const axis of ['x', 'z']) {
     if (!(axis in fields)) continue
-    const [min, max] = ROOM_BOUNDS[axis]
     const n = Number(fields[axis])
-    if (fields[axis] === null || !Number.isFinite(n) || n < min || n > max) {
-      errors.push(`${axis} must be a number from ${min} to ${max}`)
+    if (fields[axis] === null || !Number.isFinite(n)) errors.push(`${axis} must be a number`)
+    else value[axis] = Math.round(n * 100) / 100
+  }
+  if (errors.length === 0 && ('x' in fields || 'z' in fields || 'level' in value)) {
+    const level = 'level' in value ? value.level : current.level
+    const x = value.x ?? current.x
+    const z = value.z ?? current.z
+    if (!itemFits(room, level, x, z)) {
+      const moved = 'level' in value && !('x' in fields) && !('z' in fields) && nearestSpot(room, level, x, z)
+      if (moved) Object.assign(value, moved)
+      else errors.push(level === 1 ? 'x and z must be a spot on the loft' : "x and z must be a spot on the room's floor")
     }
-    value[axis] = Math.round(n * 100) / 100
   }
   if ('rotation' in fields) {
     const rotation = Number(fields.rotation)
@@ -621,26 +758,38 @@ function validateRoomItem(fields) {
     }
     value.rotation = rotation
   }
-  if ('placed' in fields) {
-    if (typeof fields.placed !== 'boolean') errors.push('placed must be true or false')
-    value.placed = fields.placed
+  for (const key of ['placed', 'lit']) {
+    if (!(key in fields)) continue
+    if (typeof fields[key] !== 'boolean') errors.push(`${key} must be true or false`)
+    value[key] = fields[key]
+  }
+  for (const key of ['y', 'size']) {
+    if (!(key in fields)) continue
+    const [min, max] = WINDOW_LIMITS[key]
+    const n = Number(fields[key])
+    if (fields[key] === null || !Number.isFinite(n) || n < min || n > max) {
+      errors.push(`${key} must be a number from ${min} to ${max}`)
+    }
+    value[key] = Math.round(n * 100) / 100
   }
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of x, z, rotation, placed')
+    errors.push('send at least one of x, z, rotation, level, placed, lit, y, size')
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
   return value
 }
 
-// Move, turn, store or place an item: any of { x, z, rotation, placed }.
+// Move, turn, switch, store or place an item: any of
+// { x, z, rotation, level, placed, lit }.
 export async function updateRoomItem(id, patch) {
   await delay()
   const db = read()
   const item = db.room.items.find((i) => i.id === id)
   if (!item) throw new Error('Room item not found')
-  const value = validateRoomItem(patch)
-  if (value.placed && !item.placed && db.room.items.filter((i) => i.placed).length >= MAX_PLACED_ITEMS) {
-    throw new Error(`The room already holds ${MAX_PLACED_ITEMS} things. Store something first`)
+  const value = validateRoomItem(patch, db.room, item)
+  const limit = placedLimit(db.room)
+  if (value.placed && !item.placed && db.room.items.filter((i) => i.placed).length >= limit) {
+    throw new Error(`The room already holds ${limit} things. Store something first`)
   }
   Object.assign(item, value)
   write(db)
