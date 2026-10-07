@@ -30,9 +30,12 @@ export const SHOP_CATEGORIES = [
 // changes has the same name as the type. A price of 0 means every room
 // already has it.
 //
-//   holds: a bookcase ("shelves") or a table ("table") the reader's books
-//          can stand on
-//   wall:  it hangs on a wall
+//   holds:   a bookcase ("shelves") or a table or seat ("table") the reader's
+//            books can stand on
+//   wall:    it hangs on a wall
+//   small:   it can stand on a table, a shelf or a seat as well as the floor
+//   builtIn: every room starts with one; never sold in the shop, but it can
+//            be stored or sold back like anything else
 export const CATALOG = [
   // ---------------------------------------------------------------- build
   { id: 'window-round', category: 'windows', type: 'item', name: 'Round window', price: 4, wall: true },
@@ -75,6 +78,8 @@ export const CATALOG = [
   { id: 'floor-marble', category: 'floors', type: 'floor', name: 'Rose marble', price: 5 },
 
   // ---------------------------------------------------------------- furnish
+  { id: 'built-in-bookcase', category: 'bookshelves', type: 'item', name: 'Built-in bookcase', price: 16, holds: 'shelves', builtIn: true },
+  { id: 'built-in-shelf', category: 'bookshelves', type: 'item', name: 'Old volumes shelf', price: 8, builtIn: true },
   { id: 'bookcase-small', category: 'bookshelves', type: 'item', name: 'Small bookcase', price: 6, holds: 'shelves' },
   { id: 'bookcase-tall', category: 'bookshelves', type: 'item', name: 'Tall bookcase', price: 10, holds: 'shelves' },
   { id: 'bookcase-wall', category: 'bookshelves', type: 'item', name: 'Floor-to-ceiling bookcase', price: 22, holds: 'shelves' },
@@ -82,6 +87,7 @@ export const CATALOG = [
   { id: 'bookcase-pastel', category: 'bookshelves', type: 'item', name: 'Blush bookcase', price: 8, holds: 'shelves' },
   { id: 'bookcase-birch', category: 'bookshelves', type: 'item', name: 'Birch & ivy bookcase', price: 10, holds: 'shelves' },
   { id: 'bookcase-arched', category: 'bookshelves', type: 'item', name: 'Arched midnight bookcase', price: 14, holds: 'shelves' },
+  { id: 'mint-bookcase', category: 'bookshelves', type: 'item', name: 'Sage & cream bookcase', price: 20, holds: 'shelves' },
 
   { id: 'side-table', category: 'tables', type: 'item', name: 'Pedestal table', price: 2, holds: 'table' },
   { id: 'coffee-table', category: 'tables', type: 'item', name: 'Coffee table', price: 2, holds: 'table' },
@@ -92,34 +98,43 @@ export const CATALOG = [
   { id: 'pastel-desk', category: 'tables', type: 'item', name: 'Cream study desk', price: 5, holds: 'table' },
   { id: 'stump-table', category: 'tables', type: 'item', name: 'Tree-stump table', price: 3, holds: 'table' },
   { id: 'moon-table', category: 'tables', type: 'item', name: 'Crescent moon table', price: 4, holds: 'table' },
+  { id: 'wooden-desk', category: 'tables', type: 'item', name: 'Honey-wood desk', price: 22, holds: 'table' },
 
   { id: 'stool', category: 'chairs', type: 'item', name: 'Wooden stool', price: 1 },
   { id: 'chair', category: 'chairs', type: 'item', name: 'Wooden chair', price: 1 },
   { id: 'cushion', category: 'chairs', type: 'item', name: 'Floor cushion', price: 1 },
-  { id: 'armchair', category: 'chairs', type: 'item', name: 'Armchair', price: 3 },
+  { id: 'armchair', category: 'chairs', type: 'item', name: 'Armchair', price: 3, holds: 'table' },
   { id: 'rocking-chair', category: 'chairs', type: 'item', name: 'Rocking chair', price: 3 },
-  { id: 'wingback', category: 'chairs', type: 'item', name: 'Red wingback chair', price: 4 },
-  { id: 'sofa', category: 'chairs', type: 'item', name: 'Chesterfield sofa', price: 5 },
-  { id: 'plaid-armchair', category: 'chairs', type: 'item', name: 'Plaid armchair', price: 4 },
+  { id: 'wingback', category: 'chairs', type: 'item', name: 'Red wingback chair', price: 4, holds: 'table' },
+  { id: 'sofa', category: 'chairs', type: 'item', name: 'Chesterfield sofa', price: 5, holds: 'table' },
+  { id: 'plaid-armchair', category: 'chairs', type: 'item', name: 'Plaid armchair', price: 4, holds: 'table' },
   { id: 'pink-chair', category: 'chairs', type: 'item', name: 'Pink desk chair', price: 2 },
   { id: 'pouf', category: 'chairs', type: 'item', name: 'Mint pouf', price: 1 },
   { id: 'stump-stool', category: 'chairs', type: 'item', name: 'Log stool', price: 1 },
-  { id: 'velvet-sofa', category: 'chairs', type: 'item', name: 'Violet velvet sofa', price: 6 },
+  { id: 'velvet-sofa', category: 'chairs', type: 'item', name: 'Violet velvet sofa', price: 6, holds: 'table' },
+  { id: 'office-chair', category: 'chairs', type: 'item', name: 'Tangerine desk chair', price: 18 },
+  { id: 'egg-chair', category: 'chairs', type: 'item', name: 'Coral egg chair', price: 24, holds: 'table' },
+  { id: 'petal-chair', category: 'chairs', type: 'item', name: 'Lilac petal chair', price: 28, holds: 'table' },
+  { id: 'avocado-swing', category: 'chairs', type: 'item', name: 'Avocado swing chair', price: 30, holds: 'table' },
 
-  { id: 'lantern', category: 'lamps', type: 'item', name: 'Lantern', price: 1 },
+  { id: 'lantern', category: 'lamps', type: 'item', name: 'Lantern', price: 1, small: true },
   { id: 'lamp', category: 'lamps', type: 'item', name: 'Floor lamp', price: 2 },
   { id: 'candelabra', category: 'lamps', type: 'item', name: 'Candelabra', price: 2 },
   { id: 'sconce', category: 'lamps', type: 'item', name: 'Wall sconce', price: 2, wall: true },
   { id: 'chandelier', category: 'lamps', type: 'item', name: 'Candle chandelier', price: 8 },
   { id: 'fireplace', category: 'lamps', type: 'item', name: 'Brick fireplace', price: 12 },
-  { id: 'pumpkin-lantern', category: 'lamps', type: 'item', name: 'Pumpkin lantern', price: 2 },
+  { id: 'pumpkin-lantern', category: 'lamps', type: 'item', name: 'Pumpkin lantern', price: 2, small: true },
   { id: 'wood-stove', category: 'lamps', type: 'item', name: 'Wood stove', price: 8 },
   { id: 'fairy-lights', category: 'lamps', type: 'item', name: 'Fairy lights', price: 3, wall: true },
   { id: 'paper-lantern', category: 'lamps', type: 'item', name: 'Paper lantern', price: 2 },
   { id: 'mushroom-lamp', category: 'lamps', type: 'item', name: 'Mushroom lamp', price: 3 },
-  { id: 'firefly-jar', category: 'lamps', type: 'item', name: 'Firefly jar', price: 2 },
+  { id: 'firefly-jar', category: 'lamps', type: 'item', name: 'Firefly jar', price: 2, small: true },
   { id: 'orb-lamp', category: 'lamps', type: 'item', name: 'Floating orb lamp', price: 4 },
-  { id: 'crystal-cluster', category: 'lamps', type: 'item', name: 'Glowing crystals', price: 3 },
+  { id: 'crystal-cluster', category: 'lamps', type: 'item', name: 'Glowing crystals', price: 3, small: true },
+  { id: 'pink-desk-lamp', category: 'lamps', type: 'item', name: 'Pink desk lamp', price: 12, small: true },
+  { id: 'flower-lamp', category: 'lamps', type: 'item', name: 'Buttercup lamp', price: 14, small: true },
+  { id: 'bear-light', category: 'lamps', type: 'item', name: 'Bear night light', price: 10, small: true },
+  { id: 'wood-mushroom', category: 'lamps', type: 'item', name: 'Wooden mushroom light', price: 9, small: true },
 
   { id: 'rug', category: 'rugs', type: 'item', name: 'Persian rug', price: 2 },
   { id: 'round-rug', category: 'rugs', type: 'item', name: 'Round rug', price: 2 },
@@ -135,12 +150,17 @@ export const CATALOG = [
   { id: 'pebble-planter', category: 'plants', type: 'item', name: 'Pebble planter', price: 3 },
   { id: 'hanging-plant', category: 'plants', type: 'item', name: 'Hanging plant', price: 2 },
   { id: 'maple-tree', category: 'plants', type: 'item', name: 'Potted maple', price: 5 },
-  { id: 'tulip-vase', category: 'plants', type: 'item', name: 'Tulips', price: 1 },
+  { id: 'tulip-vase', category: 'plants', type: 'item', name: 'Tulips', price: 1, small: true },
+  { id: 'glossy-tulip', category: 'plants', type: 'item', name: 'Glossy tulip vase', price: 9, small: true },
+  { id: 'white-tulips', category: 'plants', type: 'item', name: 'White tulips in glass', price: 10, small: true },
+  { id: 'sunflower-pot', category: 'plants', type: 'item', name: 'Sunflower pot', price: 8, small: true },
+  { id: 'succulent-pot', category: 'plants', type: 'item', name: 'Succulent pot', price: 8, small: true },
+  { id: 'leafy-pot', category: 'plants', type: 'item', name: 'Leafy cream pot', price: 8, small: true },
 
-  { id: 'vase', category: 'decor', type: 'item', name: 'Flower vase', price: 1 },
+  { id: 'vase', category: 'decor', type: 'item', name: 'Flower vase', price: 1, small: true },
   { id: 'globe', category: 'decor', type: 'item', name: 'Globe', price: 3 },
   { id: 'clock', category: 'decor', type: 'item', name: 'Grandfather clock', price: 5 },
-  { id: 'book-stack', category: 'decor', type: 'item', name: 'Stack of books', price: 1 },
+  { id: 'book-stack', category: 'decor', type: 'item', name: 'Stack of books', price: 1, small: true },
   { id: 'cat-bed', category: 'decor', type: 'item', name: 'Sleeping cat', price: 4 },
   { id: 'library-ladder', category: 'decor', type: 'item', name: 'Library ladder', price: 3 },
   { id: 'picture-frames', category: 'decor', type: 'item', name: 'Picture frames', price: 2, wall: true },
@@ -150,6 +170,14 @@ export const CATALOG = [
   { id: 'birdcage', category: 'decor', type: 'item', name: 'Brass birdcage', price: 2 },
   { id: 'telescope', category: 'decor', type: 'item', name: 'Telescope', price: 5 },
   { id: 'floating-books', category: 'decor', type: 'item', name: 'Floating spellbooks', price: 8 },
+  { id: 'game-buddy', category: 'decor', type: 'item', name: 'Game buddy', price: 20, small: true },
+  { id: 'retro-computer', category: 'decor', type: 'item', name: 'Mini retro computer', price: 18, small: true },
+  { id: 'keyboard', category: 'decor', type: 'item', name: 'Mint keyboard', price: 12, small: true },
+  { id: 'headphones', category: 'decor', type: 'item', name: 'Headphones on a stand', price: 14, small: true },
+  { id: 'microphone', category: 'decor', type: 'item', name: 'Studio microphone', price: 12, small: true },
+  { id: 'matcha', category: 'decor', type: 'item', name: 'Iced matcha', price: 8, small: true },
+  { id: 'pencil-case', category: 'decor', type: 'item', name: 'Pencil case', price: 8, small: true },
+  { id: 'desk-calendar', category: 'decor', type: 'item', name: 'Desk calendar', price: 8, small: true },
 
   { id: 'stairs-straight', category: 'stairs', type: 'item', name: 'Oak staircase', price: 15 },
   { id: 'stairs-spiral', category: 'stairs', type: 'item', name: 'Spiral staircase', price: 20 },
@@ -173,6 +201,8 @@ export const MAX_OWNED_ITEMS = 200
 export const MAX_PLACED_ITEMS = 30
 
 export const ITEM_KINDS = CATALOG.filter((entry) => entry.type === 'item').map((entry) => entry.id)
+// What the shop sells: everything but the pieces built into every room.
+export const forSale = (entry) => Boolean(entry) && !entry.builtIn
 export const catalogEntry = (id) => CATALOG.find((entry) => entry.id === id)
 export const FREE_FINISHES = CATALOG.filter((e) => e.type !== 'item' && e.price === 0).map((e) => e.id)
 
@@ -381,22 +411,26 @@ export const WINDOW_LIMITS = { y: [0.3, BLOCKS.wall * BLOCKS.maxLevels], size: [
 
 // ---------------------------------------------------------------- the built-in pieces
 //
-// Every room comes with a bookcase built into it (the reader's books fill it
-// first, as bookcase "main") and a little shelf of old volumes. They are not
-// for sale, but the reader can move and turn them like furniture. They may
-// stand a little closer to a wall than furniture: they were built against it.
-export const FIXTURES = {
-  main: { kind: 'built-in-bookcase', name: 'Built-in bookcase', x: 1.05, z: -2.27, rotation: 0 },
-  decor: { kind: 'built-in-shelf', name: 'Old volumes shelf', x: -2.31, z: -1.8, rotation: 90 },
-}
-export const FIXTURE_CLEARANCE = 0.1
+// Every room starts with a bookcase built into it, which the reader's books
+// fill first, and a little shelf of old volumes. They are room items like any
+// other: moved, turned, stored or sold. Being built against the wall, they may
+// stand closer to it than other furniture.
+export const BUILT_INS = [
+  { kind: 'built-in-bookcase', x: 1.05, z: -2.27, rotation: 0 },
+  { kind: 'built-in-shelf', x: -2.31, z: -1.8, rotation: 90 },
+]
+export const clearanceOf = (kind) => (catalogEntry(kind)?.builtIn ? 0.1 : CLEARANCE)
 
-// Where the built-in pieces are in this room: { main: { x, z, rotation }, decor: ... }.
-export function fixturesOf(room) {
-  return Object.fromEntries(
-    Object.entries(FIXTURES).map(([id, { x, z, rotation }]) => [id, { x, z, rotation, ...room?.fixtures?.[id] }])
-  )
+// ---------------------------------------------------------------- sizes and colours
+//
+// A bookcase or a window can be made wider or taller (sx, sy: scales of its
+// usual size), and anything can be painted a colour of the reader's choosing.
+export const SIZE_LIMITS = { sx: [0.6, 1.6], sy: [0.6, 1.6] }
+export const resizable = (kind) => {
+  const entry = catalogEntry(kind)
+  return entry?.holds === 'shelves' || entry?.category === 'windows'
 }
+export const isSmall = (kind) => Boolean(catalogEntry(kind)?.small)
 
 // ---------------------------------------------------------------- walls' faces
 //
@@ -502,18 +536,16 @@ export const blockRefund = (kind) => Math.floor(blockPrice(kind) / 2)
 //   { type: 'add', kind, at }          a new block, at { i, j } or a wall edge
 //   { type: 'move', kind, from, to }   a floor block, or a whole wall, moved
 //   { type: 'remove', kind, at }       a floor block, or a wall's top block
-// `items` are the room's furniture. Returns { blocks, items, fixtures }: the
-// new blocks, the furniture that has to move as a result (as patches, each
-// with its id: furniture on a moved floor block goes with it, things hung on
-// a moved wall go with the wall, anything left off the floor comes to the
-// nearest spot, and a window with no wall goes into storage), and where the
-// built-in pieces end up. Or { error } saying why not: 'spot', 'none',
-// 'last', 'apart' or 'walls'.
+// `items` are the room's furniture. Returns { blocks, items }: the new blocks,
+// and the furniture that has to move as a result (as patches, each with its
+// id: furniture on a moved floor block goes with it, things hung on a moved
+// wall go with the wall, anything left off the floor comes to the nearest
+// spot, and a window with no wall goes into storage). Or { error } saying why
+// not: 'spot', 'none', 'last', 'apart' or 'walls'.
 export function changeBlocks(room, items, change) {
   const { type, kind } = change
   let blocks = blocksOf(room)
   const moved = new Map() // id -> fields changed by the move itself
-  let fixtures = fixturesOf(room)
 
   if (type === 'add') {
     if (!canPlace(room, kind, change.at)) return { error: 'spot' }
@@ -544,9 +576,6 @@ export function changeBlocks(room, items, change) {
         if (!item.placed || hangsOnWall(item.kind) || !onIt(item.x, item.z)) continue
         moved.set(item.id, { x: round2(item.x + dx), z: round2(item.z + dz) })
       }
-      fixtures = Object.fromEntries(
-        Object.entries(fixtures).map(([id, f]) => [id, onIt(f.x, f.z) ? { ...f, x: round2(f.x + dx), z: round2(f.z + dz) } : f])
-      )
     } else {
       const height = wallHeight(room, from.side, from.i, from.j)
       if (height === 0) return { error: 'none' }
@@ -579,21 +608,17 @@ export function changeBlocks(room, items, change) {
       const top = wallHeight(after, edge.side, edge.i, edge.j) * BLOCKS.wall
       if (top === 0 || (item.y ?? 0) > top - 0.3) patch.placed = false
       else Object.assign(patch, onWallAt(after, edge, alongOf(now), 0.1))
-    } else {
+    } else if (!item.on) {
+      // Something standing on something else goes wherever that goes.
       let level = now.level ?? 0
+      const clearance = clearanceOf(item.kind)
       if (level === 1 && !hasLoft(after)) patch.level = level = 0
-      if (!itemFits(after, level, now.x, now.z)) Object.assign(patch, nearestSpot(after, level, now.x, now.z))
+      if (!itemFits(after, level, now.x, now.z, clearance)) Object.assign(patch, nearestSpot(after, level, now.x, now.z, clearance))
     }
     const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => item[key] !== value))
     if (Object.keys(changed).length > 0) patches.push({ id: item.id, ...changed })
   }
-  fixtures = Object.fromEntries(
-    Object.entries(fixtures).map(([id, f]) => [
-      id,
-      itemFits(after, 0, f.x, f.z, FIXTURE_CLEARANCE) ? f : { ...f, ...nearestSpot(after, 0, f.x, f.z, FIXTURE_CLEARANCE) },
-    ])
-  )
-  return { blocks, items: patches, fixtures }
+  return { blocks, items: patches }
 }
 
 // Where a block may go in a change, for the room to show while the reader

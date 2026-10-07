@@ -30,6 +30,7 @@ const HISTORY_LABELS = {
   'pages-read': 'Pages read',
   purchase: 'Shop',
   sale: 'Sold',
+  'demo-gift': 'Demo gift',
 }
 
 const BLOCK_NAMES = {

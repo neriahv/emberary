@@ -4,16 +4,15 @@
 
 import {
   BLOCKS,
+  BUILT_INS,
   blockCount,
   blockPrice,
   blockRefund,
   catalogEntry,
   changeBlocks,
   DEFAULT_BLOCKS,
-  fixturesOf,
   FREE_FINISHES,
   MAX_OWNED_ITEMS,
-  placedLimit,
   sellPrice,
 } from '../catalog.js'
 import * as ember from './ember.js'
@@ -26,10 +25,9 @@ const ROOM_COLUMNS = `
   floor,
   wall_shape  AS "wallShape",
   roof,
-  loft,
-  fixtures`
+  loft`
 
-const ITEM_COLUMNS = 'id, kind, x, z, rotation, placed, level, lit, y, size'
+const ITEM_COLUMNS = 'id, kind, x, z, rotation, placed, level, lit, y, size, color, sx, sy, on_item AS "on"'
 
 // A reader whose room was never saved gets the defaults from schema.sql,
 // rather than a 404 the Library Room would have to handle, and the blocks
@@ -46,6 +44,18 @@ async function ensureRow(db, readerId) {
      WHERE NOT EXISTS (SELECT 1 FROM room_blocks WHERE reader_id = $1)
      ON CONFLICT DO NOTHING`,
     [readerId, JSON.stringify(DEFAULT_BLOCKS)]
+  )
+  // The built-in bookcase and shelf, once: a reader who stored or sold them
+  // still has their rows. Where they were moved before they were items is in
+  // the old fixtures setting.
+  const fixtures = (await db.query('SELECT fixtures FROM room_settings WHERE reader_id = $1', [readerId])).rows[0]?.fixtures ?? {}
+  const pieces = BUILT_INS.map((piece, n) => ({ ...piece, ...fixtures[['main', 'decor'][n]] }))
+  await db.query(
+    `INSERT INTO room_items (reader_id, kind, x, z, rotation, placed)
+     SELECT $1, p.kind, p.x, p.z, p.rotation, true
+     FROM jsonb_to_recordset($2::jsonb) AS p(kind text, x real, z real, rotation int)
+     WHERE NOT EXISTS (SELECT 1 FROM room_items WHERE reader_id = $1 AND kind = ANY($3::text[]))`,
+    [readerId, JSON.stringify(pieces), BUILT_INS.map((piece) => piece.kind)]
   )
 }
 
@@ -70,11 +80,9 @@ export async function unlocks(db, readerId) {
 
 // The whole room in one object, as the Library Room page loads it.
 export async function get(db, readerId) {
-  const [room, items, owned] = await Promise.all([
-    settings(db, readerId),
-    listItems(db, readerId),
-    unlocks(db, readerId),
-  ])
+  // The settings first: reading them gives a new room its starting pieces.
+  const room = await settings(db, readerId)
+  const [items, owned] = await Promise.all([listItems(db, readerId), unlocks(db, readerId)])
   return { ...room, unlocks: owned, items }
 }
 
@@ -85,8 +93,7 @@ export async function settings(db, readerId) {
     db.query(`SELECT ${ROOM_COLUMNS} FROM room_settings WHERE reader_id = $1`, [readerId]),
     listBlocks(db, readerId),
   ])
-  const row = result.rows[0]
-  return { ...row, fixtures: fixturesOf(row), blocks }
+  return { ...result.rows[0], blocks }
 }
 
 // Only the fields present in the validated patch change. The route has already
@@ -103,14 +110,12 @@ export async function update(db, readerId, patch) {
        floor       = COALESCE($6::text, floor),
        wall_shape  = COALESCE($7::text, wall_shape),
        roof        = COALESCE($8::text, roof),
-       loft        = COALESCE($9::text, loft),
-       fixtures    = fixtures || COALESCE($10::jsonb, '{}')
+       loft        = COALESCE($9::text, loft)
      WHERE reader_id = $1`,
     [
       readerId,
       ...['wallColor', 'floorColor', 'shelfColor', 'wallpaper', 'floor', 'wallShape', 'roof', 'loft']
         .map((key) => patch[key] ?? null),
-      patch.fixtures ? JSON.stringify(patch.fixtures) : null,
     ]
   )
   // Without its loft, whatever stood up there comes down to the floor.
@@ -153,10 +158,6 @@ export async function changeRoomBlocks(db, readerId, change) {
     [readerId, JSON.stringify(result.blocks)]
   )
   for (const { id, ...patch } of result.items) await updateItem(db, readerId, id, patch)
-  await db.query('UPDATE room_settings SET fixtures = $2::jsonb WHERE reader_id = $1', [
-    readerId,
-    JSON.stringify(result.fixtures),
-  ])
   return { balance: await ember.balance(db, readerId), refund, room: await get(db, readerId) }
 }
 
@@ -190,9 +191,11 @@ export async function countPlaced(db, readerId) {
   return result.rows[0].n
 }
 
-// Move, turn, switch, store or place an item, or size a window. Returns null
-// if it is not this reader's.
+// Move, turn, switch, store or place an item, size or paint it, or stand it
+// on something. Returns null if it is not this reader's. Whatever stood on
+// an item that goes into storage comes down to the floor where it was.
 export async function updateItem(db, readerId, id, patch) {
+  const has = (key) => Object.prototype.hasOwnProperty.call(patch, key)
   const result = await db.query(
     `UPDATE room_items SET
        x        = COALESCE($3::real, x),
@@ -202,16 +205,30 @@ export async function updateItem(db, readerId, id, patch) {
        level    = COALESCE($7::smallint, level),
        lit      = COALESCE($8::boolean, lit),
        y        = COALESCE($9::real, y),
-       size     = COALESCE($10::real, size)
+       size     = COALESCE($10::real, size),
+       sx       = COALESCE($11::real, sx),
+       sy       = COALESCE($12::real, sy),
+       color    = CASE WHEN $13 THEN $14::text ELSE color END,
+       on_item  = CASE WHEN $15 THEN $16::int ELSE on_item END
      WHERE reader_id = $1 AND id = $2 AND NOT sold
      RETURNING ${ITEM_COLUMNS}`,
     [
       readerId,
       id,
-      ...['x', 'z', 'rotation', 'placed', 'level', 'lit', 'y', 'size'].map((key) => patch[key] ?? null),
+      ...['x', 'z', 'rotation', 'placed', 'level', 'lit', 'y', 'size', 'sx', 'sy'].map((key) => patch[key] ?? null),
+      has('color'),
+      patch.color ?? null,
+      has('on'),
+      patch.on ?? null,
     ]
   )
+  if (patch.placed === false) await bringDown(db, readerId, id)
   return result.rows[0] ?? null
+}
+
+// Whatever stood on an item that has left the room comes down to the floor.
+async function bringDown(db, readerId, id) {
+  await db.query('UPDATE room_items SET on_item = NULL, y = 0 WHERE reader_id = $1 AND on_item = $2', [readerId, id])
 }
 
 // Sell an item back for half what it cost (rounded down). Any of the reader's
@@ -227,6 +244,7 @@ export async function sell(db, readerId, id) {
   )
   const item = result.rows[0]
   if (!item) return null
+  await bringDown(db, readerId, id)
   await db.query(
     `UPDATE user_books SET shelf_case = NULL, shelf_row = NULL, shelf_x = NULL
      WHERE reader_id = $1 AND shelf_case = $2`,
@@ -239,8 +257,9 @@ export async function sell(db, readerId, id) {
 
 // ------------------------------------------------------------ the shop
 
-// New furniture arrives near the middle of the floor, side by side, where the
-// reader can see it and move it. A bookcase goes against the free stretch of
+// Everything bought goes into storage, to be put in the room from there. It
+// keeps a sensible first spot for when it is: near the middle of the floor,
+// side by side, where the reader can see it and move it. A bookcase goes against the free stretch of
 // back wall behind the desk instead, if nothing stands there yet: a tall
 // bookcase mid-floor would hide half the room. A window goes up on the
 // window wall, one after another along it.
@@ -248,7 +267,7 @@ const DROP_X = [0, 0.7, -0.7, 1.4, -1.4, 2.1, -2.1]
 const dropPoint = (n) => ({ x: DROP_X[n % DROP_X.length], z: n < DROP_X.length ? 0.9 : 1.6 })
 export const WALL_SLOT = { x: -0.85, z: -2.2 }
 const slotTaken = (items) =>
-  items.some((i) => i.placed && Math.abs(i.x - WALL_SLOT.x) < 0.8 && Math.abs(i.z - WALL_SLOT.z) < 0.6)
+  items.some((i) => Math.abs(i.x - WALL_SLOT.x) < 0.8 && Math.abs(i.z - WALL_SLOT.z) < 0.6)
 // New windows go on the first window wall, which every room has.
 export const windowSpot = (n) => ({ x: -2.2, z: Math.min(2.2, -0.35 + n * 1.5), rotation: 90, y: 1.75 })
 
@@ -258,6 +277,7 @@ export const windowSpot = (n) => ({ x: -2.2, z: Math.min(2.2, -0.35 + n * 1.5), 
 // first, so two checkouts cannot both spend the same Ember.
 export async function checkout(db, readerId, ids) {
   await db.query('SELECT id FROM readers WHERE id = $1 FOR UPDATE', [readerId])
+  await ensureRow(db, readerId)
 
   const entries = ids.map(catalogEntry)
   const finishes = entries.filter((entry) => entry.type !== 'item')
@@ -268,11 +288,10 @@ export async function checkout(db, readerId, ids) {
   if (already) return { error: 'owned', entry: already }
 
   const counts = await db.query(
-    `SELECT count(*)::int AS owned, count(*) FILTER (WHERE placed)::int AS placed
-     FROM room_items WHERE reader_id = $1 AND NOT sold`,
+    'SELECT count(*)::int AS owned FROM room_items WHERE reader_id = $1 AND NOT sold',
     [readerId]
   )
-  const { owned: ownedCount, placed: placedCount } = counts.rows[0]
+  const { owned: ownedCount } = counts.rows[0]
   if (ownedCount + furniture.length > MAX_OWNED_ITEMS) return { error: 'full' }
 
   const cost = entries.reduce((sum, entry) => sum + entry.price, 0)
@@ -285,9 +304,6 @@ export async function checkout(db, readerId, ids) {
     await db.query('INSERT INTO room_unlocks (reader_id, item) VALUES ($1, $2)', [readerId, entry.id])
   }
 
-  // Whatever does not fit in a full room goes straight to storage.
-  const room = await settings(db, readerId)
-  const limit = placedLimit(room)
   const standing = await listItems(db, readerId)
   let wallFree = !slotTaken(standing)
   let windows = standing.filter((i) => catalogEntry(i.kind)?.category === 'windows').length
@@ -307,7 +323,7 @@ export async function checkout(db, readerId, ids) {
       `INSERT INTO room_items (reader_id, kind, x, z, rotation, placed, y)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING ${ITEM_COLUMNS}`,
-      [readerId, entry.id, spot.x, spot.z, spot.rotation, placedCount + n < limit, spot.y ?? 0]
+      [readerId, entry.id, spot.x, spot.z, spot.rotation, false, spot.y ?? 0]
     )
     items.push(result.rows[0])
   }

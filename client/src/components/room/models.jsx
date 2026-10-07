@@ -5,6 +5,7 @@ import * as more from './furniture.jsx'
 import { checkTexture } from './textures.js'
 import * as lights from './lights.jsx'
 import { WINDOW_MODELS } from './windows.jsx'
+import * as kept from './collection.jsx'
 import { DecorShelf } from './structure.jsx'
 
 export { Shadowed }
@@ -359,6 +360,19 @@ export const BOOKCASES = {
   'bookcase-pastel': { width: 1.1, height: 1.8, depth: 0.36, shelves: 3, color: '#f1b9c6', crown: 'scallop' },
   'bookcase-birch': { width: 1.4, height: 2.4, depth: 0.38, shelves: 4, color: '#d9b48a', crown: 'vines' },
   'bookcase-arched': { width: 1.3, height: 2.7, depth: 0.4, shelves: 4, color: '#3a2433', crown: 'arch' },
+  'mint-bookcase': { width: 1.2, height: 1.32, depth: 0.38, shelves: 2, color: '#f1e6d4', crown: 'sage' },
+}
+
+// A bookcase made wider or taller by the reader (sx, sy): wider shelves, and
+// as many shelves as the new height has room for, books being the size they
+// are.
+export function scaledSpec(spec, item) {
+  const sx = item?.sx ?? 1
+  const sy = item?.sy ?? 1
+  if (sx === 1 && sy === 1) return spec
+  const height = spec.height * sy
+  const room = Math.max(1, Math.floor((height - SHELF_BASE - 0.08) / 0.53))
+  return { ...spec, width: spec.width * sx, height, shelves: Math.max(1, Math.min(room, Math.round(spec.shelves * sy))) }
 }
 
 const SHELF_BASE = 0.16 // height of the lowest shelf board
@@ -428,6 +442,15 @@ function Crown({ spec, color }) {
       </>
     )
   }
+  if (crown === 'sage') {
+    // Soft rounded sage ends, as on the reference's little bookcase.
+    return [-1, 1].map((side) => (
+      <group key={side} position={[(side * width) / 2, height / 2, 0]}>
+        <Box s={[0.1, height + 0.06, depth + 0.04]} c="#8fb08a" r={0.8} />
+        <Cyl s={[0.05, 0.05, depth + 0.04, 16]} rotation={[Math.PI / 2, 0, 0]} position={[0, height / 2 + 0.03, 0]} c="#8fb08a" r={0.8} />
+      </group>
+    ))
+  }
   if (crown === 'crate') {
     // Slats across each side, as on a fruit crate.
     return [-1, 1].flatMap((side) =>
@@ -441,9 +464,11 @@ function Crown({ spec, color }) {
 
 // The carcass: back, sides, top and a board under every shelf. `sample` fills
 // it with a few made-up books, for the shop's preview picture.
-export function BookcaseFrame({ spec, color = '#5e3219', sample = false }) {
+export function BookcaseFrame({ spec, color = '#5e3219', paint, sample = false }) {
   const { width, height, depth } = spec
-  const wood = spec.color ?? color
+  // The reader's own paint first, then the bookcase's own colour, then the
+  // room's bookcase colour.
+  const wood = paint ?? spec.color ?? color
   return (
     <>
       <mesh position={[0, height / 2, -depth / 2 + 0.015]}>
@@ -706,7 +731,9 @@ function Clock() {
 //   interact: what clicking it does, for the tooltip
 //   landing:  a staircase; where you step off at the top, so the loft's
 //             railing can open there
-//   fixture:  built into the room: moved and turned, never sold or stored
+//   tops:     flat places a small thing can stand ([x, y, z, half width,
+//             half depth] each, in the model's own space); a bookcase's are
+//             its top and its shelves (see topsOf)
 //   window:   it is a window: hung on a wall, at the reader's height and
 //             size; `half` is how far it reaches [across, up] from its middle
 const bookcase = (id) => ({
@@ -718,9 +745,11 @@ const bookcase = (id) => ({
 
 const windowItem = ({ Model, half }) => ({ Model, radius: half[0], height: half[1] * 2, wall: true, window: { half } })
 
+const seat = (y, hw, hd, z = 0.05) => [[0, y, z, hw, hd]]
+
 export const MODELS = {
-  'built-in-bookcase': { ...bookcase('main'), fixture: true },
-  'built-in-shelf': { Model: DecorShelf, radius: 0.55, height: 2.1, fixture: true },
+  'built-in-bookcase': bookcase('main'),
+  'built-in-shelf': { Model: DecorShelf, radius: 0.55, height: 2.1, tops: [[0, 1.93, 0, 0.42, 0.15]] },
   ...Object.fromEntries(Object.entries(WINDOW_MODELS).map(([kind, def]) => [kind, windowItem(def)])),
   'bookcase-small': bookcase('bookcase-small'),
   'bookcase-tall': bookcase('bookcase-tall'),
@@ -729,29 +758,35 @@ export const MODELS = {
   'bookcase-pastel': bookcase('bookcase-pastel'),
   'bookcase-birch': bookcase('bookcase-birch'),
   'bookcase-arched': bookcase('bookcase-arched'),
+  'mint-bookcase': bookcase('mint-bookcase'),
 
-  'side-table': { Model: SideTable, radius: 0.3, height: 0.72, surfaces: [[0, 0.585, 0, 0.3]] },
-  'coffee-table': { Model: CoffeeTable, radius: 0.6, height: 0.5, surfaces: [[-0.22, 0.445, 0.05, 0.15], [0.08, 0.445, 0.06, -0.2]] },
-  desk: { Model: Desk, radius: 0.8, height: 1.0, light: true, surfaces: [[-0.02, 0.77, 0.08, 0.12], [0.3, 0.77, 0.1, -0.3]] },
-  dresser: { Model: Dresser, radius: 0.55, height: 1.05, light: true, surfaces: [[-0.18, 0.85, 0, 0.1]] },
-  'reading-table': { Model: more.ReadingTable, radius: 1.0, height: 1.2, light: true, surfaces: [[-0.55, 0.8, 0.05, 0.1], [-0.12, 0.8, 0.1, -0.15], [0.3, 0.8, 0.16, 0.25]] },
-  'tea-table': { Model: more.TeaTable, radius: 0.55, height: 0.7, surfaces: [[0.18, 0.575, 0.12, 0.3], [-0.2, 0.575, 0.16, -0.25]] },
-  'pastel-desk': { Model: more.PastelDesk, radius: 0.7, height: 1.0, surfaces: [[-0.3, 0.78, 0.05, 0.1], [0.05, 0.78, 0.08, -0.15]] },
-  'stump-table': { Model: more.StumpTable, radius: 0.4, height: 0.55, surfaces: [[0, 0.51, 0, 0.4]] },
-  'moon-table': { Model: more.MoonTable, radius: 0.4, height: 0.7, surfaces: [[0.04, 0.62, 0.02, -0.3]] },
+  'side-table': { Model: SideTable, radius: 0.3, height: 0.72, surfaces: [[0, 0.585, 0, 0.3]], tops: seat(0.585, 0.19, 0.19, 0) },
+  'coffee-table': { Model: CoffeeTable, radius: 0.6, height: 0.5, surfaces: [[-0.22, 0.445, 0.05, 0.15], [0.08, 0.445, 0.06, -0.2]], tops: seat(0.445, 0.47, 0.24, 0) },
+  desk: { Model: Desk, radius: 0.8, height: 1.0, light: true, surfaces: [[-0.02, 0.77, 0.08, 0.12], [0.3, 0.77, 0.1, -0.3]], tops: seat(0.77, 0.6, 0.33, 0) },
+  dresser: { Model: Dresser, radius: 0.55, height: 1.05, light: true, surfaces: [[-0.18, 0.85, 0, 0.1]], tops: seat(0.85, 0.44, 0.24, 0) },
+  'reading-table': { Model: more.ReadingTable, radius: 1.0, height: 1.2, light: true, surfaces: [[-0.55, 0.8, 0.05, 0.1], [-0.12, 0.8, 0.1, -0.15], [0.3, 0.8, 0.16, 0.25]], tops: seat(0.8, 0.85, 0.36, 0) },
+  'tea-table': { Model: more.TeaTable, radius: 0.55, height: 0.7, surfaces: [[0.18, 0.575, 0.12, 0.3], [-0.2, 0.575, 0.16, -0.25]], tops: seat(0.575, 0.3, 0.3, 0) },
+  'pastel-desk': { Model: more.PastelDesk, radius: 0.7, height: 1.0, surfaces: [[-0.3, 0.78, 0.05, 0.1], [0.05, 0.78, 0.08, -0.15]], tops: seat(0.78, 0.56, 0.27, 0) },
+  'stump-table': { Model: more.StumpTable, radius: 0.4, height: 0.55, surfaces: [[0, 0.51, 0, 0.4]], tops: seat(0.51, 0.22, 0.22, 0) },
+  'moon-table': { Model: more.MoonTable, radius: 0.4, height: 0.7, surfaces: [[0.04, 0.62, 0.02, -0.3]], tops: seat(0.62, 0.22, 0.22, 0) },
+  'wooden-desk': { Model: kept.WoodenDesk, radius: 0.7, height: 0.8, surfaces: [[-0.25, 0.77, 0.06, 0.1], [0.22, 0.77, 0.08, -0.2]], tops: seat(0.77, 0.53, 0.3, 0) },
 
-  stool: { Model: Stool, radius: 0.24, height: 0.48 },
-  chair: { Model: Chair, radius: 0.36, height: 1.03 },
+  stool: { Model: Stool, radius: 0.24, height: 0.48, tops: seat(0.475, 0.12, 0.12, 0) },
+  chair: { Model: Chair, radius: 0.36, height: 1.03, tops: seat(0.485, 0.18, 0.16, 0.02) },
   cushion: { Model: Cushion, radius: 0.34, height: 0.2 },
-  armchair: { Model: Armchair, radius: 0.5, height: 0.95 },
+  armchair: { Model: Armchair, radius: 0.5, height: 0.95, surfaces: [[0, 0.36, 0.08, 0.2]], tops: seat(0.36, 0.24, 0.22) },
   'rocking-chair': { Model: RockingChair, radius: 0.5, height: 1.35, interact: 'Give it a rock' },
-  wingback: { Model: more.Wingback, radius: 0.55, height: 1.25 },
-  sofa: { Model: more.Sofa, radius: 1.0, height: 0.9 },
-  'plaid-armchair': { Model: PlaidArmchair, radius: 0.5, height: 0.95 },
-  'pink-chair': { Model: more.PinkChair, radius: 0.35, height: 0.95 },
-  pouf: { Model: more.Pouf, radius: 0.32, height: 0.36 },
-  'stump-stool': { Model: more.StumpStool, radius: 0.26, height: 0.42 },
-  'velvet-sofa': { Model: more.VelvetSofa, radius: 1.0, height: 0.9 },
+  wingback: { Model: more.Wingback, radius: 0.55, height: 1.25, surfaces: [[0, 0.52, 0.08, 0.2]], tops: seat(0.52, 0.26, 0.22, 0.06) },
+  sofa: { Model: more.Sofa, radius: 1.0, height: 0.9, surfaces: [[-0.45, 0.56, 0.1, 0.2], [0.45, 0.56, 0.1, -0.2]], tops: seat(0.56, 0.75, 0.24, 0.08) },
+  'plaid-armchair': { Model: PlaidArmchair, radius: 0.5, height: 0.95, surfaces: [[0, 0.36, 0.08, 0.2]], tops: seat(0.36, 0.24, 0.22) },
+  'pink-chair': { Model: more.PinkChair, radius: 0.35, height: 0.95, tops: seat(0.52, 0.18, 0.16, 0.02) },
+  pouf: { Model: more.Pouf, radius: 0.32, height: 0.36, tops: seat(0.33, 0.18, 0.18, 0) },
+  'stump-stool': { Model: more.StumpStool, radius: 0.26, height: 0.42, tops: seat(0.41, 0.14, 0.14, 0) },
+  'velvet-sofa': { Model: more.VelvetSofa, radius: 1.0, height: 0.9, surfaces: [[-0.45, 0.56, 0.1, 0.2], [0.45, 0.56, 0.1, -0.2]], tops: seat(0.56, 0.75, 0.24, 0.08) },
+  'office-chair': { Model: kept.OfficeChair, radius: 0.4, height: 1.05, tops: seat(0.535, 0.2, 0.18, 0.02) },
+  'egg-chair': { Model: kept.EggChair, radius: 0.48, height: 1.1, surfaces: [[0, 0.545, 0.08, 0.3]], tops: seat(0.545, 0.2, 0.2, 0.05) },
+  'petal-chair': { Model: kept.PetalChair, radius: 0.5, height: 1.0, surfaces: [[0, 0.545, 0.06, 0.2]], tops: seat(0.545, 0.22, 0.2, 0.04) },
+  'avocado-swing': { Model: kept.AvocadoSwing, radius: 0.55, height: 1.95, surfaces: [[0, 0.745, 0.26, 0]], tops: seat(0.745, 0.2, 0.1, 0.26) },
 
   lantern: { Model: Lantern, radius: 0.22, height: 0.5, light: true },
   lamp: { Model: Lamp, radius: 0.28, height: 1.8, light: true },
@@ -767,6 +802,10 @@ export const MODELS = {
   'firefly-jar': { Model: lights.FireflyJar, radius: 0.2, height: 0.45, light: true },
   'orb-lamp': { Model: lights.OrbLamp, radius: 0.3, height: 1.7, light: true },
   'crystal-cluster': { Model: lights.CrystalCluster, radius: 0.35, height: 0.7, light: true },
+  'pink-desk-lamp': { Model: kept.PinkDeskLamp, radius: 0.16, height: 0.42, light: true },
+  'flower-lamp': { Model: kept.FlowerLamp, radius: 0.2, height: 0.4, light: true },
+  'bear-light': { Model: kept.BearLight, radius: 0.15, height: 0.3, light: true },
+  'wood-mushroom': { Model: kept.WoodMushroom, radius: 0.15, height: 0.32, light: true },
 
   rug: { Model: Rug, radius: 1.3, height: 0.02 },
   'round-rug': { Model: RoundRug, radius: 0.98, height: 0.02 },
@@ -783,6 +822,11 @@ export const MODELS = {
   'hanging-plant': { Model: more.HangingPlant, radius: 0.3, height: 3.0, hang: true },
   'maple-tree': { Model: more.MapleTree, radius: 0.6, height: 1.9 },
   'tulip-vase': { Model: more.TulipVase, radius: 0.2, height: 0.65 },
+  'glossy-tulip': { Model: kept.GlossyTulip, radius: 0.13, height: 0.48 },
+  'white-tulips': { Model: kept.WhiteTulips, radius: 0.12, height: 0.4 },
+  'sunflower-pot': { Model: kept.SunflowerPot, radius: 0.12, height: 0.42 },
+  'succulent-pot': { Model: kept.SucculentPot, radius: 0.12, height: 0.28 },
+  'leafy-pot': { Model: kept.LeafyPot, radius: 0.16, height: 0.3 },
 
   vase: { Model: Vase, radius: 0.2, height: 0.7 },
   globe: { Model: Globe, radius: 0.32, height: 0.95, interact: 'Spin the globe' },
@@ -797,7 +841,28 @@ export const MODELS = {
   birdcage: { Model: more.Birdcage, radius: 0.3, height: 1.7 },
   telescope: { Model: more.Telescope, radius: 0.45, height: 1.5, interact: 'Look at the stars' },
   'floating-books': { Model: more.FloatingBooks, radius: 0.5, height: 1.6 },
+  'game-buddy': { Model: kept.GameBuddy, radius: 0.15, height: 0.32, interact: 'Say hello' },
+  'retro-computer': { Model: kept.RetroComputer, radius: 0.15, height: 0.24 },
+  keyboard: { Model: kept.Keyboard, radius: 0.24, height: 0.05 },
+  headphones: { Model: kept.Headphones, radius: 0.13, height: 0.36 },
+  microphone: { Model: kept.Microphone, radius: 0.1, height: 0.36 },
+  matcha: { Model: kept.Matcha, radius: 0.08, height: 0.2 },
+  'pencil-case': { Model: kept.PencilCase, radius: 0.15, height: 0.14 },
+  'desk-calendar': { Model: kept.DeskCalendar, radius: 0.12, height: 0.22 },
 
   'stairs-straight': { Model: more.StairsStraight, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
   'stairs-spiral': { Model: more.StairsSpiral, radius: 0.85, height: LOFT.y + 0.9, landing: more.SPIRAL_LANDING },
+}
+
+// Where small things can stand on an item, in its own space: a bookcase's top
+// and each of its shelves (as tall as the reader made it), or a model's tops.
+export function topsOf(item) {
+  const def = MODELS[item.kind]
+  if (!def) return []
+  if (def.spec) {
+    const spec = scaledSpec(def.spec, item)
+    const shelves = shelfLevels(spec).map((y) => [0, y, bookRowZ(spec), innerWidth(spec) / 2, 0.12])
+    return [[0, spec.height + 0.065, 0, spec.width / 2, spec.depth / 2], ...shelves]
+  }
+  return def.tops ?? []
 }

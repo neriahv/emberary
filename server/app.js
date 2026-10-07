@@ -6,7 +6,7 @@ import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
-import { BLOCKS, FINISH_TYPES, FIXTURE_CLEARANCE, LOFT, catalogEntry, hasLoft, itemFits, placedLimit } from './catalog.js'
+import { BLOCKS, FINISH_TYPES, LOFT, catalogEntry, hasLoft, placedLimit } from './catalog.js'
 import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
 import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
 import {
@@ -335,10 +335,7 @@ export function createApp(
     if (value.loft === 'loft-gallery' && !hasLoft({ ...current, loft: value.loft })) {
       return response.status(409).json({ error: `Build the window wall ${LOFT.wallBlocks} blocks high for a loft` })
     }
-    const offFloor = Object.entries(value.fixtures ?? {}).find(
-      ([, f]) => !itemFits(current, 0, f.x, f.z, FIXTURE_CLEARANCE)
-    )
-    if (offFloor) return badRequest(response, [`${offFloor[0]} must stand on the room's floor`])
+
 
     response.json(await room.update(pool, READER_ID, value))
   }))
@@ -406,6 +403,13 @@ export function createApp(
     const settings = await room.settings(pool, READER_ID)
     const { errors, value } = validateRoomItem(request.body ?? {}, settings, current)
     if (errors.length > 0) return badRequest(response, errors)
+
+    // Something small stands only on another of the reader's things that is
+    // in the room.
+    if (value.on) {
+      const under = await room.getItem(pool, READER_ID, value.on)
+      if (!under?.placed) return badRequest(response, ['on must be the id of another item in the room, or null'])
+    }
 
     const limit = placedLimit(settings)
     if (value.placed && !current.placed && (await room.countPlaced(pool, READER_ID)) >= limit) {

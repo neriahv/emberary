@@ -4,22 +4,21 @@ import { Html, OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { MeshStandardMaterial, Plane, Vector3 } from 'three'
 import {
   BLOCKS,
-  FIXTURES,
-  FIXTURE_CLEARANCE,
   LOFT,
   SHELVED_STATUSES,
   catalogEntry,
   cellBox,
+  clearanceOf,
   coverImageUrl,
-  fixturesOf,
   floorSpots,
+  isSmall,
   moveSpots,
   nearestSpot,
   onWallAt,
   pickSpots,
   wallSpots,
 } from '../../api'
-import { BOOKCASES, BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, shelfGap, shelfLevels } from './models.jsx'
+import { BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, scaledSpec, shelfGap, shelfLevels, topsOf } from './models.jsx'
 import RoomShell, { BlockGhost, CORNER, roomGeometry, wallFrames } from './structure.jsx'
 import { alongOf, fitWindow } from './windows.jsx'
 import { coverImageTexture, coverSpineTexture, coverTexture, loadCover, spineTexture } from './textures.js'
@@ -40,8 +39,6 @@ import { coverImageTexture, coverSpineTexture, coverTexture, loadCover, spineTex
 // every frame, and a room with thirty lanterns should still turn smoothly.
 const MAX_ITEM_LIGHTS = 6
 
-// The built-in bookcase, against the right-hand wall.
-const MAIN = BOOKCASES.main
 // How far a book slides towards you when it is opened.
 const PULL = 0.34
 // Books lying on a table are drawn smaller than the ones on the shelves,
@@ -78,11 +75,15 @@ export function shelfOrder(entries) {
     )
 }
 
-// The bookcases, in the order books fill them: the built-in one, then every
-// bought bookcase standing in the room, oldest first.
+// The bookcases, in the order books fill them: the built-in one (if it is in
+// the room), then every other bookcase standing there, oldest first, each as
+// wide and tall as the reader made it.
 export function bookcasesIn(room) {
-  const bought = room.items.filter((i) => i.placed && MODELS[i.kind]?.spec)
-  return [{ id: 'main', spec: MAIN }, ...bought.map((i) => ({ id: i.id, spec: MODELS[i.kind].spec }))]
+  const builtInFirst = (i) => (i.kind === 'built-in-bookcase' ? 0 : 1)
+  return room.items
+    .filter((i) => i.placed && MODELS[i.kind]?.spec)
+    .sort((a, b) => builtInFirst(a) - builtInFirst(b) || a.id - b.id)
+    .map((i) => ({ id: i.id, kind: i.kind, spec: scaledSpec(MODELS[i.kind].spec, i) }))
 }
 
 // The tables standing in the room, and how many books each can hold.
@@ -126,8 +127,8 @@ function shelvesOf(cases) {
 // goes where they put it, if there is still room there; every other book
 // fills the free space, left to right along each shelf, top shelf to bottom,
 // one bookcase after another. Returns each bookcase's books, each table's,
-// and how many did not fit anywhere (the room says so, rather than drawing
-// them through a wall).
+// and the books that did not fit anywhere (`stored`: they wait in the storage
+// room, rather than being drawn through a wall).
 export function layoutBookcases(entries, cases, tables = []) {
   const placed = Object.fromEntries(cases.map((c) => [c.id, []]))
   const onTables = Object.fromEntries(tables.map((t) => [t.id, []]))
@@ -146,7 +147,9 @@ export function layoutBookcases(entries, cases, tables = []) {
       else waiting.push(entry)
       continue
     }
-    const shelf = spot && shelves.find((s) => String(s.id) === spot.bookcase && s.row === spot.row)
+    // "main" is the built-in bookcase, from before it was an item like others.
+    const caseId = spot?.bookcase === 'main' ? String(cases.find((c) => c.kind === 'built-in-bookcase')?.id) : spot?.bookcase
+    const shelf = spot && shelves.find((s) => String(s.id) === caseId && s.row === spot.row)
     const x = shelf ? fitOnShelf(onShelf(shelf), shelf.width, size[0], spot.x) : null
     if (x === null) waiting.push(entry)
     else put(entry, size, shelf, x)
@@ -162,7 +165,9 @@ export function layoutBookcases(entries, cases, tables = []) {
       next += 1
     }
   }
-  return { placed, onTables, overflow: waiting.length - next }
+  // Books with nowhere to stand wait in the storage room.
+  const stored = waiting.slice(next)
+  return { placed, onTables, stored, overflow: stored.length }
 }
 
 // Ease `current` towards `target`; true while there is still somewhere to go.
@@ -425,14 +430,14 @@ function ShelfTargets({ caseId, spec, frame, target, onHover, onDrop }) {
 
 // A bookcase and the reader's books on it. Used for the built-in one and for
 // every bookcase the reader bought.
-function Bookcase({ caseId, spec, books, color, selectedId, interactive, editing, onSelect, drag, onDragStart, onHover, onDrop }) {
+function Bookcase({ caseId, spec, books, color, paint, selectedId, interactive, editing, onSelect, drag, onDragStart, onHover, onDrop }) {
   const frame = useRef()
   const target = drag?.target
   const ghostHere = target && target.caseId === caseId && target.x !== null && !target.table
   return (
     <>
       <Shadowed>
-        <BookcaseFrame spec={spec} color={color} />
+        <BookcaseFrame spec={spec} color={color} paint={paint ?? undefined} />
       </Shadowed>
       <group ref={frame} position={[0, 0, bookRowZ(spec)]}>
         {books.map(({ entry, size, x, y }) => (
@@ -515,15 +520,11 @@ function landingOf(item) {
 }
 
 function itemTip(def, item, editing) {
-  if (editing) return catalogEntry(item.kind)?.name ?? FIXTURES[item.id]?.name
+  if (editing) return catalogEntry(item.kind)?.name
   if (def.light) return item.lit === false ? 'Click to switch on' : 'Click to switch off'
   return def.interact
 }
 
-// One piece of furniture. A bookcase also carries its share of the reader's
-// books (`shelf`), and a table the books lying on it (`table`); both can be
-// clicked like any others. Outside Edit room, clicking a light switches it,
-// and clicking a globe, a rocking chair or a cat does what you would expect.
 const wallHit = new Vector3()
 const facePlane = new Plane()
 
@@ -560,21 +561,132 @@ function nearestWall(room, x, z) {
   return best
 }
 
-function RoomItem({ item, room, geometry, time, shine, editing, placing, selected, onSelect, onChange, onToggleLight, shelf, table }) {
+// Paint a model in the reader's colour: the colour most of it is made of
+// becomes theirs, and the rest (brass, glass, leaves, flames) stays as it is.
+// With no colour, it goes back to how it came. Each mesh remembers its own
+// colour the first time, so painting twice does not lose it.
+function usePaint(ref, color) {
+  const invalidate = useThree((state) => state.invalidate)
+  useLayoutEffect(() => {
+    const meshes = []
+    ref.current?.traverse((object) => {
+      const material = object.isMesh && !Array.isArray(object.material) ? object.material : null
+      if (material?.color && !material.transparent) meshes.push(object)
+    })
+    if (meshes.length === 0) return
+    const counts = new Map()
+    for (const mesh of meshes) {
+      if (mesh.userData.ownColor === undefined) mesh.userData.ownColor = mesh.material.color.getHex()
+      counts.set(mesh.userData.ownColor, (counts.get(mesh.userData.ownColor) ?? 0) + 1)
+    }
+    const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    for (const mesh of meshes) {
+      const own = mesh.userData.ownColor
+      mesh.material.color.setHex(color && own === main ? parseInt(color.slice(1), 16) : own)
+    }
+    invalidate()
+  })
+}
+
+const stackHit = new Vector3()
+const stackPlane = new Plane(new Vector3(0, 1, 0), 0)
+
+// The highest flat place under the pointer that a small thing could stand on:
+// a table's top, a seat, a bookcase's top or one of its shelves. Returns
+// { on, x, z, y } (y above the floor it stands on), or null.
+function stackSpot(ray, item, others, levelY) {
+  let best = null
+  for (const other of others) {
+    if (other.id === item.id || other.on === item.id || (other.level ?? 0) !== (item.level ?? 0)) continue
+    const turn = (other.rotation * Math.PI) / 180
+    const cos = Math.cos(turn)
+    const sin = Math.sin(turn)
+    for (const [tx, ty, tz, hw, hd] of topsOf(other)) {
+      const y = (other.y ?? 0) + ty
+      stackPlane.constant = -(levelY + y)
+      if (!ray.intersectPlane(stackPlane, stackHit)) continue
+      const dx = stackHit.x - other.x
+      const dz = stackHit.z - other.z
+      const lx = dx * cos - dz * sin
+      const lz = dx * sin + dz * cos
+      if (Math.abs(lx - tx) > hw || Math.abs(lz - tz) > hd) continue
+      if (!best || y > best.y) best = { on: other.id, x: stackHit.x, z: stackHit.z, y }
+    }
+  }
+  return best && { ...best, x: Math.round(best.x * 100) / 100, z: Math.round(best.z * 100) / 100, y: Math.round(best.y * 100) / 100 }
+}
+
+// The little toolbar above the selected item while building: undo, turn,
+// store, sell. Small, and only over the item itself, so the room stays in
+// view. Selling asks once more before it happens.
+function ItemTools({ item, tools, height }) {
+  const [asking, setAsking] = useState(false)
+  const stop = (event) => event.stopPropagation()
+  return (
+    <Html zIndexRange={[6, 0]} position={[0, height, 0]} center>
+      <div className="item-tools" onPointerDown={stop} onPointerUp={stop} onClick={stop}>
+        {asking ? (
+          <>
+            <span className="item-tools-ask">Sell for {tools.sellPrice(item)} Ember?</span>
+            <button type="button" className="item-tool is-danger" onClick={() => tools.sell(item)} aria-label="Yes, sell it">
+              ✓
+            </button>
+            <button type="button" className="item-tool" onClick={() => setAsking(false)} aria-label="Keep it">
+              ✕
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="item-tool" onClick={() => tools.undo(item)} disabled={!tools.canUndo(item)} title="Undo" aria-label="Undo">
+              ↶
+            </button>
+            <button type="button" className="item-tool" onClick={() => tools.turn(item, -45)} title="Turn left" aria-label="Turn left">
+              ⟲
+            </button>
+            <button type="button" className="item-tool" onClick={() => tools.turn(item, 45)} title="Turn right" aria-label="Turn right">
+              ⟳
+            </button>
+            <button type="button" className="item-tool" onClick={() => tools.store(item)} title="Put in storage" aria-label="Put in storage">
+              📦
+            </button>
+            <button type="button" className="item-tool is-danger" onClick={() => setAsking(true)} title="Sell" aria-label="Sell">
+              🪙
+            </button>
+          </>
+        )}
+      </div>
+    </Html>
+  )
+}
+
+// One piece of furniture. A bookcase also carries its share of the reader's
+// books (`shelf`), and a table or seat the books lying on it (`table`); both
+// can be clicked like any others. Outside the builder, clicking a light
+// switches it, and clicking a globe, a rocking chair or a cat does what you
+// would expect. In the builder, a small thing can be set down on a table, a
+// seat or a shelf as well as the floor, and the selected item wears a little
+// toolbar.
+function RoomItem({ item, room, geometry, time, shine, editing, placing, selected, others, tools, onSelect, onChange, onGesture, onToggleLight, shelf, table }) {
   const [hovered, setHovered] = useState(false)
   const [poke, setPoke] = useState(0)
   const drag = useRef(null)
+  const paintRef = useRef()
   const def = MODELS[item.kind] ?? MODELS.cushion
-  const { Model, radius, height, spec, surfaces } = def
+  const { Model, radius, height, surfaces } = def
+  const spec = def.spec && scaledSpec(def.spec, item)
   const level = item.level === 1 ? 1 : 0
   const ceiling = geometry.height
   const y = level === 1 ? LOFT.y : 0
-  // A window hangs at its own height on the wall, at its own size.
-  const lift = def.window ? item.y : 0
-  const size = def.window ? item.size ?? 1 : 1
+  // A window hangs at its own height on its wall; a small thing on a table
+  // stands at the table's height.
+  const lift = item.y ?? 0
+  const size = item.size ?? 1
+  const scale = def.window ? [size * (item.sx ?? 1), size * (item.sy ?? 1), 1] : 1
   const plane = useMemo(() => new Plane(new Vector3(0, 1, 0), -y), [y])
   const lit = item.lit !== false
   const clickable = !editing && (def.light || def.interact)
+  const small = isSmall(item.kind)
+  usePaint(paintRef, spec ? null : item.color)
 
   const hover = {
     onPointerOver: (event) => {
@@ -588,13 +700,18 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
     },
   }
 
+  const begin = (event) => {
+    event.stopPropagation()
+    onSelect(item.id)
+    onGesture(item)
+  }
+
   // A window is dragged over the walls themselves, from one to the other,
   // up and down, but never off them.
   const windowHandlers = {
     ...hover,
     onPointerDown: (event) => {
-      event.stopPropagation()
-      onSelect(item.id)
+      begin(event)
       const point = pointOnWall(event.ray, room)
       if (!point) return
       drag.current = { edge: point.edge, along: alongOf(item) - point.along, y: item.y - point.y }
@@ -612,6 +729,8 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
         along: point.along + (same ? drag.current.along : 0),
         y: point.y + drag.current.y,
         size,
+        sx: item.sx ?? 1,
+        sy: item.sy ?? 1,
       })
       if (next.x !== item.x || next.z !== item.z || next.y !== item.y || next.rotation !== item.rotation) {
         onChange(item.id, { x: next.x, z: next.z, y: next.y, rotation: next.rotation })
@@ -619,36 +738,44 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
     },
   }
 
-  // In edit mode an item can be picked up and slid across the floor (or the
+  // In the builder an item can be picked up and slid across the floor (or the
   // loft it stands on). The pointer is captured so the drag keeps working when
   // it leaves the item. Something that hangs on a wall slides along the
-  // nearest wall instead, facing into the room.
+  // nearest wall instead, facing into the room; something small can be set on
+  // a table, a seat or a shelf on the way.
   const editHandlers = {
     ...hover,
     onPointerDown: (event) => {
-      event.stopPropagation()
-      onSelect(item.id)
+      begin(event)
       if (!event.ray.intersectPlane(plane, hit)) return
       drag.current = { dx: item.x - hit.x, dz: item.z - hit.z }
       event.target.setPointerCapture(event.pointerId)
       document.body.style.cursor = 'grabbing'
     },
     onPointerMove: (event) => {
-      if (!drag.current || !event.ray.intersectPlane(plane, hit)) return
+      if (!drag.current) return
       event.stopPropagation()
-      const x = hit.x + drag.current.dx
-      const z = hit.z + drag.current.dz
       let next
-      if (def.wall) {
-        const wall = nearestWall(room, x, z)
-        if (!wall) return
-        next = onWallAt(room, wall.edge, wall.along)
+      const onTop = small && stackSpot(event.ray, item, others, y)
+      if (onTop) {
+        next = { ...onTop, rotation: item.rotation }
       } else {
-        const spot = nearestSpot(room, level, x, z, def.fixture ? FIXTURE_CLEARANCE : undefined)
-        if (!spot) return
-        next = { ...spot, rotation: item.rotation }
+        if (!event.ray.intersectPlane(plane, hit)) return
+        const x = hit.x + drag.current.dx
+        const z = hit.z + drag.current.dz
+        if (def.wall) {
+          const wall = nearestWall(room, x, z)
+          if (!wall) return
+          next = onWallAt(room, wall.edge, wall.along)
+        } else {
+          const spot = nearestSpot(room, level, x, z, clearanceOf(item.kind))
+          if (!spot) return
+          next = { ...spot, rotation: item.rotation }
+          if (small && item.on) Object.assign(next, { on: null, y: 0 })
+        }
       }
-      if (next.x !== item.x || next.z !== item.z || next.rotation !== item.rotation) onChange(item.id, next)
+      const changed = Object.keys(next).some((key) => next[key] !== item[key])
+      if (changed) onChange(item.id, next)
     },
     onPointerUp: (event) => {
       if (!drag.current) return
@@ -672,37 +799,45 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
     : {}
 
   const tip = itemTip(def, item, editing)
+  const topOf = spec ? spec.height + 0.15 : def.window ? def.window.half[1] * size * (item.sy ?? 1) : Math.min(height, ceiling - y - lift)
   return (
     <group
       position={[item.x, y + lift, item.z]}
       rotation={[0, (item.rotation * Math.PI) / 180, 0]}
-      scale={size}
       {...(placing ? {} : editing ? editHandlers : viewHandlers)}
     >
-      {spec ? (
-        <Bookcase spec={spec} {...shelf} />
-      ) : def.window ? (
-        <Model time={time} />
-      ) : (
-        <Shadowed>
-          <Model lit={lit} shine={shine} poke={poke} ceiling={ceiling - y} time={time} color={room.shelfColor} />
-        </Shadowed>
-      )}
+      <group scale={scale}>
+        {spec ? (
+          <Bookcase spec={spec} paint={item.color} {...shelf} />
+        ) : (
+          <group ref={paintRef}>
+            {def.window ? (
+              <Model time={time} />
+            ) : (
+              <Shadowed>
+                <Model lit={lit} shine={shine} poke={poke} ceiling={ceiling - y} time={time} color={room.shelfColor} />
+              </Shadowed>
+            )}
+          </group>
+        )}
+      </group>
       {surfaces && <TableTop caseId={item.id} surfaces={surfaces} {...table} />}
       {editing && (selected || hovered) && (
         // On the floor around furniture; flat on the wall around a window.
         <mesh rotation={def.window ? [0, 0, 0] : [-Math.PI / 2, 0, 0]} position={def.window ? [0, 0, -0.2] : [0, 0.02, 0]}>
-          <ringGeometry args={def.window ? [Math.max(...def.window.half) + 0.05, Math.max(...def.window.half) + 0.1, 48] : [radius, radius + 0.05, 48]} />
+          <ringGeometry
+            args={
+              def.window
+                ? [Math.max(...def.window.half) * size + 0.05, Math.max(...def.window.half) * size + 0.1, 48]
+                : [(spec ? spec.width / 2 + 0.1 : radius), (spec ? spec.width / 2 + 0.1 : radius) + 0.05, 48]
+            }
+          />
           <meshBasicMaterial color={selected ? '#ffb070' : '#fff1dc'} transparent opacity={0.95} />
         </mesh>
       )}
+      {editing && selected && !placing && tools && <ItemTools item={item} tools={tools} height={topOf + 0.35} />}
       {hovered && tip && !(editing && selected) && (
-        <Html
-          zIndexRange={[4, 0]}
-          position={[0, def.window ? def.window.half[1] + 0.25 : Math.min(Math.max(height + 0.25, 0.9), ceiling - y), 0]}
-          center
-          className="room-tooltip"
-        >
+        <Html zIndexRange={[4, 0]} position={[0, Math.max(topOf + 0.25, small ? 0.3 : 0.9), 0]} center className="room-tooltip">
           {tip}
         </Html>
       )}
@@ -936,7 +1071,8 @@ export default function LibraryScene({
   onMoveBook,
   blockMode = null,
   onBlockSpot,
-  onFixtureChange,
+  itemTools,
+  onGesture = () => {},
   viewReset = 0,
 }) {
   // Stored furniture is not in the room at all.
@@ -1048,23 +1184,6 @@ export default function LibraryScene({
       <Sun geometry={geometry} light={lighting.sun} />
 
       <RoomShell room={room} time={time} landings={landings} daylight={daylight} />
-      {/* the built-in bookcase and shelf, moved like furniture */}
-      {Object.entries(fixturesOf(room)).map(([id, f]) => (
-        <RoomItem
-          key={id}
-          item={{ id, kind: FIXTURES[id].kind, ...f, level: 0, placed: true }}
-          room={room}
-          geometry={geometry}
-          time={time}
-          editing={editing}
-          placing={placing}
-          selected={id === selectedItemId}
-          onSelect={onSelectItem}
-          onChange={onFixtureChange}
-          shelf={shelfProps(id)}
-        />
-      ))}
-
       {items.map((item) => (
         <RoomItem
           key={item.id}
@@ -1076,8 +1195,11 @@ export default function LibraryScene({
           editing={editing}
           placing={placing}
           selected={item.id === selectedItemId}
+          others={items}
+          tools={itemTools}
           onSelect={onSelectItem}
           onChange={onItemChange}
+          onGesture={onGesture}
           onToggleLight={onToggleLight}
           shelf={shelfProps(item.id)}
           table={tableProps(item.id)}

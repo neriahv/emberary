@@ -72,7 +72,10 @@ CREATE TABLE IF NOT EXISTS user_books (
 ALTER TABLE user_books
   ADD COLUMN IF NOT EXISTS shelf_case TEXT     CHECK (shelf_case ~ '^(main|[0-9]{1,9})$'),
   ADD COLUMN IF NOT EXISTS shelf_row  SMALLINT CHECK (shelf_row BETWEEN 0 AND 9),
-  ADD COLUMN IF NOT EXISTS shelf_x    REAL     CHECK (shelf_x BETWEEN -1.5::real AND 1.5::real);
+  ADD COLUMN IF NOT EXISTS shelf_x    REAL;
+-- Named, so a wider bookcase can widen it on a database that already exists.
+ALTER TABLE user_books DROP CONSTRAINT IF EXISTS user_books_shelf_x_check;
+ALTER TABLE user_books ADD CONSTRAINT user_books_shelf_x_check CHECK (shelf_x BETWEEN -2.5::real AND 2.5::real);
 DO $$ BEGIN
   ALTER TABLE user_books ADD CONSTRAINT user_books_shelf_spot_whole
     CHECK ((shelf_case IS NULL) = (shelf_row IS NULL) AND (shelf_row IS NULL) = (shelf_x IS NULL));
@@ -132,20 +135,25 @@ UPDATE room_items SET
 ALTER TABLE room_items
   ADD CONSTRAINT room_items_kind_check CHECK (kind IN (
     'window-round', 'window-paned', 'window-octagon', 'window-cathedral', 'window-arcade',
-    'bookcase-small', 'bookcase-tall', 'bookcase-wall', 'bookcase-crate', 'bookcase-pastel',
-    'bookcase-birch', 'bookcase-arched', 'side-table', 'coffee-table', 'desk',
-    'dresser', 'reading-table', 'tea-table', 'pastel-desk', 'stump-table',
-    'moon-table', 'stool', 'chair', 'cushion', 'armchair',
-    'rocking-chair', 'wingback', 'sofa', 'plaid-armchair', 'pink-chair',
-    'pouf', 'stump-stool', 'velvet-sofa', 'lantern', 'lamp',
-    'candelabra', 'sconce', 'chandelier', 'fireplace', 'pumpkin-lantern',
-    'wood-stove', 'fairy-lights', 'paper-lantern', 'mushroom-lamp', 'firefly-jar',
-    'orb-lamp', 'crystal-cluster', 'rug', 'round-rug', 'runner-rug',
-    'leaf-rug', 'cloud-rug', 'moss-rug', 'moon-rug', 'plant',
-    'monstera', 'indoor-tree', 'pebble-planter', 'hanging-plant', 'maple-tree',
-    'tulip-vase', 'vase', 'globe', 'clock', 'book-stack',
-    'cat-bed', 'library-ladder', 'picture-frames', 'pumpkins', 'apple-crate',
-    'wall-shelf', 'birdcage', 'telescope', 'floating-books', 'stairs-straight',
+    'built-in-bookcase', 'built-in-shelf', 'bookcase-small', 'bookcase-tall', 'bookcase-wall',
+    'bookcase-crate', 'bookcase-pastel', 'bookcase-birch', 'bookcase-arched', 'mint-bookcase',
+    'side-table', 'coffee-table', 'desk', 'dresser', 'reading-table',
+    'tea-table', 'pastel-desk', 'stump-table', 'moon-table', 'wooden-desk',
+    'stool', 'chair', 'cushion', 'armchair', 'rocking-chair',
+    'wingback', 'sofa', 'plaid-armchair', 'pink-chair', 'pouf',
+    'stump-stool', 'velvet-sofa', 'office-chair', 'egg-chair', 'petal-chair',
+    'avocado-swing', 'lantern', 'lamp', 'candelabra', 'sconce',
+    'chandelier', 'fireplace', 'pumpkin-lantern', 'wood-stove', 'fairy-lights',
+    'paper-lantern', 'mushroom-lamp', 'firefly-jar', 'orb-lamp', 'crystal-cluster',
+    'pink-desk-lamp', 'flower-lamp', 'bear-light', 'wood-mushroom', 'rug',
+    'round-rug', 'runner-rug', 'leaf-rug', 'cloud-rug', 'moss-rug',
+    'moon-rug', 'plant', 'monstera', 'indoor-tree', 'pebble-planter',
+    'hanging-plant', 'maple-tree', 'tulip-vase', 'glossy-tulip', 'white-tulips',
+    'sunflower-pot', 'succulent-pot', 'leafy-pot', 'vase', 'globe',
+    'clock', 'book-stack', 'cat-bed', 'library-ladder', 'picture-frames',
+    'pumpkins', 'apple-crate', 'wall-shelf', 'birdcage', 'telescope',
+    'floating-books', 'game-buddy', 'retro-computer', 'keyboard', 'headphones',
+    'microphone', 'matcha', 'pencil-case', 'desk-calendar', 'stairs-straight',
     'stairs-spiral'
   )),
   -- Compared as REAL, like the columns. 2.2 stored as a REAL is 2.2000000477,
@@ -169,14 +177,23 @@ ALTER TABLE room_items
   ADD COLUMN IF NOT EXISTS size  REAL     NOT NULL DEFAULT 1 CHECK (size BETWEEN 0.5::real AND 2::real),
   ADD COLUMN IF NOT EXISTS sold  BOOLEAN  NOT NULL DEFAULT false;
 
+-- color is the colour the reader painted it (NULL: as it comes). sx and sy
+-- make a bookcase or window wider and taller. on_item is what it stands on,
+-- when it is a small thing on a table, a shelf or a seat.
+ALTER TABLE room_items
+  ADD COLUMN IF NOT EXISTS color   TEXT    CHECK (color ~ '^#[0-9a-fA-F]{6}$'),
+  ADD COLUMN IF NOT EXISTS sx      REAL    NOT NULL DEFAULT 1 CHECK (sx BETWEEN 0.6::real AND 1.6::real),
+  ADD COLUMN IF NOT EXISTS sy      REAL    NOT NULL DEFAULT 1 CHECK (sy BETWEEN 0.6::real AND 1.6::real),
+  ADD COLUMN IF NOT EXISTS on_item INTEGER REFERENCES room_items (id);
+
 -- The finishes on the room: what covers the walls and floor, the shape of the
 -- walls' tops, the roof and the loft. The first of each is free; the others
 -- have to be bought first (room_unlocks). The ids are the entries of
 -- server/catalog.js.
 --
--- And where the room's built-in pieces stand, as { main: { x, z, rotation },
--- decor: ... }; a piece not in it stands where it always has (FIXTURES in
--- server/catalog.js).
+-- fixtures is where a reader moved the built-in bookcase and shelf before they
+-- became room items like any other ({ main: { x, z, rotation }, decor: ... });
+-- it is read once, when the reader's room is given its built-in pieces.
 ALTER TABLE room_settings DROP COLUMN IF EXISTS spare_floor, DROP COLUMN IF EXISTS spare_wall;
 ALTER TABLE room_settings
   ADD COLUMN IF NOT EXISTS wallpaper   TEXT     NOT NULL DEFAULT 'wallpaper-plain',

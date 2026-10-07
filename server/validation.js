@@ -7,7 +7,21 @@
 // were sent and are allowed, already converted to the right type, so nothing
 // the client made up ever reaches a query.
 
-import { BLOCKS, BLOCK_KINDS, FINISH_TYPES, FIXTURES, WINDOW_LIMITS, catalogEntry, hasLoft, itemFits, nearestSpot } from './catalog.js'
+import {
+  BLOCKS,
+  BLOCK_KINDS,
+  FINISH_TYPES,
+  SIZE_LIMITS,
+  WINDOW_LIMITS,
+  catalogEntry,
+  clearanceOf,
+  forSale,
+  hasLoft,
+  isSmall,
+  itemFits,
+  nearestSpot,
+  resizable,
+} from './catalog.js'
 
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
 
@@ -78,9 +92,9 @@ export function validateEntryPatch(body, pages) {
       typeof spot.bookcase !== 'string' ||
       !/^(main|[0-9]{1,9})$/.test(spot.bookcase) ||
       !Number.isInteger(spot.row) || spot.row < 0 || spot.row > 9 ||
-      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -1.5 || spot.x > 1.5
+      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -2.5 || spot.x > 2.5
     ) {
-      errors.push('shelfSpot must be { bookcase: "main" or the id of a bookcase or table, row: 0 to 9, x: -1.5 to 1.5 }, or null')
+      errors.push('shelfSpot must be { bookcase: "main" or the id of a bookcase or table, row: 0 to 9, x: -2.5 to 2.5 }, or null')
     } else {
       value.shelfSpot = { bookcase: spot.bookcase, row: spot.row, x: spot.x }
     }
@@ -137,37 +151,8 @@ export function validateRoom(body) {
     value[key] = body[key]
   }
 
-  // Where the built-in pieces stand: { main: { x, z, rotation }, decor: ... }.
-  // Whether that is on the floor is the route's to check, with the room.
-  if (has(body, 'fixtures')) {
-    const fixtures = body.fixtures
-    const ok =
-      fixtures !== null &&
-      typeof fixtures === 'object' &&
-      Object.entries(fixtures).every(
-        ([id, f]) =>
-          has(FIXTURES, id) &&
-          f !== null &&
-          typeof f === 'object' &&
-          Number.isFinite(f.x) &&
-          Number.isFinite(f.z) &&
-          Number.isInteger(f.rotation) &&
-          f.rotation >= 0 &&
-          f.rotation <= 359
-      )
-    if (!ok) errors.push(`fixtures must be { ${Object.keys(FIXTURES).join(', ')} } of { x, z, rotation }`)
-    else {
-      value.fixtures = Object.fromEntries(
-        Object.entries(fixtures).map(([id, f]) => [
-          id,
-          { x: Math.round(f.x * 100) / 100, z: Math.round(f.z * 100) / 100, rotation: f.rotation },
-        ])
-      )
-    }
-  }
-
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push(`send at least one of wallColor, floorColor, shelfColor, ${FINISH_TYPES.join(', ')}, fixtures`)
+    errors.push(`send at least one of wallColor, floorColor, shelfColor, ${FINISH_TYPES.join(', ')}`)
   }
 
   return { errors, value }
@@ -200,15 +185,28 @@ export function validateRoomItem(body, room, current) {
     else value[axis] = Math.round(n * 100) / 100
   }
 
-  // Wherever it ends up must be floor (or loft). Moved to the other level
-  // without a new position, it goes as near to where it was as that level
-  // allows.
-  if (errors.length === 0 && (has(body, 'x') || has(body, 'z') || has(value, 'level'))) {
+  // What it stands on, when it is a small thing on a table, a shelf or a
+  // seat: another of the reader's items (the route checks which), or null.
+  if (has(body, 'on')) {
+    if (body.on !== null && (!Number.isInteger(body.on) || body.on < 1 || body.on === current.id)) {
+      errors.push('on must be the id of another item in the room, or null')
+    } else if (body.on !== null && !isSmall(current.kind)) {
+      errors.push('only small things stand on other furniture')
+    }
+    value.on = body.on
+  }
+
+  // Wherever it ends up must be floor (or loft), unless it stands on
+  // something. Moved to the other level without a new position, it goes as
+  // near to where it was as that level allows.
+  const standsOn = has(value, 'on') ? value.on : current.on
+  if (errors.length === 0 && !standsOn && (has(body, 'x') || has(body, 'z') || has(value, 'level') || has(value, 'on'))) {
     const level = has(value, 'level') ? value.level : current.level
     const x = value.x ?? current.x
     const z = value.z ?? current.z
-    if (!itemFits(room, level, x, z)) {
-      const moved = has(value, 'level') && !has(body, 'x') && !has(body, 'z') && nearestSpot(room, level, x, z)
+    const clearance = clearanceOf(current.kind)
+    if (!itemFits(room, level, x, z, clearance)) {
+      const moved = has(value, 'level') && !has(body, 'x') && !has(body, 'z') && nearestSpot(room, level, x, z, clearance)
       if (moved) Object.assign(value, moved)
       else errors.push(level === 1 ? 'x and z must be a spot on the loft' : "x and z must be a spot on the room's floor")
     }
@@ -228,10 +226,16 @@ export function validateRoomItem(body, room, current) {
     value[key] = body[key]
   }
 
-  // A window's height on its wall and its size.
-  for (const key of ['y', 'size']) {
+  // How high it is (a window on its wall, or something standing on
+  // something), its size, and how much wider and taller it is made.
+  const limits = { ...WINDOW_LIMITS, ...SIZE_LIMITS }
+  for (const key of ['y', 'size', 'sx', 'sy']) {
     if (!has(body, key)) continue
-    const [min, max] = WINDOW_LIMITS[key]
+    if ((key === 'sx' || key === 'sy') && !resizable(current.kind)) {
+      errors.push(`only bookcases and windows can be made wider or taller`)
+      continue
+    }
+    const [min, max] = limits[key]
     const n = Number(body[key])
     if (body[key] === null || !Number.isFinite(n) || n < min || n > max) {
       errors.push(`${key} must be a number from ${min} to ${max}`)
@@ -239,8 +243,16 @@ export function validateRoomItem(body, room, current) {
     value[key] = Math.round(n * 100) / 100
   }
 
+  // A colour of the reader's choosing, or null for its own.
+  if (has(body, 'color')) {
+    if (body.color !== null && (typeof body.color !== 'string' || !HEX_COLOUR.test(body.color))) {
+      errors.push('color must be a hex colour, or null')
+    }
+    value.color = body.color
+  }
+
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push('send at least one of x, z, rotation, level, placed, lit, y, size')
+    errors.push('send at least one of x, z, rotation, level, placed, lit, y, size, sx, sy, color, on')
   }
 
   return { errors, value }
@@ -287,7 +299,7 @@ export function validateCheckout(body) {
     !Array.isArray(items) ||
     items.length === 0 ||
     items.length > 20 ||
-    !items.every((id) => typeof id === 'string' && catalogEntry(id))
+    !items.every((id) => typeof id === 'string' && forSale(catalogEntry(id)))
   ) {
     return { errors: ['items must be a list of 1 to 20 things from the shop'], value: null }
   }

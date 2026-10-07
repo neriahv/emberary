@@ -235,12 +235,14 @@ const within = (value, low, high) => (low > high ? (low + high) / 2 : Math.min(h
 export { alongOf, wallOf }
 
 // Where a window of this kind and size may hang: wholly on its wall, between
-// the wall's ends, and between the floor and the wall's top. Returns the item
-// fields { x, z, rotation, y, size }.
-export function fitWindow(room, kind, { edge, along, y, size }) {
+// the wall's ends, and between the floor and the wall's top, however wide and
+// tall the reader made it (sx, sy). Returns { x, z, rotation, y, size }.
+export function fitWindow(room, kind, { edge, along, y, size = 1, sx = 1, sy = 1 }) {
   const { half } = WINDOW_MODELS[kind]
+  const across = half[0] * size * sx
+  const up = half[1] * size * sy
   const top = wallHeight(room, edge.side, edge.i, edge.j) * BLOCKS.wall
-  const spot = onWallAt(room, edge, along, half[0] * size + 0.05)
-  const height = round2(within(y, Math.max(0.3, half[1] * size + 0.05), top - half[1] * size - 0.05))
+  const spot = onWallAt(room, edge, along, across + 0.05)
+  const height = round2(within(y, Math.max(0.3, up + 0.05), top - up - 0.05))
   return { ...spot, y: height, size }
 }
