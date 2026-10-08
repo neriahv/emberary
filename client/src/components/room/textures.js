@@ -307,6 +307,60 @@ const jitter = (n) => {
   return x - Math.floor(x)
 }
 
+// Big dressed stones of uneven sizes, as on a castle wall: rows of blocks of
+// different widths, some cut in two, each a slightly different grey with a
+// few darker weathering marks. Every block crossing the right edge is drawn
+// again on the left, so the canvas tiles without a seam.
+function stoneBlocks(ctx, size, rowHeights, seed) {
+  ctx.fillStyle = '#8c8c8c'
+  ctx.fillRect(0, 0, size, size)
+  let n = seed
+  let y = 0
+  for (const rowHeight of rowHeights) {
+    let x = Math.round(jitter(++n) * size * 0.3)
+    const start = x
+    while (x < start + size) {
+      const width = Math.round(size * (0.18 + jitter(++n) * 0.22))
+      const split = jitter(++n) > 0.72
+      const shade = 196 + Math.round(jitter(++n) * 44)
+      for (const shift of [-size, 0]) {
+        const pieces = split ? [[y, rowHeight / 2], [y + rowHeight / 2, rowHeight / 2]] : [[y, rowHeight]]
+        for (const [py, ph] of pieces) {
+          ctx.fillStyle = `rgb(${shade},${shade},${shade - 4})`
+          ctx.fillRect(x + shift + 3, py + 3, width - 6, ph - 6)
+          ctx.fillStyle = 'rgba(255,255,255,0.22)'
+          ctx.fillRect(x + shift + 3, py + 3, width - 6, 3)
+          ctx.fillStyle = 'rgba(0,0,0,0.12)'
+          for (let k = 0; k < 3; k++) {
+            ctx.beginPath()
+            ctx.ellipse(x + shift + 8 + jitter(n + k * 7) * (width - 16), py + 8 + jitter(n + k * 11) * (ph - 16), 3 + jitter(n + k) * 7, 2 + jitter(n + k * 3) * 4, jitter(n + k * 5) * 3, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+      }
+      x += width
+    }
+    y += rowHeight
+  }
+}
+
+// Square glazed tiles with pale grout and a shine across each.
+function glazedTiles(ctx, size, count, grout = 4) {
+  ctx.fillStyle = '#bdbdbd'
+  ctx.fillRect(0, 0, size, size)
+  const tile = size / count
+  let n = 0
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      const shade = 226 + Math.round(jitter(++n) * 20)
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+      ctx.fillRect(col * tile + grout / 2, row * tile + grout / 2, tile - grout, tile - grout)
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'
+      ctx.fillRect(col * tile + grout, row * tile + grout, (tile - grout) * 0.45, 3)
+    }
+  }
+}
+
 const WALLPAPERS = {
   'wallpaper-stripes': () => {
     const [el, ctx] = canvas(256, 64)
@@ -509,6 +563,165 @@ const WALLPAPERS = {
 }
 
 const FLOORS = {
+  // The same castle stone underfoot, in bigger flags.
+  'floor-castle': () => {
+    const [el, ctx] = canvas(256, 256)
+    stoneBlocks(ctx, 256, [72, 56, 72, 56], 40)
+    return repeating(el, 3, 3)
+  },
+  // Rounded cobbles packed in pale mortar, each with a little shine.
+  'floor-cobble': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#a8a8a8'
+    ctx.fillRect(0, 0, 256, 256)
+    let n = 0
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const cx = col * 32 + 16 + (row % 2 ? 16 : 0) + (jitter(++n) - 0.5) * 6
+        const cy = row * 32 + 16 + (jitter(++n) - 0.5) * 6
+        const rx = 12 + jitter(++n) * 3
+        const ry = 10 + jitter(++n) * 4
+        const turn = jitter(++n) * Math.PI
+        const shade = 150 + Math.round(jitter(++n) * 70)
+        for (const [dx, dy] of [[0, 0], [-256, 0], [256, 0], [0, -256], [0, 256]]) {
+          ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+          ctx.beginPath()
+          ctx.ellipse(cx + dx, cy + dy, rx, ry, turn, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = 'rgba(255,255,255,0.25)'
+          ctx.beginPath()
+          ctx.ellipse(cx + dx - 3, cy + dy - 3, rx * 0.45, ry * 0.35, turn, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+    return repeating(el, 4, 4)
+  },
+  // Polished granite: fine speckles of every grey, in big square slabs.
+  'floor-granite': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#d2d2d2'
+    ctx.fillRect(0, 0, 256, 256)
+    for (let i = 0; i < 2600; i++) {
+      const shade = Math.round(jitter(i + 3) * 200)
+      ctx.fillStyle = `rgba(${shade},${shade},${shade},${0.35 + jitter(i + 9) * 0.5})`
+      ctx.fillRect(jitter(i + 1) * 256, jitter(i + 2) * 256, 1 + jitter(i + 4) * 3, 1 + jitter(i + 5) * 3)
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'
+    ctx.fillRect(0, 0, 256, 2)
+    ctx.fillRect(0, 0, 2, 256)
+    return repeating(el, 3, 3)
+  },
+  'floor-ceramic': () => {
+    const [el, ctx] = canvas(128, 128)
+    glazedTiles(ctx, 128, 2, 5)
+    return repeating(el, 8, 8)
+  },
+  // Wide boards of soft pine, their ends staggered, with long grain.
+  'floor-wideplanks': () => {
+    const [el, ctx] = canvas(256, 256)
+    let n = 0
+    for (let k = 0; k < 4; k++) {
+      const joint = Math.round(jitter(k + 31) * 256)
+      for (const [from, to] of [[joint - 256, joint], [joint, joint + 256]]) {
+        const shade = 200 + Math.round(jitter(++n) * 35)
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+        ctx.fillRect(k * 64, from, 64, to - from)
+        ctx.fillStyle = 'rgba(0,0,0,0.35)'
+        ctx.fillRect(k * 64, to - 1, 64, 2)
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'
+      for (let g = 0; g < 6; g++) {
+        const gx = k * 64 + 6 + g * 10
+        ctx.beginPath()
+        ctx.moveTo(gx, 0)
+        ctx.bezierCurveTo(gx + 4, 80, gx - 4, 170, gx, 256)
+        ctx.stroke()
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'
+      ctx.fillRect(k * 64, 0, 2, 256)
+    }
+    return repeating(el, 4, 2)
+  },
+  // Dark marble with pale veins, in big slabs.
+  'floor-blackmarble': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#3a3a3a'
+    ctx.fillRect(0, 0, 256, 256)
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+    for (let i = 0; i < 10; i++) {
+      ctx.lineWidth = 0.6 + jitter(i + 70) * 1.6
+      ctx.beginPath()
+      let x = jitter(i + 11) * 256
+      let y = 0
+      ctx.moveTo(x, y)
+      while (y < 256) {
+        x += (jitter(i * 17 + y) - 0.5) * 46
+        y += 20
+        ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    ctx.fillRect(0, 0, 256, 2)
+    ctx.fillRect(0, 0, 2, 256)
+    return repeating(el, 3, 3)
+  },
+  // Woven sisal: little squares of strands, turned one way then the other.
+  'floor-sisal': () => {
+    const [el, ctx] = canvas(64, 64)
+    ctx.fillStyle = '#c8c8c8'
+    ctx.fillRect(0, 0, 64, 64)
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        const across = (row + col) % 2 === 0
+        for (let k = 0; k < 4; k++) {
+          const shade = 180 + Math.round(jitter(row * 16 + col * 4 + k) * 40)
+          ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+          if (across) ctx.fillRect(col * 16, row * 16 + k * 4, 16, 3)
+          else ctx.fillRect(col * 16 + k * 4, row * 16, 3, 16)
+        }
+      }
+    }
+    return repeating(el, 16, 16)
+  },
+  // Tatami mats, twice as long as wide, laid the traditional way round, with
+  // a dark binding along each long side.
+  'floor-tatami': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#7a7a7a'
+    ctx.fillRect(0, 0, 256, 256)
+    const mat = (x, y, w, h) => {
+      const along = w > h
+      ctx.fillStyle = '#d8d8d8'
+      ctx.fillRect(x + 1, y + 1, w - 2, h - 2)
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'
+      for (let k = 3; k < (along ? h : w) - 3; k += 3) {
+        ctx.beginPath()
+        if (along) {
+          ctx.moveTo(x + 2, y + k)
+          ctx.lineTo(x + w - 2, y + k)
+        } else {
+          ctx.moveTo(x + k, y + 2)
+          ctx.lineTo(x + k, y + h - 2)
+        }
+        ctx.stroke()
+      }
+      ctx.fillStyle = '#5a5a5a'
+      if (along) {
+        ctx.fillRect(x + 1, y + 1, w - 2, 6)
+        ctx.fillRect(x + 1, y + h - 7, w - 2, 6)
+      } else {
+        ctx.fillRect(x + 1, y + 1, 6, h - 2)
+        ctx.fillRect(x + w - 7, y + 1, 6, h - 2)
+      }
+    }
+    mat(0, 0, 128, 64)
+    mat(128, 0, 128, 64)
+    for (const x of [0, 64, 128, 192]) mat(x, 64, 64, 128)
+    for (const x of [-64, 64, 192]) mat(x, 192, 128, 64)
+    return repeating(el, 4, 4)
+  },
   'floor-checker': () => {
     const [el, ctx] = canvas(128, 128)
     for (const [x, y, light] of [[0, 0, 1], [64, 0, 0], [0, 64, 0], [64, 64, 1]]) {
@@ -652,6 +865,136 @@ const FLOORS = {
     return repeating(el, 3, 3)
   },
 }
+
+Object.assign(WALLPAPERS, {
+  // Castle stone, as in the reader's grey stone reference.
+  'wallpaper-stone': () => {
+    const [el, ctx] = canvas(256, 256)
+    stoneBlocks(ctx, 256, [56, 48, 64, 40, 48], 7)
+    return repeating(el, 5, 3)
+  },
+  // Long glossy tiles laid like bricks.
+  'wallpaper-subway': () => {
+    const [el, ctx] = canvas(128, 64)
+    ctx.fillStyle = '#b8b8b8'
+    ctx.fillRect(0, 0, 128, 64)
+    let n = 0
+    for (let row = 0; row < 2; row++) {
+      for (let x = row ? -32 : 0; x < 128; x += 64) {
+        const shade = 228 + Math.round(jitter(++n) * 18)
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`
+        ctx.fillRect(x + 2, row * 32 + 2, 60, 28)
+        ctx.fillStyle = 'rgba(255,255,255,0.55)'
+        ctx.fillRect(x + 6, row * 32 + 5, 30, 3)
+      }
+    }
+    return repeating(el, 16, 18)
+  },
+  'wallpaper-ceramic': () => {
+    const [el, ctx] = canvas(128, 128)
+    glazedTiles(ctx, 128, 2, 4)
+    return repeating(el, 12, 7)
+  },
+  // Seigaiha: overlapping fans of rings, like waves.
+  'wallpaper-waves': () => {
+    const [el, ctx] = canvas(128, 64)
+    ctx.fillStyle = '#f0f0f0'
+    ctx.fillRect(0, 0, 128, 64)
+    const fan = (cx, cy) => {
+      for (let r = 32, k = 0; r > 2; r -= 5.5, k++) {
+        ctx.fillStyle = k % 2 ? '#f0f0f0' : '#bcbcbc'
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, Math.PI, 0)
+        ctx.fill()
+      }
+    }
+    for (const cx of [-32, 32, 96, 160]) fan(cx, 32)
+    for (const cx of [0, 64, 128]) fan(cx, 64)
+    return repeating(el, 12, 14)
+  },
+  // Paper screens in a wooden lattice.
+  'wallpaper-shoji': () => {
+    const [el, ctx] = canvas(128, 192)
+    ctx.fillStyle = '#f5f5f5'
+    ctx.fillRect(0, 0, 128, 192)
+    ctx.fillStyle = '#8a8a8a'
+    for (const x of [0, 42, 85]) ctx.fillRect(x, 0, 4, 192)
+    for (const y of [0, 48, 96, 144]) ctx.fillRect(0, y, 128, 4)
+    ctx.fillRect(0, 0, 8, 192)
+    ctx.fillStyle = 'rgba(0,0,0,0.04)'
+    for (let y = 6; y < 192; y += 6) ctx.fillRect(0, y, 128, 1)
+    return repeating(el, 8, 3)
+  },
+  // Coarse woven burlap.
+  'wallpaper-burlap': () => {
+    const [el, ctx] = canvas(64, 64)
+    ctx.fillStyle = '#d4d4d4'
+    ctx.fillRect(0, 0, 64, 64)
+    for (let k = 0; k < 16; k++) {
+      const shade = 170 + Math.round(jitter(k + 5) * 50)
+      ctx.fillStyle = `rgba(${shade},${shade},${shade},0.8)`
+      ctx.fillRect(0, k * 4, 64, 2)
+      const shade2 = 175 + Math.round(jitter(k + 25) * 45)
+      ctx.fillStyle = `rgba(${shade2},${shade2},${shade2},0.7)`
+      ctx.fillRect(k * 4, 0, 2, 64)
+    }
+    return repeating(el, 24, 14)
+  },
+  // Smooth cement, mottled, with the marks of the boards it was cast in.
+  'wallpaper-cement': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#d0d0d0'
+    ctx.fillRect(0, 0, 256, 256)
+    for (let i = 0; i < 160; i++) {
+      const shade = 170 + Math.round(jitter(i + 2) * 70)
+      ctx.fillStyle = `rgba(${shade},${shade},${shade},0.18)`
+      ctx.beginPath()
+      ctx.ellipse(jitter(i + 7) * 256, jitter(i + 13) * 256, 6 + jitter(i + 19) * 26, 4 + jitter(i + 23) * 16, jitter(i) * 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'
+    ctx.fillRect(0, 0, 256, 2)
+    ctx.fillRect(0, 0, 2, 256)
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'
+    for (const [x, y] of [[32, 32], [224, 32], [32, 224], [224, 224]]) {
+      ctx.beginPath()
+      ctx.arc(x, y, 4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return repeating(el, 4, 2)
+  },
+  // Damask: a curling flower-and-leaf motif, mirrored, on a plain ground.
+  'wallpaper-damask': () => {
+    const [el, ctx] = canvas(128, 160)
+    ctx.fillStyle = '#ececec'
+    ctx.fillRect(0, 0, 128, 160)
+    const motif = (cx, cy, scale) => {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.scale(scale, scale)
+      ctx.fillStyle = '#c4c4c4'
+      for (const side of [-1, 1]) {
+        ctx.beginPath()
+        ctx.moveTo(0, -40)
+        ctx.bezierCurveTo(side * 30, -30, side * 34, 0, side * 8, 10)
+        ctx.bezierCurveTo(side * 30, 16, side * 26, 38, 0, 40)
+        ctx.bezierCurveTo(side * 10, 24, side * 6, 0, 0, -40)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.ellipse(side * 22, -6, 6, 12, side * 0.6, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.fillStyle = '#ececec'
+      ctx.beginPath()
+      ctx.ellipse(0, 4, 5, 10, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    motif(64, 40, 0.8)
+    for (const x of [0, 128]) motif(x, 120, 0.8)
+    return repeating(el, 10, 5)
+  },
+})
 
 // The wallpaper for the walls, or null for plain paint.
 export function wallpaperTexture(id) {
@@ -802,4 +1145,329 @@ export function coverImageTexture(book, image) {
     ctx.drawImage(image, 0, 0, 256, 384)
     return makeTexture(el)
   })
+}
+
+// ------------------------------------------------------------ pictures
+//
+// Flat pictures for the wizard's things: the patterned rugs and the
+// chalkboard's drawings. Drawn once each, in full colour.
+
+// A star of `points` points, as a path.
+function starPath(ctx, x, y, outer, inner, points, turn = -Math.PI / 2) {
+  ctx.beginPath()
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 ? inner : outer
+    const a = turn + (i * Math.PI) / points
+    ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
+  }
+  ctx.closePath()
+}
+
+const PICTURES = {
+  // A square arcane rug: plum ground, gold border, a ring of rune marks and
+  // an eight-pointed compass star in the middle.
+  'arcane-rug': () => {
+    const [el, ctx] = canvas(512, 512)
+    ctx.fillStyle = '#6a3a5c'
+    ctx.fillRect(0, 0, 512, 512)
+    ctx.strokeStyle = '#d9b56a'
+    ctx.lineWidth = 8
+    ctx.strokeRect(22, 22, 468, 468)
+    ctx.lineWidth = 3
+    ctx.strokeRect(40, 40, 432, 432)
+    for (const [x, y] of [[40, 40], [472, 40], [40, 472], [472, 472]]) {
+      ctx.fillStyle = '#d9b56a'
+      starPath(ctx, x, y, 18, 7, 4)
+      ctx.fill()
+    }
+    ctx.lineWidth = 5
+    for (const r of [190, 150]) {
+      ctx.beginPath()
+      ctx.arc(256, 256, r, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    // rune marks between the rings
+    ctx.lineWidth = 3
+    for (let k = 0; k < 24; k++) {
+      const a = (k * Math.PI * 2) / 24
+      ctx.save()
+      ctx.translate(256 + Math.cos(a) * 170, 256 + Math.sin(a) * 170)
+      ctx.rotate(a + Math.PI / 2)
+      ctx.beginPath()
+      const kind = k % 4
+      if (kind === 0) { ctx.moveTo(-6, -8); ctx.lineTo(6, 8); ctx.moveTo(6, -8); ctx.lineTo(-6, 8) }
+      if (kind === 1) { ctx.moveTo(0, -9); ctx.lineTo(0, 9); ctx.moveTo(0, -2); ctx.lineTo(7, -8) }
+      if (kind === 2) { ctx.arc(0, 0, 6, 0, Math.PI * 2) }
+      if (kind === 3) { ctx.moveTo(-7, 8); ctx.lineTo(0, -8); ctx.lineTo(7, 8) }
+      ctx.stroke()
+      ctx.restore()
+    }
+    ctx.fillStyle = '#d9b56a'
+    starPath(ctx, 256, 256, 130, 34, 8)
+    ctx.fill()
+    ctx.fillStyle = '#6a3a5c'
+    starPath(ctx, 256, 256, 104, 30, 8)
+    ctx.fill()
+    ctx.fillStyle = '#d9b56a'
+    ctx.beginPath()
+    ctx.arc(256, 256, 22, 0, Math.PI * 2)
+    ctx.fill()
+    return makeTexture(el)
+  },
+  // Pink and butter-yellow checks inside a pale blue border.
+  'checker-rug': () => {
+    const [el, ctx] = canvas(512, 384)
+    ctx.fillStyle = '#a9d6dc'
+    ctx.fillRect(0, 0, 512, 384)
+    ctx.fillStyle = '#fbf3e4'
+    ctx.fillRect(52, 52, 408, 280)
+    const size = 34
+    for (let y = 58; y < 326; y += size) {
+      for (let x = 58; x < 454; x += size) {
+        const k = Math.round((x - 58) / size) + Math.round((y - 58) / size)
+        ctx.fillStyle = k % 2 ? '#f4b6c6' : '#f6eba3'
+        ctx.fillRect(x, y, Math.min(size, 454 - x), Math.min(size, 326 - y))
+      }
+    }
+    return makeTexture(el)
+  },
+  // A navy rug scattered with white stars, in a zigzag border.
+  'star-rug': () => {
+    const [el, ctx] = canvas(384, 512)
+    ctx.fillStyle = '#1f2a4f'
+    ctx.fillRect(0, 0, 384, 512)
+    ctx.fillStyle = '#e9e4d6'
+    for (let k = 0; k < 16; k++) {
+      for (const [y, flip] of [[18, 1], [494, -1]]) {
+        ctx.beginPath()
+        ctx.moveTo(k * 24, y - 10 * flip)
+        ctx.lineTo(k * 24 + 12, y + 10 * flip)
+        ctx.lineTo(k * 24 + 24, y - 10 * flip)
+        ctx.fill()
+      }
+    }
+    for (let k = 0; k < 21; k++) {
+      for (const [x, flip] of [[18, 1], [366, -1]]) {
+        ctx.beginPath()
+        ctx.moveTo(x - 10 * flip, k * 24)
+        ctx.lineTo(x + 10 * flip, k * 24 + 12)
+        ctx.lineTo(x - 10 * flip, k * 24 + 24)
+        ctx.fill()
+      }
+    }
+    ctx.strokeStyle = '#8a6a3a'
+    ctx.lineWidth = 6
+    ctx.strokeRect(40, 40, 304, 432)
+    for (let k = 0; k < 26; k++) {
+      const x = 60 + jitter(k + 3) * 264
+      const y = 60 + jitter(k + 9) * 392
+      const big = jitter(k + 17) > 0.7
+      ctx.fillStyle = '#f2efe6'
+      starPath(ctx, x, y, big ? 22 : 10, big ? 3 : 2.5, big ? 8 : 4, jitter(k) * 0.4)
+      ctx.fill()
+    }
+    return makeTexture(el)
+  },
+  // Chalk on a green board: crescent moons, a star, a ring of the moon's
+  // phases, a potion and a feather, and lines of notes.
+  'moon-chalkboard': () => {
+    const [el, ctx] = canvas(512, 288)
+    ctx.fillStyle = '#2f5a48'
+    ctx.fillRect(0, 0, 512, 288)
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.02 + jitter(i) * 0.04})`
+      ctx.fillRect(jitter(i + 2) * 512, jitter(i + 5) * 288, 30 + jitter(i + 7) * 60, 6 + jitter(i + 9) * 20)
+    }
+    ctx.strokeStyle = 'rgba(235,240,225,0.85)'
+    ctx.fillStyle = 'rgba(235,240,225,0.85)'
+    ctx.lineWidth = 3
+    const moon = (x, y, r, turn) => {
+      ctx.beginPath()
+      ctx.arc(x, y, r, turn, turn + Math.PI)
+      ctx.quadraticCurveTo(x + Math.cos(turn + Math.PI / 2) * r * 0.2, y + Math.sin(turn + Math.PI / 2) * r * 0.2, x + Math.cos(turn) * r, y + Math.sin(turn) * r)
+      ctx.stroke()
+    }
+    moon(150, 50, 18, -Math.PI / 2)
+    moon(205, 50, 18, Math.PI / 2)
+    starPath(ctx, 300, 48, 26, 10, 5)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(250, 170, 62, 0, Math.PI * 2)
+    ctx.stroke()
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4
+      ctx.beginPath()
+      ctx.arc(250 + Math.cos(a) * 44, 170 + Math.sin(a) * 44, 9, 0, Math.PI * 2)
+      if (k % 2) ctx.fill()
+      else ctx.stroke()
+    }
+    // notes
+    ctx.lineWidth = 2
+    for (const [x, y, w] of [[40, 110, 110], [40, 140, 90], [40, 170, 120], [40, 200, 80], [360, 110, 100], [360, 230, 110], [60, 250, 120]]) {
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      for (let u = 0; u < w; u += 10) ctx.lineTo(x + u, y + Math.sin(u * 0.6) * 3)
+      ctx.stroke()
+    }
+    // a flask
+    ctx.beginPath()
+    ctx.arc(420, 175, 24, 0, Math.PI * 2)
+    ctx.moveTo(412, 152)
+    ctx.lineTo(412, 135)
+    ctx.lineTo(428, 135)
+    ctx.lineTo(428, 152)
+    ctx.stroke()
+    // a feather
+    ctx.beginPath()
+    ctx.moveTo(470, 60)
+    ctx.quadraticCurveTo(500, 90, 455, 130)
+    ctx.quadraticCurveTo(450, 90, 470, 60)
+    ctx.moveTo(470, 60)
+    ctx.lineTo(450, 140)
+    ctx.stroke()
+    return makeTexture(el)
+  },
+  // A framed chart: a window, a sun, crystals and a little cauldron, in gold
+  // and lilac on deep purple.
+  'spell-chart': () => {
+    const [el, ctx] = canvas(256, 256)
+    ctx.fillStyle = '#3a2350'
+    ctx.fillRect(0, 0, 256, 256)
+    ctx.fillStyle = '#9a6ad0'
+    ctx.beginPath()
+    ctx.moveTo(40, 170)
+    ctx.lineTo(40, 80)
+    ctx.arc(70, 80, 30, Math.PI, 0)
+    ctx.lineTo(100, 170)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#d9b56a'
+    ctx.lineWidth = 3
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(70, 50)
+    ctx.lineTo(70, 170)
+    ctx.moveTo(40, 110)
+    ctx.lineTo(100, 110)
+    ctx.stroke()
+    ctx.fillStyle = '#e6c46a'
+    starPath(ctx, 185, 60, 22, 12, 10)
+    ctx.fill()
+    for (const [x, y, s, c] of [[140, 110, 12, '#c9a4f0'], [175, 120, 16, '#9a6ad0'], [210, 105, 10, '#e6c46a'], [150, 160, 10, '#9a6ad0'], [200, 165, 14, '#c9a4f0']]) {
+      ctx.fillStyle = c
+      ctx.beginPath()
+      ctx.moveTo(x, y - s)
+      ctx.lineTo(x + s * 0.6, y)
+      ctx.lineTo(x, y + s)
+      ctx.lineTo(x - s * 0.6, y)
+      ctx.closePath()
+      ctx.fill()
+    }
+    ctx.fillStyle = '#d9b56a'
+    ctx.beginPath()
+    ctx.arc(128, 210, 22, 0, Math.PI)
+    ctx.fill()
+    ctx.fillRect(100, 204, 56, 6)
+    return makeTexture(el)
+  },
+}
+
+Object.assign(PICTURES, {
+  // Leaded glass for a cottage window: pale green panes in a diamond lattice,
+  // a few of them blue, and a yellow tulip at the top. See-through.
+  'leaded-glass': () => {
+    const [el, ctx] = canvas(256, 384)
+    ctx.fillStyle = 'rgba(170,225,190,0.32)'
+    ctx.fillRect(0, 0, 256, 384)
+    const size = 48
+    for (let row = -1; row < 10; row++) {
+      for (let col = -1; col < 7; col++) {
+        const cx = col * size + (row % 2 ? size / 2 : 0)
+        const cy = row * (size / 2) * 1.5
+        if ((row * 3 + col * 5) % 7 === 0) {
+          ctx.fillStyle = 'rgba(70,110,220,0.6)'
+          ctx.beginPath()
+          ctx.moveTo(cx, cy - size * 0.75)
+          ctx.lineTo(cx + size / 2, cy)
+          ctx.lineTo(cx, cy + size * 0.75)
+          ctx.lineTo(cx - size / 2, cy)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+    }
+    ctx.strokeStyle = '#2b2320'
+    ctx.lineWidth = 4
+    for (let k = -8; k < 14; k++) {
+      ctx.beginPath()
+      ctx.moveTo(k * size, 0)
+      ctx.lineTo(k * size + 256, 384)
+      ctx.moveTo(k * size + 256, 0)
+      ctx.lineTo(k * size, 384)
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(230,200,70,0.85)'
+    for (const side of [-1, 1]) {
+      ctx.beginPath()
+      ctx.ellipse(128 + side * 16, 70, 14, 34, side * 0.4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = 'rgba(140,200,120,0.85)'
+    ctx.beginPath()
+    ctx.ellipse(128, 64, 10, 40, 0, 0, Math.PI * 2)
+    ctx.fill()
+    return makeTexture(el)
+  },
+  // Stained glass for a lancet window: blue panes in lead, with green and
+  // gold tracery leaves in the point. See-through.
+  'stained-lancet': () => {
+    const [el, ctx] = canvas(256, 448)
+    ctx.fillStyle = 'rgba(80,120,225,0.55)'
+    ctx.fillRect(0, 0, 256, 448)
+    for (let row = 0; row < 9; row++) {
+      for (let col = 0; col < 4; col++) {
+        ctx.fillStyle = `rgba(${90 + ((row + col) % 3) * 15},${130 + ((row * col) % 2) * 20},235,0.25)`
+        ctx.fillRect(col * 64 + 4, 130 + row * 36 + 4, 56, 28)
+      }
+    }
+    ctx.strokeStyle = '#2b2a3a'
+    ctx.lineWidth = 5
+    for (const x of [64, 128, 192]) {
+      ctx.beginPath()
+      ctx.moveTo(x, 130)
+      ctx.lineTo(x, 448)
+      ctx.stroke()
+    }
+    for (let y = 130; y < 448; y += 36) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(256, y)
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(160,220,170,0.9)'
+    ctx.beginPath()
+    ctx.ellipse(128, 70, 30, 60, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(225,200,80,0.9)'
+    for (const side of [-1, 1]) {
+      ctx.beginPath()
+      ctx.ellipse(128 + side * 44, 88, 22, 44, side * 0.45, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.ellipse(128 + side * 20, 50, 12, 30, side * 0.3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.strokeStyle = '#2b2a3a'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.moveTo(0, 128)
+    ctx.lineTo(256, 128)
+    ctx.stroke()
+    return makeTexture(el)
+  },
+})
+
+// One of the pictures above, drawn the first time it is needed.
+export function pictureTexture(id) {
+  return cached(`picture|${id}`, PICTURES[id])
 }

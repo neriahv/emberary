@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { ExtrudeGeometry, Path, PlaneGeometry, Shape, ShapeGeometry } from 'three'
 import { BRASS, Box, Cyl, Torus } from './parts.jsx'
-import { skyTexture } from './textures.js'
+import { pictureTexture, skyTexture } from './textures.js'
 import { BLOCKS, alongOf, onWallAt, wallHeight, wallOf } from '../../api'
 
 // The windows the reader buys, one at a time, and hangs on a wall: each is
@@ -205,6 +205,195 @@ function ArcadeWindow({ time }) {
   )
 }
 
+// A pointed Gothic arch: two arcs, each as wide as the opening, meeting at
+// the top.
+function pointedOutline(width, height, Kind = Shape) {
+  const half = width / 2
+  const spring = height / 2 - width * Math.sin(Math.PI / 3)
+  const outline = new Kind()
+  outline.moveTo(-half, -height / 2)
+  outline.lineTo(half, -height / 2)
+  outline.lineTo(half, spring)
+  outline.absarc(-half, spring, width, 0, Math.PI / 3, false)
+  outline.absarc(half, spring, width, (2 * Math.PI) / 3, Math.PI, false)
+  outline.lineTo(-half, -height / 2)
+  return outline
+}
+
+// Coloured glass laid over the sky: a picture with see-through panes.
+function Glass({ geometry, picture }) {
+  return (
+    <mesh geometry={geometry} position={[0, 0, 0.02]}>
+      <meshStandardMaterial map={pictureTexture(picture)} transparent roughness={0.3} depthWrite={false} />
+    </mesh>
+  )
+}
+
+// The noble lancet window: a pointed opening of blue stained glass with gold
+// and green tracery, set in dressed stone with a sill on a corbel.
+function LancetWindow({ time }) {
+  const stone = '#8a8580'
+  const { glass, outer, inner } = useMemo(
+    () => ({
+      glass: fitUV(new ShapeGeometry(pointedOutline(0.86, 1.86), 24)),
+      outer: pointedOutline(1.18, 2.1),
+      inner: pointedOutline(0.86, 1.86, Path),
+    }),
+    []
+  )
+  return (
+    <>
+      <Sky geometry={glass} time={time} />
+      <Glass geometry={glass} picture="stained-lancet" />
+      <Frame outer={outer} inner={inner} color={stone} depth={0.16} />
+      {[-0.75, -0.35, 0.05].map((y, k) => (
+        <group key={y}>
+          {[-1, 1].map((side) => (
+            <Box key={side} s={[k % 2 ? 0.16 : 0.24, 0.24, 0.2]} position={[side * (0.6 + (k % 2 ? 0.02 : 0.06)), y, 0.08]} c={k % 2 ? '#7d7873' : '#969089'} r={0.95} />
+          ))}
+        </group>
+      ))}
+      <Box s={[1.3, 0.1, 0.26]} position={[0, -1.02, 0.12]} c="#969089" r={0.95} />
+      <Box s={[0.7, 0.14, 0.2]} position={[0, -1.14, 0.08]} c={stone} r={0.95} />
+    </>
+  )
+}
+
+// A cottage window in dark wood under a rounded hood, with leaded panes.
+function CottageWindow({ time }) {
+  const wood = '#5a4030'
+  const glass = useMemo(() => new PlaneGeometry(0.72, 1.0), [])
+  return (
+    <>
+      <Sky geometry={glass} time={time} />
+      <Glass geometry={glass} picture="leaded-glass" />
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * 0.44, 0, 0.07]}>
+          <Box s={[0.14, 1.2, 0.14]} c={wood} r={0.7} />
+          <Box s={[0.18, 0.1, 0.18]} position={[0, 0.5, 0.01]} c="#4a3426" r={0.7} />
+        </group>
+      ))}
+      <Box s={[1.06, 0.1, 0.14]} position={[0, 0.55, 0.07]} c={wood} r={0.7} />
+      <Box s={[1.24, 0.1, 0.32]} position={[0, 0.66, 0.14]} c="#4a3426" r={0.7} />
+      <Cyl s={[0.17, 0.17, 1.3, 20]} rotation={[0, 0, Math.PI / 2]} position={[0, 0.78, 0.1]} c={wood} r={0.7} />
+      <Box s={[1.1, 0.12, 0.28]} position={[0, -0.58, 0.12]} c={wood} r={0.7} />
+      <Cyl s={[0.06, 0.06, 1.1, 12]} rotation={[0, 0, Math.PI / 2]} position={[0, -0.66, 0.24]} c="#4a3426" r={0.7} />
+      <Bar s={[0.03, 1.0]} color="#2b2320" />
+    </>
+  )
+}
+
+// An arched French window in cream, two doors of small panes under a fan,
+// with gold handles.
+function FrenchWindow({ time }) {
+  const cream = '#f1e6d4'
+  const spring = 2.1 / 2 - 0.68
+  const { glass, outer, inner } = useMemo(
+    () => ({
+      glass: fitUV(new ShapeGeometry(archOutline(1.36, 2.1), 24)),
+      outer: archOutline(1.52, 2.24),
+      inner: archOutline(1.36, 2.1, Path),
+    }),
+    []
+  )
+  return (
+    <>
+      <Sky geometry={glass} time={time} />
+      <Frame outer={outer} inner={inner} color={cream} depth={0.12} />
+      <Bar s={[0.07, 1.4]} color={cream} position={[0, -0.33, 0.04]} />
+      {[-0.34, 0.34].map((x) => <Bar key={x} s={[0.035, 1.4]} color={cream} position={[x, -0.33, 0.04]} />)}
+      {[-0.7, -0.35, 0, spring].map((y) => <Bar key={y} s={[1.36, y === spring ? 0.05 : 0.035]} color={cream} position={[0, y, 0.04]} />)}
+      <Torus s={[0.36, 0.022, 6, 24, Math.PI]} position={[0, spring, 0.05]} c={cream} r={0.6} />
+      {[1, 2, 3, 4, 5].map((k) => {
+        const a = (k * Math.PI) / 6
+        return (
+          <Bar key={k} s={[0.03, 0.68]} color={cream} position={[Math.cos(a) * 0.34, spring + Math.sin(a) * 0.34, 0.04]} rotation={[0, 0, a - Math.PI / 2]} />
+        )
+      })}
+      {[-1, 1].map((side) => (
+        <Cyl key={side} s={[0.012, 0.012, 0.22, 8]} position={[side * 0.06, -0.3, 0.1]} c={BRASS} m={0.7} r={0.3} />
+      ))}
+      <Box s={[1.6, 0.06, 0.18]} position={[0, -1.1, 0.08]} c={cream} r={0.6} />
+    </>
+  )
+}
+
+// The sakura window: a tall arch in honey wood between pink pillars with dark
+// capitals, a cherry branch in blossom outside, petals on the sill.
+function SakuraWindow({ time }) {
+  const honey = '#e3a052'
+  const dark = '#4a2c2a'
+  const { glass, outer, inner } = useMemo(
+    () => ({
+      glass: fitUV(new ShapeGeometry(archOutline(0.9, 1.9), 24)),
+      outer: archOutline(1.04, 2.02),
+      inner: archOutline(0.9, 1.9, Path),
+    }),
+    []
+  )
+  return (
+    <>
+      <Sky geometry={glass} time={time} />
+      {[[-0.22, 0.3], [-0.12, 0.42], [-0.3, 0.1], [-0.05, 0.18], [-0.2, -0.05], [-0.34, 0.38]].map(([x, y]) => (
+        <mesh key={`${x}${y}`} position={[x, y, 0.015]}>
+          <circleGeometry args={[0.07, 12]} />
+          <meshStandardMaterial color="#f6a9c4" roughness={0.9} />
+        </mesh>
+      ))}
+      <Bar s={[0.025, 0.7]} color="#6b4a3a" position={[-0.25, 0.2, 0.012]} rotation={[0, 0, 0.6]} />
+      <Frame outer={outer} inner={inner} color={honey} depth={0.12} />
+      <Bar s={[0.03, 1.9]} color={honey} position={[0.1, 0, 0.04]} />
+      {[-0.6, -0.3, 0, 0.3].map((y) => <Bar key={y} s={[0.35, 0.025]} color={honey} position={[0.27, y, 0.04]} />)}
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * 0.66, -0.1, 0.08]}>
+          <Box s={[0.16, 1.6, 0.16]} c="#f2c4cc" r={0.7} />
+          <Box s={[0.24, 0.12, 0.2]} position={[0, 0.84, 0]} c={dark} r={0.6} />
+          <Box s={[0.24, 0.12, 0.2]} position={[0, -0.84, 0]} c={dark} r={0.6} />
+          <Box s={[0.26, 0.02, 0.22]} position={[0, 0.78, 0]} c={honey} m={0.4} r={0.4} />
+        </group>
+      ))}
+      <Torus s={[0.6, 0.06, 8, 32, Math.PI]} position={[0, 0.5, 0.1]} c={honey} m={0.3} r={0.5} />
+      <Torus s={[0.53, 0.035, 8, 32, Math.PI]} position={[0, 0.5, 0.1]} c={dark} r={0.6} />
+      <Box s={[1.5, 0.08, 0.26]} position={[0, -1.02, 0.12]} c={dark} r={0.6} />
+      {[[-0.3, 0.05], [0.12, 0.1], [0.4, 0.02]].map(([x, z]) => (
+        <Box key={x} s={[0.05, 0.005, 0.04]} position={[x, -0.975, 0.12 + z]} rotation={[0, x * 3, 0]} c="#f6a9c4" />
+      ))}
+    </>
+  )
+}
+
+// An arched window in lavender stone blocks, teal glass in dark bars.
+function StoneWindow({ time }) {
+  const stone = '#b9b2c6'
+  const { glass, outer, inner } = useMemo(
+    () => ({
+      glass: fitUV(new ShapeGeometry(archOutline(0.9, 1.7), 24)),
+      outer: archOutline(1.16, 1.96),
+      inner: archOutline(0.9, 1.7, Path),
+    }),
+    []
+  )
+  const bar = '#3a3550'
+  return (
+    <>
+      <Sky geometry={glass} time={time} />
+      <mesh geometry={glass} position={[0, 0, 0.02]}>
+        <meshStandardMaterial color="#5fd0c8" transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+      <Frame outer={outer} inner={inner} color={stone} depth={0.14} />
+      {[-0.7, -0.3, 0.1].map((y) =>
+        [-1, 1].map((side) => <Box key={`${y}${side}`} s={[0.15, 0.025, 0.15]} position={[side * 0.52, y, 0.08]} c="#8f88a0" r={0.9} />)
+      )}
+      {[-0.15, 0.15].map((x) => <Bar key={x} s={[0.035, 1.2]} color={bar} position={[x, -0.25, 0.04]} />)}
+      {[-0.55, -0.2, 0.15].map((y) => <Bar key={y} s={[0.9, 0.035]} color={bar} position={[0, y, 0.04]} />)}
+      {[-1, 1].map((side) => (
+        <Bar key={side} s={[0.035, 0.62]} color={bar} position={[side * 0.12, 0.5, 0.04]} rotation={[0, 0, side * 0.75]} />
+      ))}
+      <Box s={[1.2, 0.1, 0.24]} position={[0, -0.93, 0.1]} c="#a9a2b8" r={0.9} />
+    </>
+  )
+}
+
 // Each window as a room item: flat against the wall behind it.
 const onWall = (Window) =>
   function WallWindow({ time = 'day' }) {
@@ -223,6 +412,11 @@ export const WINDOW_MODELS = {
   'window-octagon': { Model: onWall(OctagonWindow), half: [0.85, 0.85] },
   'window-cathedral': { Model: onWall(CathedralWindow), half: [0.72, 1.0] },
   'window-arcade': { Model: onWall(ArcadeWindow), half: [1.02, 1.0] },
+  'window-lancet': { Model: onWall(LancetWindow), half: [0.72, 1.2] },
+  'window-cottage': { Model: onWall(CottageWindow), half: [0.66, 0.96] },
+  'window-french': { Model: onWall(FrenchWindow), half: [0.8, 1.14] },
+  'window-sakura': { Model: onWall(SakuraWindow), half: [0.8, 1.08] },
+  'window-stone': { Model: onWall(StoneWindow), half: [0.6, 1.0] },
 }
 
 // ------------------------------------------------------------ hanging one

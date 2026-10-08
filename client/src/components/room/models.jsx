@@ -1,11 +1,12 @@
 import { useRef } from 'react'
 import { LOFT } from '../../api'
-import { BRASS, Ball, Box, Candle, Cyl, Glow, IRON, PAPER, Shadowed, WOOD, WOOD_DARK, usePlay } from './parts.jsx'
+import { BRASS, Ball, Box, Candle, Cone, Cyl, Glow, IRON, PAPER, Shadowed, Torus, WOOD, WOOD_DARK, usePlay } from './parts.jsx'
 import * as more from './furniture.jsx'
 import { checkTexture } from './textures.js'
 import * as lights from './lights.jsx'
 import { WINDOW_MODELS } from './windows.jsx'
 import * as kept from './collection.jsx'
+import * as wiz from './wizardry.jsx'
 import { DecorShelf } from './structure.jsx'
 
 export { Shadowed }
@@ -361,7 +362,16 @@ export const BOOKCASES = {
   'bookcase-birch': { width: 1.4, height: 2.4, depth: 0.38, shelves: 4, color: '#d9b48a', crown: 'vines' },
   'bookcase-arched': { width: 1.3, height: 2.7, depth: 0.4, shelves: 4, color: '#3a2433', crown: 'arch' },
   'mint-bookcase': { width: 1.2, height: 1.32, depth: 0.38, shelves: 2, color: '#f1e6d4', crown: 'sage' },
+  'wizard-bookcase': { width: 1.3, height: 2.3, depth: 0.4, shelves: 3, color: '#4a2a5e', crown: 'wizard' },
+  'potion-cabinet': { width: 1.1, height: 2.2, depth: 0.38, shelves: 4, color: '#3d2a4f', crown: 'potions' },
+  'gothic-bookcase': { width: 1.2, height: 2.4, depth: 0.38, shelves: 4, color: '#3c3f52', crown: 'gothic' },
+  'shoji-bookcase': { width: 1.4, height: 1.9, depth: 0.36, shelves: 3, color: '#d8b98a', crown: 'shoji' },
+  'cottage-bookcase': { width: 1.1, height: 1.5, depth: 0.4, shelves: 2, color: '#5b3a4e', crown: 'cottage' },
 }
+
+// How far above its top a bookcase's crown reaches, so its picture is framed
+// whole.
+const CROWN_RISE = { arch: (w) => w / 2, wizard: (w) => w / 2, cottage: () => 0.55, gothic: () => 0.5, potions: () => 0.28, shoji: () => 0.12 }
 
 // A bookcase made wider or taller by the reader (sx, sy): wider shelves, and
 // as many shelves as the new height has room for, books being the size they
@@ -432,6 +442,103 @@ function Crown({ spec, color }) {
         <meshStandardMaterial color="#fff4f6" roughness={0.6} />
       </mesh>
     ))
+  }
+  if (crown === 'wizard') {
+    // An arched pediment edged in gold, a violet gem set at its heart.
+    const r = width / 2
+    return (
+      <>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, top, 0]}>
+          <cylinderGeometry args={[r, r, depth, 32, 1, false, -Math.PI / 2, Math.PI]} />
+          <meshStandardMaterial color={color} roughness={0.7} />
+        </mesh>
+        {[0.05, 0.16].map((inset, k) => (
+          <mesh key={inset} position={[0, top, depth / 2 + 0.005]}>
+            <torusGeometry args={[r - inset, k ? 0.012 : 0.025, 8, 32, Math.PI]} />
+            <meshStandardMaterial color="#d9b56a" metalness={0.6} roughness={0.3} />
+          </mesh>
+        ))}
+        <Torus s={[0.085, 0.014, 6, 20]} scale={[0.8, 1.3, 1]} position={[0, top + r * 0.5, depth / 2 + 0.02]} c="#d9b56a" m={0.6} r={0.3} />
+        <Ball s={[0.07, 4, 2]} scale={[0.8, 1.3, 0.5]} position={[0, top + r * 0.5, depth / 2 + 0.03]} c="#b07dd8" e="#9a5ad0" ei={0.6} r={0.2} />
+      </>
+    )
+  }
+  if (crown === 'potions') {
+    // A cornice with a row of potion bottles along the top.
+    const colours = ['#6fe08a', '#e06f9a', '#6fb8e0', '#e0c46f', '#b07dd8']
+    return (
+      <>
+        <Box s={[width + 0.12, 0.08, depth + 0.06]} position={[0, top + 0.04, 0.01]} c={color} r={0.6} />
+        {[-0.38, -0.18, 0.02, 0.22, 0.4].map((u, i) => (
+          <group key={u} position={[u * width, top + 0.08, 0.02]}>
+            {i % 2 ? (
+              <Ball s={[0.06, 14, 10]} position={[0, 0.06, 0]} c={colours[i]} e={colours[i]} ei={0.25} o={0.75} r={0.2} />
+            ) : (
+              <Cyl s={[0.04, 0.045, 0.14, 12]} position={[0, 0.07, 0]} c={colours[i]} e={colours[i]} ei={0.25} o={0.75} r={0.2} />
+            )}
+            <Cyl s={[0.016, 0.02, 0.06, 8]} position={[0, i % 2 ? 0.14 : 0.17, 0]} c="#d9c4f0" o={0.5} r={0.1} />
+            <Cyl s={[0.018, 0.016, 0.02, 8]} position={[0, i % 2 ? 0.18 : 0.21, 0]} c="#b58a5a" r={0.9} />
+          </group>
+        ))}
+      </>
+    )
+  }
+  if (crown === 'gothic') {
+    // A pointed iron gable with spires at the corners and a pink gem.
+    return (
+      <>
+        <Box s={[width + 0.1, 0.08, depth + 0.04]} position={[0, top + 0.04, 0]} c={color} m={0.3} r={0.5} />
+        {[-1, 1].map((side) => (
+          <group key={side}>
+            <Box s={[width * 0.6, 0.06, 0.06]} position={[side * width * 0.24, top + 0.22, depth / 2 - 0.02]} rotation={[0, 0, -side * 0.55]} c={color} m={0.3} r={0.5} />
+            <Cone s={[0.04, 0.24, 8]} position={[side * (width / 2), top + 0.2, depth / 2 - 0.02]} c={color} m={0.3} r={0.5} />
+          </group>
+        ))}
+        <Cone s={[0.04, 0.22, 8]} position={[0, top + 0.5, depth / 2 - 0.02]} c={color} m={0.3} r={0.5} />
+        <Ball s={[0.06, 4, 2]} scale={[0.8, 1.3, 0.5]} position={[0, top + 0.2, depth / 2 + 0.01]} c="#e05a9a" e="#c2457a" ei={0.5} r={0.2} />
+      </>
+    )
+  }
+  if (crown === 'shoji') {
+    // A little eave on top, and paper-and-lattice panels down each side.
+    const bar = '#6b4a2a'
+    return (
+      <>
+        <Box s={[width + 0.26, 0.05, depth + 0.18]} position={[0, top + 0.07, 0]} c={bar} r={0.7} />
+        <Box s={[width + 0.08, 0.06, depth + 0.04]} position={[0, top + 0.02, 0]} c={color} r={0.7} />
+        {[-1, 1].map((side) => (
+          <group key={side} position={[(side * (width + 0.012)) / 2, 0, 0]}>
+            <Box s={[0.004, height - 0.1, depth - 0.06]} position={[0, height / 2, 0]} c="#f4ead8" r={0.9} />
+            {[-0.33, 0, 0.33].map((u) => (
+              <Box key={u} s={[0.012, height - 0.1, 0.014]} position={[side * 0.004, height / 2, u * (depth - 0.06)]} c={bar} />
+            ))}
+            {Array.from({ length: Math.max(2, Math.round(height / 0.3)) }, (_, k) => (
+              <Box key={k} s={[0.012, 0.014, depth - 0.06]} position={[side * 0.004, 0.1 + (k * (height - 0.2)) / Math.max(1, Math.round(height / 0.3) - 1), 0]} c={bar} />
+            ))}
+          </group>
+        ))}
+      </>
+    )
+  }
+  if (crown === 'cottage') {
+    // A little gabled roof, like a house, with a gold star on the front.
+    const r = (width + 0.1) / Math.sqrt(3)
+    const rise = 0.5
+    const squash = rise / (1.5 * r)
+    const slope = Math.atan2(rise, (width + 0.1) / 2)
+    const run = Math.hypot(rise, (width + 0.1) / 2)
+    return (
+      <>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, squash]} position={[0, top + (r / 2) * squash, 0]}>
+          <cylinderGeometry args={[r, r, depth, 3]} />
+          <meshStandardMaterial color={color} roughness={0.7} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <Box key={side} s={[run + 0.08, 0.05, depth + 0.14]} position={[(side * (width + 0.1)) / 4, top + rise / 2 + 0.03, 0]} rotation={[0, 0, -side * slope]} c="#3a2433" r={0.7} />
+        ))}
+        <Ball s={[0.05, 4, 2]} position={[0, top + 0.2, depth / 2 + 0.02]} c="#d9b56a" e="#ffd27a" ei={0.4} m={0.5} r={0.3} />
+      </>
+    )
   }
   if (crown === 'cornice') {
     return (
@@ -739,7 +846,7 @@ function Clock() {
 const bookcase = (id) => ({
   Model: (props) => <BookcaseFrame spec={BOOKCASES[id]} {...props} />,
   radius: BOOKCASES[id].width / 2 + 0.1,
-  height: BOOKCASES[id].height + (BOOKCASES[id].crown === 'arch' ? BOOKCASES[id].width / 2 : 0.07),
+  height: BOOKCASES[id].height + (CROWN_RISE[BOOKCASES[id].crown]?.(BOOKCASES[id].width) ?? 0.07),
   spec: BOOKCASES[id],
 })
 
@@ -759,6 +866,11 @@ export const MODELS = {
   'bookcase-birch': bookcase('bookcase-birch'),
   'bookcase-arched': bookcase('bookcase-arched'),
   'mint-bookcase': bookcase('mint-bookcase'),
+  'wizard-bookcase': bookcase('wizard-bookcase'),
+  'potion-cabinet': bookcase('potion-cabinet'),
+  'gothic-bookcase': bookcase('gothic-bookcase'),
+  'shoji-bookcase': bookcase('shoji-bookcase'),
+  'cottage-bookcase': bookcase('cottage-bookcase'),
 
   'side-table': { Model: SideTable, radius: 0.3, height: 0.72, surfaces: [[0, 0.585, 0, 0.3]], tops: seat(0.585, 0.19, 0.19, 0) },
   'coffee-table': { Model: CoffeeTable, radius: 0.6, height: 0.5, surfaces: [[-0.22, 0.445, 0.05, 0.15], [0.08, 0.445, 0.06, -0.2]], tops: seat(0.445, 0.47, 0.24, 0) },
@@ -769,6 +881,8 @@ export const MODELS = {
   'pastel-desk': { Model: more.PastelDesk, radius: 0.7, height: 1.0, surfaces: [[-0.3, 0.78, 0.05, 0.1], [0.05, 0.78, 0.08, -0.15]], tops: seat(0.78, 0.56, 0.27, 0) },
   'stump-table': { Model: more.StumpTable, radius: 0.4, height: 0.55, surfaces: [[0, 0.51, 0, 0.4]], tops: seat(0.51, 0.22, 0.22, 0) },
   'moon-table': { Model: more.MoonTable, radius: 0.4, height: 0.7, surfaces: [[0.04, 0.62, 0.02, -0.3]], tops: seat(0.62, 0.22, 0.22, 0) },
+  'orrery-table': { Model: wiz.OrreryTable, radius: 0.55, height: 1.4, interact: 'Set the planets turning' },
+  'crystal-altar': { Model: wiz.CrystalAltar, radius: 0.5, height: 1.05, light: true },
   'wooden-desk': { Model: kept.WoodenDesk, radius: 0.7, height: 0.8, surfaces: [[-0.25, 0.77, 0.06, 0.1], [0.22, 0.77, 0.08, -0.2]], tops: seat(0.77, 0.53, 0.3, 0) },
 
   stool: { Model: Stool, radius: 0.24, height: 0.48, tops: seat(0.475, 0.12, 0.12, 0) },
@@ -786,6 +900,10 @@ export const MODELS = {
   'office-chair': { Model: kept.OfficeChair, radius: 0.4, height: 1.05, tops: seat(0.535, 0.2, 0.18, 0.02) },
   'egg-chair': { Model: kept.EggChair, radius: 0.48, height: 1.1, surfaces: [[0, 0.545, 0.08, 0.3]], tops: seat(0.545, 0.2, 0.2, 0.05) },
   'petal-chair': { Model: kept.PetalChair, radius: 0.5, height: 1.0, surfaces: [[0, 0.545, 0.06, 0.2]], tops: seat(0.545, 0.22, 0.2, 0.04) },
+  'wizard-armchair': { Model: wiz.WizardArmchair, radius: 0.5, height: 1.2, surfaces: [[0, 0.44, 0.08, 0.2]], tops: seat(0.44, 0.24, 0.2, 0.04) },
+  'nouveau-chair': { Model: wiz.NouveauChair, radius: 0.36, height: 1.3, tops: seat(0.55, 0.18, 0.16, 0.02) },
+  'velvet-tub-chair': { Model: wiz.VelvetTubChair, radius: 0.45, height: 1.0, surfaces: [[0, 0.5, 0.06, 0.2]], tops: seat(0.5, 0.2, 0.18, 0.04) },
+  'swan-chair': { Model: wiz.SwanChair, radius: 0.4, height: 1.3, tops: seat(0.55, 0.18, 0.16, 0.03) },
   'avocado-swing': { Model: kept.AvocadoSwing, radius: 0.55, height: 1.95, surfaces: [[0, 0.745, 0.26, 0]], tops: seat(0.745, 0.2, 0.1, 0.26) },
 
   lantern: { Model: Lantern, radius: 0.22, height: 0.5, light: true },
@@ -806,6 +924,8 @@ export const MODELS = {
   'flower-lamp': { Model: kept.FlowerLamp, radius: 0.2, height: 0.4, light: true },
   'bear-light': { Model: kept.BearLight, radius: 0.15, height: 0.3, light: true },
   'wood-mushroom': { Model: kept.WoodMushroom, radius: 0.15, height: 0.32, light: true },
+  'brass-lantern': { Model: wiz.BrassLantern, radius: 0.22, height: 2.1, light: true, wall: true },
+  'iron-candelabra': { Model: wiz.IronCandelabra, radius: 0.3, height: 1.85, light: true },
 
   rug: { Model: Rug, radius: 1.3, height: 0.02 },
   'round-rug': { Model: RoundRug, radius: 0.98, height: 0.02 },
@@ -814,6 +934,10 @@ export const MODELS = {
   'cloud-rug': { Model: more.CloudRug, radius: 1.1, height: 0.04 },
   'moss-rug': { Model: more.MossRug, radius: 1.1, height: 0.04 },
   'moon-rug': { Model: more.MoonRug, radius: 1.0, height: 0.03 },
+  'arcane-rug': { Model: wiz.ArcaneRug, radius: 1.25, height: 0.02 },
+  'checker-rug': { Model: wiz.CheckerRug, radius: 1.3, height: 0.02 },
+  'wave-rug': { Model: wiz.WaveRug, radius: 1.3, height: 0.03 },
+  'star-rug': { Model: wiz.StarRug, radius: 1.3, height: 0.02 },
 
   plant: { Model: Plant, radius: 0.3, height: 0.95 },
   monstera: { Model: more.Monstera, radius: 0.5, height: 1.2 },
@@ -849,6 +973,20 @@ export const MODELS = {
   matcha: { Model: kept.Matcha, radius: 0.08, height: 0.2 },
   'pencil-case': { Model: kept.PencilCase, radius: 0.15, height: 0.14 },
   'desk-calendar': { Model: kept.DeskCalendar, radius: 0.12, height: 0.22 },
+  'crystal-broom': { Model: wiz.CrystalBroom, radius: 0.3, height: 1.6 },
+  'wizard-hat': { Model: wiz.WizardHat, radius: 0.17, height: 0.34 },
+  spellbook: { Model: wiz.Spellbook, radius: 0.17, height: 0.26 },
+  'potion-bottle': { Model: wiz.PotionBottle, radius: 0.09, height: 0.22 },
+  'floating-crystal': { Model: wiz.FloatingCrystal, radius: 0.1, height: 0.32 },
+  armillary: { Model: wiz.Armillary, radius: 0.12, height: 0.3 },
+  'quill-ink': { Model: wiz.QuillInk, radius: 0.1, height: 0.24 },
+  'trinket-box': { Model: wiz.TrinketBox, radius: 0.15, height: 0.24 },
+  'moon-mirror': { Model: wiz.MoonMirror, radius: 0.3, height: 2.0, wall: true },
+  'spell-chart': { Model: wiz.SpellChart, radius: 0.36, height: 1.95, wall: true },
+  'moon-chalkboard': { Model: wiz.MoonChalkboard, radius: 0.95, height: 1.55 },
+  'standing-mirror': { Model: wiz.StandingMirror, radius: 0.45, height: 2.2 },
+  'velvet-chest': { Model: wiz.VelvetChest, radius: 0.48, height: 0.75, tops: seat(0.74, 0.3, 0.12, 0) },
+  'iron-cauldron': { Model: wiz.IronCauldron, radius: 0.42, height: 0.75, interact: 'Stir the potion' },
 
   'stairs-straight': { Model: more.StairsStraight, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
   'stairs-spiral': { Model: more.StairsSpiral, radius: 0.85, height: LOFT.y + 0.9, landing: more.SPIRAL_LANDING },

@@ -31,6 +31,7 @@ import {
   isSmall,
   resizable,
   hasLoft,
+  hasUpstairs,
   itemFits,
   nearestSpot,
   placedLimit,
@@ -110,7 +111,7 @@ function withDemoGift(db) {
 // A room saved before the room could be built bigger has none of the new
 // settings; it gets what the database's column defaults would give it.
 function withRoomDefaults(db) {
-  db.room = { ...ROOM_DEFAULTS, blocks: DEFAULT_BLOCKS, ...db.room }
+  db.room = { ...ROOM_DEFAULTS, upperFloorColor: '#3a2a1e', blocks: DEFAULT_BLOCKS, ...db.room }
   db.room.unlocks = db.room.unlocks ?? []
   db.room.items = db.room.items.map((item) => ({
     placed: true, level: 0, lit: true, y: 0, size: 1, color: null, sx: 1, sy: 1, on: null, ...item,
@@ -586,7 +587,7 @@ export async function updateRoom(patch) {
   const hex = /^#[0-9a-f]{6}$/i
   const errors = []
   const value = {}
-  for (const key of ['wallColor', 'floorColor', 'shelfColor']) {
+  for (const key of ['wallColor', 'floorColor', 'shelfColor', 'upperFloorColor']) {
     if (!(key in patch)) continue
     if (!hex.test(patch[key])) errors.push(`${key} must be a hex colour`)
     value[key] = patch[key]
@@ -596,13 +597,17 @@ export async function updateRoom(patch) {
     if (catalogEntry(patch[key])?.type !== key) errors.push(`${key} must be one of the shop's ${key} finishes`)
     value[key] = patch[key]
   }
+  if ('upperFloor' in patch) {
+    if (catalogEntry(patch.upperFloor)?.type !== 'floor') errors.push("upperFloor must be one of the shop's floor finishes")
+    value.upperFloor = patch.upperFloor
+  }
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push(`send at least one of wallColor, floorColor, shelfColor, ${FINISH_TYPES.join(', ')}`)
+    errors.push(`send at least one of wallColor, floorColor, shelfColor, upperFloorColor, ${FINISH_TYPES.join(', ')}, upperFloor`)
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
 
   const owned = roomView(db).unlocks
-  if (FINISH_TYPES.some((key) => value[key] && !owned.includes(value[key]))) {
+  if ([...FINISH_TYPES, 'upperFloor'].some((key) => value[key] && !owned.includes(value[key]))) {
     throw new Error('Buy that in the shop first')
   }
   if (value.loft === 'loft-gallery' && !hasLoft({ ...db.room, loft: value.loft })) {
@@ -637,10 +642,13 @@ export async function changeRoomBlocks(change) {
   if (result.error) {
     throw new Error(
       {
-        spot: kind === 'floor'
-          ? 'A floor block goes on an empty square beside the floor'
-          : `A wall block goes on an edge of the floor, up to ${BLOCKS.maxLevels} high`,
-        none: `There is no ${kind} block there`,
+        spot: {
+          floor: 'A floor block goes on an empty square beside the floor, not behind a wall',
+          wall: `A wall block goes on a back edge of the floor, up to ${BLOCKS.maxLevels} high`,
+          upper: `An upstairs floor needs a staircase in the room, and goes over a floor square with a wall ${BLOCKS.upperWalls} blocks high behind it, or beside another upstairs square`,
+        }[kind],
+        none: kind === 'upper' ? 'There is no upstairs floor there' : `There is no ${kind} block there`,
+        upper: 'Take away the upstairs floor above it first',
         last: 'A room needs at least one floor block',
         apart: 'The floor has to stay in one piece',
         walls: 'Take away the walls standing on that floor block first',
@@ -753,8 +761,8 @@ function validateRoomItem(fields, room, current) {
   const errors = []
   const value = {}
   if ('level' in fields) {
-    if (fields.level !== 0 && fields.level !== 1) errors.push('level must be 0 (the floor) or 1 (the loft)')
-    else if (fields.level === 1 && !hasLoft(room)) errors.push('level 1 is the loft: build one first')
+    if (fields.level !== 0 && fields.level !== 1) errors.push('level must be 0 (the floor) or 1 (upstairs)')
+    else if (fields.level === 1 && !hasUpstairs(room)) errors.push('level 1 is upstairs: build an upstairs floor first')
     value.level = fields.level
   }
   for (const axis of ['x', 'z']) {
@@ -780,7 +788,7 @@ function validateRoomItem(fields, room, current) {
     if (!itemFits(room, level, x, z, clearance)) {
       const moved = 'level' in value && !('x' in fields) && !('z' in fields) && nearestSpot(room, level, x, z, clearance)
       if (moved) Object.assign(value, moved)
-      else errors.push(level === 1 ? 'x and z must be a spot on the loft' : "x and z must be a spot on the room's floor")
+      else errors.push(level === 1 ? 'x and z must be a spot upstairs' : "x and z must be a spot on the room's floor")
     }
   }
   if ('rotation' in fields) {
@@ -795,7 +803,9 @@ function validateRoomItem(fields, room, current) {
     if (typeof fields[key] !== 'boolean') errors.push(`${key} must be true or false`)
     value[key] = fields[key]
   }
-  const limits = { ...WINDOW_LIMITS, ...SIZE_LIMITS }
+  // Furniture on the floor stands at height 0; only a window keeps clear of
+  // the floor, which the room sees to when it hangs one.
+  const limits = { ...WINDOW_LIMITS, y: [0, WINDOW_LIMITS.y[1]], ...SIZE_LIMITS }
   for (const key of ['y', 'size', 'sx', 'sy']) {
     if (!(key in fields)) continue
     if ((key === 'sx' || key === 'sy') && !resizable(current.kind)) {

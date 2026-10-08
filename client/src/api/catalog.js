@@ -5,12 +5,11 @@
 // shows prices without asking the server. The server is the authority on price
 // and balance; the catalog parity test fails if the two copies ever differ.
 
-// "build" categories change the room itself; "furnish" ones stand in it.
+// "build" categories change the room itself; "furnish" ones stand in it. The
+// loft and roofs are not sold for now; rooms that already have one keep it.
 export const SHOP_CATEGORIES = [
   { id: 'windows', label: 'Windows', section: 'build' },
-  { id: 'loft', label: 'Loft', section: 'build' },
-  { id: 'wallShape', label: 'Wall shape', section: 'build' },
-  { id: 'roof', label: 'Roof & trim', section: 'build' },
+  { id: 'wallShape', label: 'Wall tops', section: 'build' },
   { id: 'wallpaper', label: 'Wallpaper', section: 'build' },
   { id: 'floors', label: 'Floors', section: 'build' },
 
@@ -36,6 +35,8 @@ export const SHOP_CATEGORIES = [
 //   small:   it can stand on a table, a shelf or a seat as well as the floor
 //   builtIn: every room starts with one; never sold in the shop, but it can
 //            be stored or sold back like anything else
+//   stairwell: a staircase; how far its footprint reaches [across, along]
+//            from its middle, so an upstairs floor leaves an opening for it
 export const CATALOG = [
   // ---------------------------------------------------------------- build
   { id: 'window-round', category: 'windows', type: 'item', name: 'Round window', price: 4, wall: true },
@@ -43,6 +44,11 @@ export const CATALOG = [
   { id: 'window-octagon', category: 'windows', type: 'item', name: 'Octagon window', price: 6, wall: true },
   { id: 'window-cathedral', category: 'windows', type: 'item', name: 'Cathedral window', price: 8, wall: true },
   { id: 'window-arcade', category: 'windows', type: 'item', name: 'Open arches', price: 10, wall: true },
+  { id: 'window-lancet', category: 'windows', type: 'item', name: 'Noble lancet window', price: 14, wall: true },
+  { id: 'window-cottage', category: 'windows', type: 'item', name: 'Leaded cottage window', price: 10, wall: true },
+  { id: 'window-french', category: 'windows', type: 'item', name: 'Arched French window', price: 16, wall: true },
+  { id: 'window-sakura', category: 'windows', type: 'item', name: 'Sakura pillar window', price: 16, wall: true },
+  { id: 'window-stone', category: 'windows', type: 'item', name: 'Stone arched window', price: 12, wall: true },
 
   { id: 'loft-none', category: 'loft', type: 'loft', name: 'No loft', price: 0 },
   { id: 'loft-gallery', category: 'loft', type: 'loft', name: 'Reading loft', price: 40 },
@@ -52,6 +58,11 @@ export const CATALOG = [
   { id: 'shape-arch', category: 'wallShape', type: 'wallShape', name: 'Grand arch', price: 12 },
   { id: 'shape-castle', category: 'wallShape', type: 'wallShape', name: 'Castle battlements', price: 12 },
   { id: 'shape-wave', category: 'wallShape', type: 'wallShape', name: 'Scalloped edge', price: 10 },
+  { id: 'shape-steps', category: 'wallShape', type: 'wallShape', name: 'Stepped gable', price: 12 },
+  { id: 'shape-spires', category: 'wallShape', type: 'wallShape', name: 'Gothic spires', price: 14 },
+  { id: 'shape-crown', category: 'wallShape', type: 'wallShape', name: 'Royal crown', price: 14 },
+  { id: 'shape-cloud', category: 'wallShape', type: 'wallShape', name: 'Cloud puffs', price: 10 },
+  { id: 'shape-twin', category: 'wallShape', type: 'wallShape', name: 'Twin gables', price: 12 },
 
   { id: 'roof-open', category: 'roof', type: 'roof', name: 'Open to the sky', price: 0 },
   { id: 'roof-beams', category: 'roof', type: 'roof', name: 'Timber beams', price: 10 },
@@ -68,6 +79,14 @@ export const CATALOG = [
   { id: 'wallpaper-leaves', category: 'wallpaper', type: 'wallpaper', name: 'Falling leaves', price: 4 },
   { id: 'wallpaper-floral', category: 'wallpaper', type: 'wallpaper', name: 'Pastel florals', price: 4 },
   { id: 'wallpaper-stars', category: 'wallpaper', type: 'wallpaper', name: 'Constellations', price: 5 },
+  { id: 'wallpaper-stone', category: 'wallpaper', type: 'wallpaper', name: 'Castle stone', price: 6 },
+  { id: 'wallpaper-subway', category: 'wallpaper', type: 'wallpaper', name: 'Subway tiles', price: 4 },
+  { id: 'wallpaper-ceramic', category: 'wallpaper', type: 'wallpaper', name: 'Ceramic tiles', price: 4 },
+  { id: 'wallpaper-waves', category: 'wallpaper', type: 'wallpaper', name: 'Seigaiha waves', price: 5 },
+  { id: 'wallpaper-shoji', category: 'wallpaper', type: 'wallpaper', name: 'Shoji screens', price: 5 },
+  { id: 'wallpaper-burlap', category: 'wallpaper', type: 'wallpaper', name: 'Woven burlap', price: 3 },
+  { id: 'wallpaper-cement', category: 'wallpaper', type: 'wallpaper', name: 'Polished cement', price: 3 },
+  { id: 'wallpaper-damask', category: 'wallpaper', type: 'wallpaper', name: 'Damask', price: 5 },
 
   { id: 'floor-planks', category: 'floors', type: 'floor', name: 'Oak planks', price: 0 },
   { id: 'floor-checker', category: 'floors', type: 'floor', name: 'Checkerboard tiles', price: 3 },
@@ -76,6 +95,14 @@ export const CATALOG = [
   { id: 'floor-terracotta', category: 'floors', type: 'floor', name: 'Terracotta hexagons', price: 4 },
   { id: 'floor-moss', category: 'floors', type: 'floor', name: 'Mossy flagstones', price: 5 },
   { id: 'floor-marble', category: 'floors', type: 'floor', name: 'Rose marble', price: 5 },
+  { id: 'floor-castle', category: 'floors', type: 'floor', name: 'Castle stone floor', price: 6 },
+  { id: 'floor-cobble', category: 'floors', type: 'floor', name: 'Cobblestones', price: 5 },
+  { id: 'floor-granite', category: 'floors', type: 'floor', name: 'Speckled granite', price: 4 },
+  { id: 'floor-ceramic', category: 'floors', type: 'floor', name: 'Ceramic tiles', price: 4 },
+  { id: 'floor-wideplanks', category: 'floors', type: 'floor', name: 'Wide pine planks', price: 3 },
+  { id: 'floor-blackmarble', category: 'floors', type: 'floor', name: 'Black marble', price: 6 },
+  { id: 'floor-sisal', category: 'floors', type: 'floor', name: 'Sisal matting', price: 3 },
+  { id: 'floor-tatami', category: 'floors', type: 'floor', name: 'Tatami mats', price: 5 },
 
   // ---------------------------------------------------------------- furnish
   { id: 'built-in-bookcase', category: 'bookshelves', type: 'item', name: 'Built-in bookcase', price: 16, holds: 'shelves', builtIn: true },
@@ -88,6 +115,11 @@ export const CATALOG = [
   { id: 'bookcase-birch', category: 'bookshelves', type: 'item', name: 'Birch & ivy bookcase', price: 10, holds: 'shelves' },
   { id: 'bookcase-arched', category: 'bookshelves', type: 'item', name: 'Arched midnight bookcase', price: 14, holds: 'shelves' },
   { id: 'mint-bookcase', category: 'bookshelves', type: 'item', name: 'Sage & cream bookcase', price: 20, holds: 'shelves' },
+  { id: 'wizard-bookcase', category: 'bookshelves', type: 'item', name: "Wizard's arched bookcase", price: 24, holds: 'shelves' },
+  { id: 'potion-cabinet', category: 'bookshelves', type: 'item', name: 'Potion cabinet', price: 20, holds: 'shelves' },
+  { id: 'gothic-bookcase', category: 'bookshelves', type: 'item', name: 'Gothic velvet bookcase', price: 22, holds: 'shelves' },
+  { id: 'shoji-bookcase', category: 'bookshelves', type: 'item', name: 'Shoji bookcase', price: 16, holds: 'shelves' },
+  { id: 'cottage-bookcase', category: 'bookshelves', type: 'item', name: 'Cottage house bookcase', price: 14, holds: 'shelves' },
 
   { id: 'side-table', category: 'tables', type: 'item', name: 'Pedestal table', price: 2, holds: 'table' },
   { id: 'coffee-table', category: 'tables', type: 'item', name: 'Coffee table', price: 2, holds: 'table' },
@@ -99,6 +131,8 @@ export const CATALOG = [
   { id: 'stump-table', category: 'tables', type: 'item', name: 'Tree-stump table', price: 3, holds: 'table' },
   { id: 'moon-table', category: 'tables', type: 'item', name: 'Crescent moon table', price: 4, holds: 'table' },
   { id: 'wooden-desk', category: 'tables', type: 'item', name: 'Honey-wood desk', price: 22, holds: 'table' },
+  { id: 'orrery-table', category: 'tables', type: 'item', name: 'Orrery table', price: 26 },
+  { id: 'crystal-altar', category: 'tables', type: 'item', name: 'Crystal altar', price: 24 },
 
   { id: 'stool', category: 'chairs', type: 'item', name: 'Wooden stool', price: 1 },
   { id: 'chair', category: 'chairs', type: 'item', name: 'Wooden chair', price: 1 },
@@ -116,6 +150,10 @@ export const CATALOG = [
   { id: 'egg-chair', category: 'chairs', type: 'item', name: 'Coral egg chair', price: 24, holds: 'table' },
   { id: 'petal-chair', category: 'chairs', type: 'item', name: 'Lilac petal chair', price: 28, holds: 'table' },
   { id: 'avocado-swing', category: 'chairs', type: 'item', name: 'Avocado swing chair', price: 30, holds: 'table' },
+  { id: 'wizard-armchair', category: 'chairs', type: 'item', name: "Wizard's armchair", price: 22, holds: 'table' },
+  { id: 'nouveau-chair', category: 'chairs', type: 'item', name: 'Nouveau velvet chair', price: 16 },
+  { id: 'velvet-tub-chair', category: 'chairs', type: 'item', name: 'Velvet tub chair', price: 18, holds: 'table' },
+  { id: 'swan-chair', category: 'chairs', type: 'item', name: 'Swan-back chair', price: 16 },
 
   { id: 'lantern', category: 'lamps', type: 'item', name: 'Lantern', price: 1, small: true },
   { id: 'lamp', category: 'lamps', type: 'item', name: 'Floor lamp', price: 2 },
@@ -135,6 +173,8 @@ export const CATALOG = [
   { id: 'flower-lamp', category: 'lamps', type: 'item', name: 'Buttercup lamp', price: 14, small: true },
   { id: 'bear-light', category: 'lamps', type: 'item', name: 'Bear night light', price: 10, small: true },
   { id: 'wood-mushroom', category: 'lamps', type: 'item', name: 'Wooden mushroom light', price: 9, small: true },
+  { id: 'brass-lantern', category: 'lamps', type: 'item', name: 'Brass wall lantern', price: 10, wall: true },
+  { id: 'iron-candelabra', category: 'lamps', type: 'item', name: 'Iron candelabra', price: 12 },
 
   { id: 'rug', category: 'rugs', type: 'item', name: 'Persian rug', price: 2 },
   { id: 'round-rug', category: 'rugs', type: 'item', name: 'Round rug', price: 2 },
@@ -143,6 +183,10 @@ export const CATALOG = [
   { id: 'cloud-rug', category: 'rugs', type: 'item', name: 'Fluffy cloud rug', price: 2 },
   { id: 'moss-rug', category: 'rugs', type: 'item', name: 'Moss rug', price: 2 },
   { id: 'moon-rug', category: 'rugs', type: 'item', name: 'Violet round rug', price: 2 },
+  { id: 'arcane-rug', category: 'rugs', type: 'item', name: 'Arcane circle rug', price: 10 },
+  { id: 'checker-rug', category: 'rugs', type: 'item', name: 'Scalloped checker rug', price: 8 },
+  { id: 'wave-rug', category: 'rugs', type: 'item', name: 'Wavy blue rug', price: 8 },
+  { id: 'star-rug', category: 'rugs', type: 'item', name: 'Starry night rug', price: 9 },
 
   { id: 'plant', category: 'plants', type: 'item', name: 'Potted plant', price: 2 },
   { id: 'monstera', category: 'plants', type: 'item', name: 'Monstera', price: 3 },
@@ -178,9 +222,23 @@ export const CATALOG = [
   { id: 'matcha', category: 'decor', type: 'item', name: 'Iced matcha', price: 8, small: true },
   { id: 'pencil-case', category: 'decor', type: 'item', name: 'Pencil case', price: 8, small: true },
   { id: 'desk-calendar', category: 'decor', type: 'item', name: 'Desk calendar', price: 8, small: true },
+  { id: 'crystal-broom', category: 'decor', type: 'item', name: 'Crystal broom', price: 12 },
+  { id: 'wizard-hat', category: 'decor', type: 'item', name: "Wizard's hat", price: 8, small: true },
+  { id: 'spellbook', category: 'decor', type: 'item', name: 'Open spellbook', price: 9, small: true },
+  { id: 'potion-bottle', category: 'decor', type: 'item', name: 'Potion bottle', price: 6, small: true },
+  { id: 'floating-crystal', category: 'decor', type: 'item', name: 'Floating crystal', price: 10, small: true },
+  { id: 'armillary', category: 'decor', type: 'item', name: 'Armillary sphere', price: 10, small: true },
+  { id: 'quill-ink', category: 'decor', type: 'item', name: 'Quill & ink', price: 6, small: true },
+  { id: 'trinket-box', category: 'decor', type: 'item', name: 'Crystal cat box', price: 12, small: true },
+  { id: 'moon-mirror', category: 'decor', type: 'item', name: 'Moon mirror', price: 12, wall: true },
+  { id: 'spell-chart', category: 'decor', type: 'item', name: 'Framed spell chart', price: 9, wall: true },
+  { id: 'moon-chalkboard', category: 'decor', type: 'item', name: 'Moon-chart chalkboard', price: 16 },
+  { id: 'standing-mirror', category: 'decor', type: 'item', name: 'Gothic standing mirror', price: 18 },
+  { id: 'velvet-chest', category: 'decor', type: 'item', name: 'Locked velvet chest', price: 14 },
+  { id: 'iron-cauldron', category: 'decor', type: 'item', name: 'Iron cauldron', price: 14 },
 
-  { id: 'stairs-straight', category: 'stairs', type: 'item', name: 'Oak staircase', price: 15 },
-  { id: 'stairs-spiral', category: 'stairs', type: 'item', name: 'Spiral staircase', price: 20 },
+  { id: 'stairs-straight', category: 'stairs', type: 'item', name: 'Oak staircase', price: 15, stairwell: [0.5, 1.46] },
+  { id: 'stairs-spiral', category: 'stairs', type: 'item', name: 'Spiral staircase', price: 20, stairwell: [0.86, 0.86] },
 ]
 
 // How Ember is earned. Every one-off reward is recorded once in the ledger
@@ -212,6 +270,7 @@ export const FINISH_TYPES = ['wallpaper', 'floor', 'wallShape', 'roof', 'loft']
 export const ROOM_DEFAULTS = {
   wallpaper: 'wallpaper-plain',
   floor: 'floor-planks',
+  upperFloor: 'floor-planks',
   wallShape: 'shape-straight',
   roof: 'roof-open',
   loft: 'loft-none',
@@ -235,19 +294,26 @@ export const sellPrice = (kind) => Math.floor((catalogEntry(kind)?.price ?? 0) /
 // sides. A block is paid for when the reader puts it down, and can be moved,
 // or taken away for half its price back.
 //
-// `room.blocks` is the list, each { kind: 'floor' | 'wall', side: '' | 'x' |
-// 'z', i, j, level } (level counts up from 0 for walls, and is 0 for floor).
+// With a staircase in the room and a wall at least two blocks high, an
+// upstairs floor can be laid over a floor square, one block at a time,
+// leaving an opening where the stairs come up.
+//
+// `room.blocks` is the list, each { kind: 'floor' | 'wall' | 'upper', side:
+// '' | 'x' | 'z', i, j, level } (level counts up from 0 for walls, and is 0
+// for floor and upstairs floor).
 export const BLOCKS = {
   floor: 5,
   wall: 3,
   floorPrice: 25,
   wallPrice: 12,
+  upperPrice: 30,
+  upperWalls: 2, // how many wall blocks high the first upstairs floor needs
   thickness: 0.18, // of a wall
   maxFloor: 12, // floor blocks in all
   maxLevels: 3, // wall blocks stacked on one edge
   reach: 2, // floor squares go no further than this from the first
 }
-export const BLOCK_KINDS = ['floor', 'wall']
+export const BLOCK_KINDS = ['floor', 'wall', 'upper']
 export const DEFAULT_BLOCKS = [
   { kind: 'floor', side: '', i: 0, j: 0, level: 0 },
   { kind: 'wall', side: 'x', i: 0, j: 0, level: 0 },
@@ -262,7 +328,8 @@ const blocksOf = (room) => room?.blocks ?? DEFAULT_BLOCKS
 export const floorCells = (room) => blocksOf(room).filter((b) => b.kind === 'floor')
 const hasCell = (cells, i, j) => cells.some((c) => c.i === i && c.j === j)
 export const blockCount = (room, kind) => blocksOf(room).filter((b) => b.kind === kind).length
-export const blockPrice = (kind) => (kind === 'floor' ? BLOCKS.floorPrice : BLOCKS.wallPrice)
+export const blockPrice = (kind) => (kind === 'floor' ? BLOCKS.floorPrice : kind === 'upper' ? BLOCKS.upperPrice : BLOCKS.wallPrice)
+export const upperCells = (room) => blocksOf(room).filter((b) => b.kind === 'upper')
 
 // The square a floor block covers, in metres.
 export function cellBox(i, j) {
@@ -295,33 +362,50 @@ export function walls(room) {
   return [...byEdge.values()]
 }
 
-// Where the next floor block may go: beside one already laid, and not too far
-// from the first.
+// A back edge is one the room is seen across: floor on its high side and none
+// on its low side, so a wall there stands at the back of the room, and never
+// between the reader and the room.
+export function backEdge(room, side, i, j) {
+  const { before, after } = edgeSides(room, side, i, j)
+  return after && !before
+}
+
+// Where the next floor block may go: beside one already laid, not too far
+// from the first, and never through a wall, so nothing is laid behind one.
 export function floorSpots(room) {
   const cells = floorCells(room)
   const spots = []
   for (const c of cells) {
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (const [di, dj, side, ei, ej] of [
+      [1, 0, 'z', c.i + 1, c.j],
+      [-1, 0, 'z', c.i, c.j],
+      [0, 1, 'x', c.i, c.j + 1],
+      [0, -1, 'x', c.i, c.j],
+    ]) {
       const i = c.i + di
       const j = c.j + dj
       if (Math.abs(i) > BLOCKS.reach || Math.abs(j) > BLOCKS.reach) continue
       if (hasCell(cells, i, j) || spots.some((s) => s.i === i && s.j === j)) continue
+      if (wallHeight(room, side, ei, ej) > 0) continue
       spots.push({ i, j })
     }
   }
   return spots
 }
 
-// Where the next wall block may go: on any edge of the floor, on top of the
+// Where the next wall block may go: on a back edge of the floor (so a wall
+// never closes the room off from the reader looking in), or on top of the
 // wall already standing there, up to maxLevels high. Each spot is
 // { side, i, j, level }, level being where the new block would sit.
 export function wallSpots(room) {
   const spots = []
   const seen = new Set()
   for (const c of floorCells(room)) {
-    for (const [side, i, j] of [['x', c.i, c.j], ['x', c.i, c.j + 1], ['z', c.i, c.j], ['z', c.i + 1, c.j]]) {
+    // A square's low-z and low-x edges are the only ones that can be at the
+    // back of it.
+    for (const [side, i, j] of [['x', c.i, c.j], ['z', c.i, c.j]]) {
       const key = `${side}${i},${j}`
-      if (seen.has(key)) continue
+      if (seen.has(key) || !backEdge(room, side, i, j)) continue
       seen.add(key)
       const level = wallHeight(room, side, i, j)
       if (level < BLOCKS.maxLevels) spots.push({ side, i, j, level })
@@ -330,9 +414,25 @@ export function wallSpots(room) {
   return spots
 }
 
+// Where the next upstairs floor block may go: over a floor square with none
+// yet, once a staircase stands in the room; the first over a square with a
+// wall at least BLOCKS.upperWalls high at its back, the rest beside one
+// already laid. `items` are the room's furniture, for the staircase.
+export function upperSpots(room, items = room?.items ?? []) {
+  const stairs = items.some((item) => item.placed && (item.level ?? 0) === 0 && catalogEntry(item.kind)?.stairwell)
+  if (!stairs) return []
+  const uppers = upperCells(room)
+  const tall = (side, i, j) => wallHeight(room, side, i, j) >= BLOCKS.upperWalls
+  return floorCells(room)
+    .filter(({ i, j }) => !hasCell(uppers, i, j))
+    .filter(({ i, j }) => tall('x', i, j) || tall('z', i, j) || uppers.some((u) => Math.abs(u.i - i) + Math.abs(u.j - j) === 1))
+    .map(({ i, j }) => ({ i, j }))
+}
+
 // Whether a block may be put there; for a wall, the level it would sit at.
-export function canPlace(room, kind, { side, i, j }) {
+export function canPlace(room, kind, { side, i, j }, items) {
   if (kind === 'floor') return floorSpots(room).some((s) => s.i === i && s.j === j)
+  if (kind === 'upper') return upperSpots(room, items).some((s) => s.i === i && s.j === j)
   return wallSpots(room).some((s) => s.side === side && s.i === i && s.j === j)
 }
 
@@ -340,7 +440,7 @@ export function canPlace(room, kind, { side, i, j }) {
 export function blocksValue(room) {
   const floor = Math.max(0, blockCount(room, 'floor') - 1)
   const wall = Math.max(0, blockCount(room, 'wall') - 2)
-  return floor * BLOCKS.floorPrice + wall * BLOCKS.wallPrice
+  return floor * BLOCKS.floorPrice + wall * BLOCKS.wallPrice + blockCount(room, 'upper') * BLOCKS.upperPrice
 }
 
 // How far the floor reaches, in metres, and how tall the tallest wall is.
@@ -366,10 +466,38 @@ export function loftCells(room) {
   return floorCells(room).filter((c) => c.i === 0 && wallHeight(room, 'z', 0, c.j) >= LOFT.wallBlocks)
 }
 export const hasLoft = (room) => loftCells(room).length > 0
+// Whether there is anywhere up there at all: the loft or an upstairs floor.
+export const hasUpstairs = (room) => hasLoft(room) || upperCells(room).length > 0
 
-// How many things stand in the room at once: more for every floor block.
+// The openings an upstairs floor leaves over each staircase: { x, z } ranges.
+export function stairwells(room) {
+  return (room?.items ?? [])
+    .filter((item) => item.placed && (item.level ?? 0) === 0 && catalogEntry(item.kind)?.stairwell)
+    .map((item) => {
+      const [across, along] = catalogEntry(item.kind).stairwell
+      const turn = (item.rotation * Math.PI) / 180
+      const hx = Math.abs(across * Math.cos(turn)) + Math.abs(along * Math.sin(turn))
+      const hz = Math.abs(across * Math.sin(turn)) + Math.abs(along * Math.cos(turn))
+      return { id: item.id, x: [item.x - hx, item.x + hx].map(round2), z: [item.z - hz, item.z + hz].map(round2) }
+    })
+}
+
+// A rectangle with another cut out of it, as the rectangles left around it.
+export function cutOut(r, hole) {
+  if (hole.x[0] >= r.x[1] || hole.x[1] <= r.x[0] || hole.z[0] >= r.z[1] || hole.z[1] <= r.z[0]) return [r]
+  const x = [Math.max(r.x[0], hole.x[0]), Math.min(r.x[1], hole.x[1])]
+  return [
+    { x: [r.x[0], hole.x[0]], z: r.z },
+    { x: [hole.x[1], r.x[1]], z: r.z },
+    { x, z: [r.z[0], hole.z[0]] },
+    { x, z: [hole.z[1], r.z[1]] },
+  ].filter((piece) => piece.x[1] - piece.x[0] > 0.05 && piece.z[1] - piece.z[0] > 0.05)
+}
+
+// How many things stand in the room at once: more for every floor block,
+// downstairs or up.
 export function placedLimit(room) {
-  return MAX_PLACED_ITEMS + 10 * (blockCount(room, 'floor') - 1)
+  return MAX_PLACED_ITEMS + 10 * (blockCount(room, 'floor') - 1) + 10 * blockCount(room, 'upper')
 }
 
 // ---------------------------------------------------------------- standing room
@@ -379,12 +507,24 @@ export function placedLimit(room) {
 // gallery the same way.
 export function standingAreas(room, level = 0, clearance = CLEARANCE) {
   const cells = level === 1 ? loftCells(room) : floorCells(room)
-  return cells.map(({ i, j }) => {
+  const areas = cells.map(({ i, j }) => {
     const box = cellBox(i, j)
     const inset = (di, dj) => (hasCell(cells, i + di, j + dj) ? 0 : clearance)
     const x = level === 1 ? [CORNER + clearance, LOFT.edge - 0.2] : [box.x[0] + inset(-1, 0), box.x[1] - inset(1, 0)]
     return { x: x.map(round2), z: [box.z[0] + inset(0, -1), box.z[1] - inset(0, 1)].map(round2) }
   })
+  if (level !== 1) return areas
+  // Upstairs floor blocks too, kept clear of the opening over each staircase.
+  const uppers = upperCells(room)
+  const holes = stairwells(room).map((h) => ({ x: [h.x[0] - clearance, h.x[1] + clearance], z: [h.z[0] - clearance, h.z[1] + clearance] }))
+  for (const { i, j } of uppers) {
+    const box = cellBox(i, j)
+    const inset = (di, dj) => (hasCell(uppers, i + di, j + dj) ? 0 : clearance)
+    let pieces = [{ x: [box.x[0] + inset(-1, 0), box.x[1] - inset(1, 0)], z: [box.z[0] + inset(0, -1), box.z[1] - inset(0, 1)] }]
+    for (const hole of holes) pieces = pieces.flatMap((piece) => cutOut(piece, hole))
+    areas.push(...pieces.map((piece) => ({ x: piece.x.map(round2), z: piece.z.map(round2) })))
+  }
+  return areas
 }
 
 const inside = (v, [min, max]) => v >= min - 1e-6 && v <= max + 1e-6
@@ -522,10 +662,12 @@ function unsound(blocks) {
     const { before, after } = edgeSides(room, w.side, w.i, w.j)
     return !before && !after
   })
-  return stranded ? 'walls' : null
+  if (stranded) return 'walls'
+  return upperCells(room).some((u) => !hasCell(cells, u.i, u.j)) ? 'upper' : null
 }
 
 const isFloorAt = (b, { i, j }) => b.kind === 'floor' && b.i === i && b.j === j
+const isUpperAt = (b, { i, j }) => b.kind === 'upper' && b.i === i && b.j === j
 const isWallAt = (b, edge) => b.kind === 'wall' && sameEdge(b, edge)
 
 // What a floor block or wall block taken away gives back: half its price,
@@ -541,18 +683,22 @@ export const blockRefund = (kind) => Math.floor(blockPrice(kind) / 2)
 // id: furniture on a moved floor block goes with it, things hung on a moved
 // wall go with the wall, anything left off the floor comes to the nearest
 // spot, and a window with no wall goes into storage). Or { error } saying why
-// not: 'spot', 'none', 'last', 'apart' or 'walls'.
+// not: 'spot', 'none', 'last', 'apart', 'walls' or 'upper'. An upstairs floor
+// block is put down or taken away, never moved.
 export function changeBlocks(room, items, change) {
   const { type, kind } = change
   let blocks = blocksOf(room)
   const moved = new Map() // id -> fields changed by the move itself
 
   if (type === 'add') {
-    if (!canPlace(room, kind, change.at)) return { error: 'spot' }
+    if (!canPlace(room, kind, change.at, items)) return { error: 'spot' }
     const level = kind === 'wall' ? wallHeight(room, change.at.side, change.at.i, change.at.j) : 0
     blocks = [...blocks, { kind, side: kind === 'wall' ? change.at.side : '', i: change.at.i, j: change.at.j, level }]
   } else if (type === 'remove') {
-    if (kind === 'floor') {
+    if (kind === 'upper') {
+      if (!blocks.some((b) => isUpperAt(b, change.at))) return { error: 'none' }
+      blocks = blocks.filter((b) => !isUpperAt(b, change.at))
+    } else if (kind === 'floor') {
       if (!blocks.some((b) => isFloorAt(b, change.at))) return { error: 'none' }
       blocks = blocks.filter((b) => !isFloorAt(b, change.at))
     } else {
@@ -562,6 +708,7 @@ export function changeBlocks(room, items, change) {
     }
   } else if (type === 'move') {
     const { from, to } = change
+    if (kind === 'upper') return { error: 'spot' }
     if (kind === 'floor') {
       if (!blocks.some((b) => isFloorAt(b, from))) return { error: 'none' }
       const without = blocks.filter((b) => !isFloorAt(b, from))
@@ -580,8 +727,7 @@ export function changeBlocks(room, items, change) {
       const height = wallHeight(room, from.side, from.i, from.j)
       if (height === 0) return { error: 'none' }
       if (sameEdge(from, to) || wallHeight(room, to.side, to.i, to.j) > 0) return { error: 'spot' }
-      const sides = edgeSides(room, to.side, to.i, to.j)
-      if (!sides.before && !sides.after) return { error: 'spot' }
+      if (!backEdge(room, to.side, to.i, to.j)) return { error: 'spot' }
       blocks = blocks.map((b) => (isWallAt(b, from) ? { ...b, side: to.side, i: to.i, j: to.j } : b))
       // Windows and the like go with their wall, as far along and as high.
       const start = wallFace(room, from).along[0]
@@ -597,7 +743,7 @@ export function changeBlocks(room, items, change) {
   if (problem) return { error: problem }
 
   // Settle everything into the new room.
-  const after = { ...room, blocks }
+  const after = { ...room, blocks, items }
   const patches = []
   for (const item of items) {
     if (!item.placed) continue
@@ -612,7 +758,7 @@ export function changeBlocks(room, items, change) {
       // Something standing on something else goes wherever that goes.
       let level = now.level ?? 0
       const clearance = clearanceOf(item.kind)
-      if (level === 1 && !hasLoft(after)) patch.level = level = 0
+      if (level === 1 && !hasUpstairs(after)) patch.level = level = 0
       if (!itemFits(after, level, now.x, now.z, clearance)) Object.assign(patch, nearestSpot(after, level, now.x, now.z, clearance))
     }
     const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => item[key] !== value))
@@ -624,6 +770,7 @@ export function changeBlocks(room, items, change) {
 // Where a block may go in a change, for the room to show while the reader
 // chooses: every spot `changeBlocks` would accept.
 export function moveSpots(room, kind, from) {
+  if (kind === 'upper') return []
   const candidates = kind === 'floor'
     ? floorSpots({ blocks: blocksOf(room).filter((b) => !isFloorAt(b, from)) })
     : wallSpots(room).filter((s) => s.level === 0).map(({ side, i, j }) => ({ side, i, j }))
@@ -632,9 +779,12 @@ export function moveSpots(room, kind, from) {
 
 // The blocks that may be picked up to move, or taken away.
 export function pickSpots(room, kind, type) {
-  const options = kind === 'floor'
+  if (kind === 'upper' && type === 'move') return []
+  const options = kind === 'upper'
+    ? upperCells(room).map(({ i, j }) => ({ i, j }))
+    : kind === 'floor'
     ? floorCells(room).map(({ i, j }) => ({ i, j }))
     : walls(room).map(({ side, i, j, height }) => ({ side, i, j, level: type === 'remove' ? height - 1 : 0, levels: type === 'remove' ? 1 : height }))
-  if (type === 'remove') return options.filter((at) => !changeBlocks(room, [], { type, kind, at }).error)
+  if (type === 'remove') return options.filter((at) => !changeBlocks(room, room?.items ?? [], { type, kind, at }).error)
   return options.filter((from) => moveSpots(room, kind, from).length > 0)
 }

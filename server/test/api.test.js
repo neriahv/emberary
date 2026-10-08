@@ -573,20 +573,20 @@ const move = (kind, from, to) => call('POST', '/api/room/blocks', { type: 'move'
 const remove = (kind, at) => call('POST', '/api/room/blocks', { type: 'remove', kind, at })
 
 test('a floor block is paid for when it is put down, where the reader chose', async () => {
-  // Not yet: there is no floor to the left of the first block.
-  assert.equal((await call('PATCH', '/api/room/items/5', { x: -4 })).status, 400)
+  // Not yet: there is no floor to the right of the first block.
+  assert.equal((await call('PATCH', '/api/room/items/5', { x: 4 })).status, 400)
 
-  // To the left, beyond the window wall. One floor block is only floor.
-  const laid = await add('floor', { i: -1, j: 0 })
+  // To the right, the open side of the room. One floor block is only floor.
+  const laid = await add('floor', { i: 1, j: 0 })
   assert.equal(laid.status, 201)
   assert.equal(laid.body.balance, SEED_BALANCE - 25)
   const { blocks } = laid.body.room
-  assert.deepEqual(blocks.filter((b) => b.kind === 'floor').map((b) => [b.i, b.j]), [[0, 0], [-1, 0]])
+  assert.deepEqual(blocks.filter((b) => b.kind === 'floor').map((b) => [b.i, b.j]), [[0, 0], [1, 0]])
   assert.equal(blocks.filter((b) => b.kind === 'wall').length, 2)
 
   // Furniture can stand there now, but not past it.
-  assert.equal((await call('PATCH', '/api/room/items/5', { x: -4 })).status, 200)
-  assert.equal((await call('PATCH', '/api/room/items/5', { x: -7.4 })).status, 400)
+  assert.equal((await call('PATCH', '/api/room/items/5', { x: 4 })).status, 200)
+  assert.equal((await call('PATCH', '/api/room/items/5', { x: 7.4 })).status, 400)
 
   const history = (await call('GET', '/api/ember')).body.history
   assert.deepEqual([history[0].amount, history[0].ref], [-25, 'block:floor'])
@@ -601,6 +601,72 @@ test('a block goes only where it may, and nothing is paid when it cannot', async
   assert.equal((await add('wall', { i: 0, j: 0 })).status, 400, 'a wall needs a side')
   assert.equal((await call('POST', '/api/room/blocks', { type: 'paint', kind: 'floor', at: { i: 1, j: 0 } })).status, 400)
   assert.equal(await balance(), SEED_BALANCE)
+})
+
+test('no floor is laid behind a wall, and no wall closes off the front of the room', async () => {
+  // Behind the window wall, and behind the back wall: both walled off.
+  assert.equal((await add('floor', { i: -1, j: 0 })).status, 409)
+  assert.equal((await add('floor', { i: 0, j: -1 })).status, 409)
+  // The front edges, between the reader and the room.
+  assert.equal((await add('wall', { side: 'z', i: 1, j: 0 })).status, 409)
+  assert.equal((await add('wall', { side: 'x', i: 0, j: 1 })).status, 409)
+  assert.equal(await balance(), SEED_BALANCE)
+
+  // With floor to the right, the back edge of that square takes a wall.
+  await add('floor', { i: 1, j: 0 })
+  assert.equal((await add('wall', { side: 'x', i: 1, j: 0 })).status, 201)
+  // Between the two squares is inside the room: no wall there.
+  assert.equal((await add('wall', { side: 'z', i: 1, j: 0 })).status, 409)
+})
+
+test('an upstairs floor needs stairs and a tall wall, leaves an opening for them, and has its own finish', async () => {
+  // Enough Ember for a staircase, a wall, a floor block and two upstairs squares.
+  await pool.query("INSERT INTO ember_ledger (reader_id, amount, reason, ref) VALUES ((SELECT min(id) FROM readers), 200, 'welcome', 'test')")
+  assert.equal((await add('upper', { i: 0, j: 0 })).status, 409, 'no staircase yet')
+
+  const { body } = await call('POST', '/api/shop/checkout', { items: ['stairs-straight'] })
+  const stairs = body.items[0].id
+  assert.equal((await call('PATCH', `/api/room/items/${stairs}`, { placed: true, x: 0, z: 0, rotation: 0 })).status, 200)
+  const low = await add('upper', { i: 0, j: 0 })
+  assert.equal(low.status, 409, 'the walls are only one block high')
+  assert.match(low.body.error, /staircase/)
+
+  assert.equal((await add('wall', { side: 'z', i: 0, j: 0 })).status, 201)
+  const before = await balance()
+  const laid = await add('upper', { i: 0, j: 0 })
+  assert.equal(laid.status, 201)
+  assert.equal(laid.body.balance, before - 30)
+  assert.ok(laid.body.room.blocks.some((b) => b.kind === 'upper' && b.i === 0 && b.j === 0))
+  const history = (await call('GET', '/api/ember')).body.history
+  assert.deepEqual([history[0].amount, history[0].ref], [-30, 'block:upper'])
+
+  // Things stand upstairs, but not over the opening for the stairs.
+  assert.equal((await call('PATCH', '/api/room/items/5', { level: 1, x: 0, z: 0 })).status, 400)
+  assert.equal((await call('PATCH', '/api/room/items/5', { level: 1, x: -1.8, z: -1.8 })).status, 200)
+
+  // A second square beside the first needs no tall wall of its own; the
+  // floor under it cannot go while it is there.
+  assert.equal((await add('floor', { i: 1, j: 0 })).status, 201)
+  assert.equal((await add('upper', { i: 1, j: 0 })).status, 201)
+  const under = await remove('floor', { i: 1, j: 0 })
+  assert.equal(under.status, 409)
+  assert.match(under.body.error, /upstairs floor above it/)
+  assert.equal((await move('upper', { i: 1, j: 0 }, { i: 0, j: 1 })).status, 409, 'never moved')
+  const sold = await remove('upper', { i: 1, j: 0 })
+  assert.equal(sold.status, 200)
+  assert.equal(sold.body.refund, 15)
+
+  // Its own floor finish and colour, from the floors the reader owns.
+  const finish = await call('PATCH', '/api/room', { upperFloor: 'floor-planks', upperFloorColor: '#223344' })
+  assert.equal(finish.status, 200)
+  assert.deepEqual([finish.body.upperFloor, finish.body.upperFloorColor], ['floor-planks', '#223344'])
+  assert.equal((await call('PATCH', '/api/room', { upperFloor: 'floor-marble' })).status, 409, 'not bought')
+  assert.equal((await call('PATCH', '/api/room', { upperFloor: 'wallpaper-plain' })).status, 400)
+
+  // With the last upstairs square gone, what stood up there comes down.
+  const gone = await remove('upper', { i: 0, j: 0 })
+  assert.equal(gone.status, 200)
+  assert.equal(gone.body.room.items.find((i) => i.id === 5).level, 0)
 })
 
 test('wall blocks stack one at a time on an edge of the floor, three high at most', async () => {
@@ -639,12 +705,17 @@ test('a wall moves to another edge, and its windows go with it', async () => {
   const { body } = await call('POST', '/api/shop/checkout', { items: ['window-round'] })
   const id = body.items[0].id
   await call('PATCH', `/api/room/items/${id}`, { placed: true })
-  const moved = await move('wall', { side: 'z', i: 0, j: 0 }, { side: 'z', i: 1, j: 0 })
+  // Never to the open front of the room.
+  assert.equal((await move('wall', { side: 'z', i: 0, j: 0 }, { side: 'z', i: 1, j: 0 })).status, 409)
+  // To the back of a new square to the right.
+  await add('floor', { i: 1, j: 0 })
+  const moved = await move('wall', { side: 'z', i: 0, j: 0 }, { side: 'x', i: 1, j: 0 })
   assert.equal(moved.status, 200)
   const window = moved.body.room.items.find((i) => i.id === id)
-  // Now on the right-hand edge, facing back into the room.
-  assert.deepEqual([window.x, window.z, window.rotation], [2.2, -0.35, 270])
-  assert.equal((await move('wall', { side: 'z', i: 1, j: 0 }, { side: 'x', i: 0, j: 0 })).status, 409, 'a wall already stands there')
+  // Now on the back wall of that square, facing into the room.
+  // As far along it as it was along the old one.
+  assert.deepEqual([window.x, window.z, window.rotation, window.placed], [4.65, -2.2, 0, true])
+  assert.equal((await move('wall', { side: 'x', i: 1, j: 0 }, { side: 'x', i: 0, j: 0 })).status, 409, 'a wall already stands there')
 })
 
 test('a block taken away gives half its price back, and its windows go to storage', async () => {
@@ -706,6 +777,15 @@ test('a small thing stands on a table, and comes down when the table is stored',
   await call('PATCH', '/api/room/items/2', { placed: false })
   const down = (await call('GET', '/api/room')).body.items.find((i) => i.id === cup.id)
   assert.deepEqual([down.on, down.y], [null, 0])
+
+  // Out of storage onto the floor, and a small thing taken off a table: both
+  // stand at height 0.
+  const back = await call('PATCH', '/api/room/items/2', { placed: true, x: -0.9, z: -0.7, y: 0, on: null })
+  assert.equal(back.status, 200)
+  await call('PATCH', `/api/room/items/${cup.id}`, { on: 2, x: -0.9, z: -0.7, y: 0.77 })
+  const off = await call('PATCH', `/api/room/items/${cup.id}`, { on: null, x: 0, z: 1, y: 0 })
+  assert.equal(off.status, 200)
+  assert.equal((await call('PATCH', `/api/room/items/${cup.id}`, { y: -0.5 })).status, 400)
 })
 
 test('anything can be painted, and bookcases and windows made wider and taller', async () => {
@@ -734,7 +814,7 @@ test('wall shapes, roofs and floors are finishes like any other', async () => {
 test('a loft needs a window wall two blocks high, and furniture can go up to it', async () => {
   const early = await call('PATCH', '/api/room/items/8', { level: 1 })
   assert.equal(early.status, 400)
-  assert.match(early.body.error, /build one first/)
+  assert.match(early.body.error, /build an upstairs floor first/)
 
   await call('POST', '/api/shop/checkout', { items: ['loft-gallery'] })
   const tooLow = await call('PATCH', '/api/room', { loft: 'loft-gallery' })

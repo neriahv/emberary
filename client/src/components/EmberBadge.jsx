@@ -36,6 +36,7 @@ const HISTORY_LABELS = {
 const BLOCK_NAMES = {
   'block:floor': 'A floor block',
   'block:wall': 'A wall block',
+  'block:upper': 'An upstairs floor',
 }
 
 // What a purchase bought, by name, from the catalogue ids it was recorded with.

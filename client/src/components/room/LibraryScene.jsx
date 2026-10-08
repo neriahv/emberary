@@ -10,16 +10,23 @@ import {
   cellBox,
   clearanceOf,
   coverImageUrl,
+  SIZE_LIMITS,
+  floorCells,
   floorSpots,
   isSmall,
+  upperCells,
+  upperSpots,
+  resizable,
   moveSpots,
   nearestSpot,
   onWallAt,
   pickSpots,
+  roomExtent,
   wallSpots,
+  walls,
 } from '../../api'
 import { BookcaseFrame, MODELS, Shadowed, bookRowZ, innerWidth, scaledSpec, shelfGap, shelfLevels, topsOf } from './models.jsx'
-import RoomShell, { BlockGhost, CORNER, roomGeometry, wallFrames } from './structure.jsx'
+import RoomShell, { BlockGhost, CORNER, WALL, roomGeometry, wallFrame, wallFrames } from './structure.jsx'
 import { alongOf, fitWindow } from './windows.jsx'
 import { coverImageTexture, coverSpineTexture, coverTexture, loadCover, spineTexture } from './textures.js'
 
@@ -616,47 +623,222 @@ function stackSpot(ray, item, others, levelY) {
   return best && { ...best, x: Math.round(best.x * 100) / 100, z: Math.round(best.z * 100) / 100, y: Math.round(best.y * 100) / 100 }
 }
 
-// The little toolbar above the selected item while building: undo, turn,
-// store, sell. Small, and only over the item itself, so the room stays in
+const spotPlane = new Plane(new Vector3(0, 1, 0), 0)
+
+// Where an item would go with the pointer over the room: a window slides on
+// the wall face under the pointer; something small can stand on a table, a
+// seat or a shelf; something that hangs goes on the nearest wall; the rest
+// takes the nearest free bit of floor. `grip` is how far from the pointer the
+// item was picked up, so a drag does not jump; a click passes none and the
+// item lands right where the click was. Returns the change, or null when the
+// pointer is not over anywhere it could go.
+function itemSpotUnder(ray, item, room, others, grip = null) {
+  const def = MODELS[item.kind] ?? MODELS.cushion
+  if (def.window) {
+    const point = pointOnWall(ray, room)
+    if (!point) return null
+    const same = grip && ['side', 'i', 'j'].every((key) => point.edge[key] === grip.edge[key])
+    const next = fitWindow(room, item.kind, {
+      edge: point.edge,
+      along: point.along + (same ? grip.along : 0),
+      y: point.y + (grip ? grip.y : 0),
+      size: item.size ?? 1,
+      sx: item.sx ?? 1,
+      sy: item.sy ?? 1,
+    })
+    return { x: next.x, z: next.z, y: next.y, rotation: next.rotation }
+  }
+  const level = item.level === 1 ? 1 : 0
+  const levelY = level === 1 ? LOFT.y : 0
+  const small = isSmall(item.kind)
+  const onTop = small && stackSpot(ray, item, others, levelY)
+  if (onTop) return { ...onTop, rotation: item.rotation }
+  // Clicked straight on a wall: something that hangs goes right there.
+  if (def.wall && !grip) {
+    const point = pointOnWall(ray, room)
+    if (point) return onWallAt(room, point.edge, point.along)
+  }
+  spotPlane.constant = -levelY
+  if (!ray.intersectPlane(spotPlane, hit)) return null
+  const x = hit.x + (grip?.dx ?? 0)
+  const z = hit.z + (grip?.dz ?? 0)
+  if (!grip) {
+    // A click outside the room is not a place to put anything.
+    const extent = roomExtent(room)
+    if (x < extent.x[0] - 0.5 || x > extent.x[1] + 0.5 || z < extent.z[0] - 0.5 || z > extent.z[1] + 0.5) return null
+  }
+  if (def.wall) {
+    const wall = nearestWall(room, x, z)
+    return wall ? onWallAt(room, wall.edge, wall.along) : null
+  }
+  const spot = nearestSpot(room, level, x, z, clearanceOf(item.kind))
+  if (!spot) return null
+  const next = { ...spot, rotation: item.rotation }
+  if (small && item.on) Object.assign(next, { on: null, y: 0 })
+  return next
+}
+
+// The floor and walls catch a click while an item is selected (or something
+// is being tried in the shop), and the item goes where the click was. A drag
+// that moves the view is not a click, and neither is a click on another item,
+// which selects that one instead.
+function ClickToMove({ room, item, others, onMove }) {
+  const extent = roomExtent(room)
+  const cx = (extent.x[0] + extent.x[1]) / 2
+  const cz = (extent.z[0] + extent.z[1]) / 2
+  return (
+    <mesh
+      position={[cx, 0.001, cz]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      onClick={(event) => {
+        if (event.delta > 6) return
+        if (event.intersections[0]?.object !== event.object) return
+        event.stopPropagation()
+        const next = itemSpotUnder(event.ray, item, room, others)
+        if (!next) return
+        if (Object.keys(next).some((key) => next[key] !== item[key])) onMove(item, next)
+      }}
+    >
+      <planeGeometry args={[60, 60]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  )
+}
+
+// The little toolbar above an item. For something the reader owns, while
+// building: undo, turn, size (bookcases and windows), store and sell. For
+// something being tried in the shop: turn, buy it here, buy it into storage,
+// or put it back. Small, and only over the item itself, so the room stays in
 // view. Selling asks once more before it happens.
-function ItemTools({ item, tools, height }) {
+function ItemTools({ item, tools, height, ghost }) {
   const [asking, setAsking] = useState(false)
+  const [sizing, setSizing] = useState(false)
   const stop = (event) => event.stopPropagation()
+  const sizable = !ghost && resizable(item.kind)
   return (
     <Html zIndexRange={[6, 0]} position={[0, height, 0]} center>
-      <div className="item-tools" onPointerDown={stop} onPointerUp={stop} onClick={stop}>
-        {asking ? (
-          <>
-            <span className="item-tools-ask">Sell for {tools.sellPrice(item)} Ember?</span>
-            <button type="button" className="item-tool is-danger" onClick={() => tools.sell(item)} aria-label="Yes, sell it">
-              ✓
-            </button>
-            <button type="button" className="item-tool" onClick={() => setAsking(false)} aria-label="Keep it">
-              ✕
-            </button>
-          </>
-        ) : (
-          <>
-            <button type="button" className="item-tool" onClick={() => tools.undo(item)} disabled={!tools.canUndo(item)} title="Undo" aria-label="Undo">
-              ↶
-            </button>
-            <button type="button" className="item-tool" onClick={() => tools.turn(item, -45)} title="Turn left" aria-label="Turn left">
-              ⟲
-            </button>
-            <button type="button" className="item-tool" onClick={() => tools.turn(item, 45)} title="Turn right" aria-label="Turn right">
-              ⟳
-            </button>
-            <button type="button" className="item-tool" onClick={() => tools.store(item)} title="Put in storage" aria-label="Put in storage">
-              📦
-            </button>
-            <button type="button" className="item-tool is-danger" onClick={() => setAsking(true)} title="Sell" aria-label="Sell">
-              🪙
-            </button>
-          </>
+      <div className="item-tools-wrap" onPointerDown={stop} onPointerUp={stop} onClick={stop} onWheel={stop}>
+        <div className={`item-tools${ghost ? ' is-ghost' : ''}`}>
+          {ghost ? (
+            <>
+              <button type="button" className="item-tool" onClick={() => tools.turn(item, -45)} title="Turn left" aria-label="Turn left">
+                ⟲
+              </button>
+              <button type="button" className="item-tool" onClick={() => tools.turn(item, 45)} title="Turn right" aria-label="Turn right">
+                ⟳
+              </button>
+              <button type="button" className="item-tool" onClick={() => tools.store(item)} title="Buy it into storage" aria-label="Buy it into storage">
+                📦
+              </button>
+              <button type="button" className="item-tool" onClick={() => tools.cancel(item)} title="Not this one" aria-label="Cancel">
+                ✕
+              </button>
+              <span className="item-tools-price">{tools.price(item)} Ember</span>
+              <button
+                type="button"
+                className="item-tool is-confirm"
+                onClick={() => tools.confirm(item)}
+                title="Buy it and put it here"
+                aria-label={`Buy it for ${tools.price(item)} Ember and put it here`}
+              >
+                ✓
+              </button>
+            </>
+          ) : asking ? (
+            <>
+              <span className="item-tools-ask">Sell for {tools.sellPrice(item)} Ember?</span>
+              <button type="button" className="item-tool is-danger" onClick={() => tools.sell(item)} aria-label="Yes, sell it">
+                ✓
+              </button>
+              <button type="button" className="item-tool" onClick={() => setAsking(false)} aria-label="Keep it">
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="item-tool" onClick={() => tools.undo(item)} disabled={!tools.canUndo(item)} title="Undo" aria-label="Undo">
+                ↶
+              </button>
+              <button type="button" className="item-tool" onClick={() => tools.turn(item, -45)} title="Turn left" aria-label="Turn left">
+                ⟲
+              </button>
+              <button type="button" className="item-tool" onClick={() => tools.turn(item, 45)} title="Turn right" aria-label="Turn right">
+                ⟳
+              </button>
+              {sizable && (
+                <button type="button" className="item-tool" aria-pressed={sizing} onClick={() => setSizing(!sizing)} title="Size" aria-label="Size">
+                  ⤡
+                </button>
+              )}
+              {tools.otherLevel?.(item) && (
+                <button
+                  type="button"
+                  className="item-tool"
+                  onClick={() => tools.switchLevel(item)}
+                  title={(item.level ?? 0) === 1 ? 'Take it downstairs' : 'Take it upstairs'}
+                  aria-label={(item.level ?? 0) === 1 ? 'Take it downstairs' : 'Take it upstairs'}
+                >
+                  {(item.level ?? 0) === 1 ? '⤓' : '⤒'}
+                </button>
+              )}
+              <button type="button" className="item-tool" onClick={() => tools.store(item)} title="Put in storage" aria-label="Put in storage">
+                📦
+              </button>
+              <button type="button" className="item-tool is-danger" onClick={() => setAsking(true)} title="Sell" aria-label="Sell">
+                🪙
+              </button>
+              <button type="button" className="item-tool is-confirm" onClick={() => tools.confirm(item)} title="Done: keep it here" aria-label="Done: keep it here">
+                ✓
+              </button>
+            </>
+          )}
+        </div>
+        {sizable && sizing && !asking && (
+          <div className="item-sizes">
+            {[
+              ['sx', 'Width'],
+              ['sy', 'Height'],
+            ].map(([key, label]) => (
+              <label key={key}>
+                <span>
+                  {label} {Math.round((item[key] ?? 1) * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min={SIZE_LIMITS[key][0]}
+                  max={SIZE_LIMITS[key][1]}
+                  step="0.05"
+                  value={item[key] ?? 1}
+                  onPointerDown={() => tools.gesture(item)}
+                  onChange={(event) => tools.resize(item, { [key]: Number(event.target.value) })}
+                />
+              </label>
+            ))}
+          </div>
         )}
       </div>
     </Html>
   )
+}
+
+// Something being tried in the shop is drawn see-through, with a green tint,
+// until it is bought.
+function useGhostLook(ref, ghost) {
+  useLayoutEffect(() => {
+    if (!ghost) return
+    ref.current?.traverse((object) => {
+      if (!object.isMesh) return
+      for (const material of [object.material].flat()) {
+        material.transparent = true
+        material.opacity = 0.55
+        material.depthWrite = false
+        if (material.emissive) {
+          material.emissive.set('#3fd07a')
+          material.emissiveIntensity = 0.25
+        }
+      }
+    })
+  })
 }
 
 // One piece of furniture. A bookcase also carries its share of the reader's
@@ -666,11 +848,12 @@ function ItemTools({ item, tools, height }) {
 // would expect. In the builder, a small thing can be set down on a table, a
 // seat or a shelf as well as the floor, and the selected item wears a little
 // toolbar.
-function RoomItem({ item, room, geometry, time, shine, editing, placing, selected, others, tools, onSelect, onChange, onGesture, onToggleLight, shelf, table }) {
+function RoomItem({ item, room, geometry, time, shine, editing, placing, selected, ghost = false, others, tools, onSelect, onChange, onGesture, onToggleLight, shelf, table }) {
   const [hovered, setHovered] = useState(false)
   const [poke, setPoke] = useState(0)
   const drag = useRef(null)
   const paintRef = useRef()
+  const lookRef = useRef()
   const def = MODELS[item.kind] ?? MODELS.cushion
   const { Model, radius, height, surfaces } = def
   const spec = def.spec && scaledSpec(def.spec, item)
@@ -687,6 +870,7 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
   const clickable = !editing && (def.light || def.interact)
   const small = isSmall(item.kind)
   usePaint(paintRef, spec ? null : item.color)
+  useGhostLook(lookRef, ghost)
 
   const hover = {
     onPointerOver: (event) => {
@@ -706,74 +890,32 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
     onGesture(item)
   }
 
-  // A window is dragged over the walls themselves, from one to the other,
-  // up and down, but never off them.
-  const windowHandlers = {
-    ...hover,
-    onPointerDown: (event) => {
-      begin(event)
-      const point = pointOnWall(event.ray, room)
-      if (!point) return
-      drag.current = { edge: point.edge, along: alongOf(item) - point.along, y: item.y - point.y }
-      event.target.setPointerCapture(event.pointerId)
-      document.body.style.cursor = 'grabbing'
-    },
-    onPointerMove: (event) => {
-      if (!drag.current) return
-      const point = pointOnWall(event.ray, room)
-      if (!point) return
-      event.stopPropagation()
-      const same = ['side', 'i', 'j'].every((key) => point.edge[key] === drag.current.edge[key])
-      const next = fitWindow(room, item.kind, {
-        edge: point.edge,
-        along: point.along + (same ? drag.current.along : 0),
-        y: point.y + drag.current.y,
-        size,
-        sx: item.sx ?? 1,
-        sy: item.sy ?? 1,
-      })
-      if (next.x !== item.x || next.z !== item.z || next.y !== item.y || next.rotation !== item.rotation) {
-        onChange(item.id, { x: next.x, z: next.z, y: next.y, rotation: next.rotation })
-      }
-    },
-  }
-
   // In the builder an item can be picked up and slid across the floor (or the
   // loft it stands on). The pointer is captured so the drag keeps working when
-  // it leaves the item. Something that hangs on a wall slides along the
-  // nearest wall instead, facing into the room; something small can be set on
-  // a table, a seat or a shelf on the way.
+  // it leaves the item. A window slides over the walls themselves; something
+  // that hangs on a wall slides along the nearest wall instead, facing into
+  // the room; something small can be set on a table, a seat or a shelf on the
+  // way.
   const editHandlers = {
     ...hover,
     onPointerDown: (event) => {
       begin(event)
-      if (!event.ray.intersectPlane(plane, hit)) return
-      drag.current = { dx: item.x - hit.x, dz: item.z - hit.z }
+      if (def.window) {
+        const point = pointOnWall(event.ray, room)
+        if (!point) return
+        drag.current = { edge: point.edge, along: alongOf(item) - point.along, y: item.y - point.y }
+      } else {
+        if (!event.ray.intersectPlane(plane, hit)) return
+        drag.current = { dx: item.x - hit.x, dz: item.z - hit.z }
+      }
       event.target.setPointerCapture(event.pointerId)
       document.body.style.cursor = 'grabbing'
     },
     onPointerMove: (event) => {
       if (!drag.current) return
       event.stopPropagation()
-      let next
-      const onTop = small && stackSpot(event.ray, item, others, y)
-      if (onTop) {
-        next = { ...onTop, rotation: item.rotation }
-      } else {
-        if (!event.ray.intersectPlane(plane, hit)) return
-        const x = hit.x + drag.current.dx
-        const z = hit.z + drag.current.dz
-        if (def.wall) {
-          const wall = nearestWall(room, x, z)
-          if (!wall) return
-          next = onWallAt(room, wall.edge, wall.along)
-        } else {
-          const spot = nearestSpot(room, level, x, z, clearanceOf(item.kind))
-          if (!spot) return
-          next = { ...spot, rotation: item.rotation }
-          if (small && item.on) Object.assign(next, { on: null, y: 0 })
-        }
-      }
+      const next = itemSpotUnder(event.ray, item, room, others, drag.current)
+      if (!next) return
       const changed = Object.keys(next).some((key) => next[key] !== item[key])
       if (changed) onChange(item.id, next)
     },
@@ -785,7 +927,6 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
       document.body.style.cursor = 'grab'
     },
   }
-  if (def.window) Object.assign(editHandlers, windowHandlers)
 
   const viewHandlers = clickable
     ? {
@@ -806,7 +947,7 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
       rotation={[0, (item.rotation * Math.PI) / 180, 0]}
       {...(placing ? {} : editing ? editHandlers : viewHandlers)}
     >
-      <group scale={scale}>
+      <group scale={scale} ref={lookRef}>
         {spec ? (
           <Bookcase spec={spec} paint={item.color} {...shelf} />
         ) : (
@@ -821,7 +962,7 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
           </group>
         )}
       </group>
-      {surfaces && <TableTop caseId={item.id} surfaces={surfaces} {...table} />}
+      {surfaces && table && <TableTop caseId={item.id} surfaces={surfaces} {...table} />}
       {editing && (selected || hovered) && (
         // On the floor around furniture; flat on the wall around a window.
         <mesh rotation={def.window ? [0, 0, 0] : [-Math.PI / 2, 0, 0]} position={def.window ? [0, 0, -0.2] : [0, 0.02, 0]}>
@@ -832,11 +973,11 @@ function RoomItem({ item, room, geometry, time, shine, editing, placing, selecte
                 : [(spec ? spec.width / 2 + 0.1 : radius), (spec ? spec.width / 2 + 0.1 : radius) + 0.05, 48]
             }
           />
-          <meshBasicMaterial color={selected ? '#ffb070' : '#fff1dc'} transparent opacity={0.95} />
+          <meshBasicMaterial color={ghost ? '#4cd07a' : selected ? '#ffb070' : '#fff1dc'} transparent opacity={0.95} />
         </mesh>
       )}
-      {editing && selected && !placing && tools && <ItemTools item={item} tools={tools} height={topOf + 0.35} />}
-      {hovered && tip && !(editing && selected) && (
+      {editing && selected && !placing && tools && <ItemTools item={item} tools={tools} height={topOf + 0.35} ghost={ghost} />}
+      {hovered && tip && !ghost && !(editing && selected) && (
         <Html zIndexRange={[4, 0]} position={[0, Math.max(topOf + 0.25, small ? 0.3 : 0.9), 0]} center className="room-tooltip">
           {tip}
         </Html>
@@ -978,7 +1119,7 @@ const groundHit = new Vector3()
 // The spot nearest the pointer that a block may go: for floor, the empty
 // square under it; for a wall, the floor edge nearest it, within reach.
 function spotUnder(kind, spots, point) {
-  if (kind === 'floor') {
+  if (kind === 'floor' || kind === 'upper') {
     const i = Math.floor((point.x - CORNER) / BLOCKS.floor)
     const j = Math.floor((point.z - CORNER) / BLOCKS.floor)
     return spots.find((s) => s.i === i && s.j === j) ?? null
@@ -1005,7 +1146,7 @@ function spotUnder(kind, spots, point) {
 // and waits (`at`) while the reader confirms.
 function spotsFor(room, mode) {
   const { action, kind, from } = mode
-  if (action === 'add') return kind === 'floor' ? floorSpots(room) : wallSpots(room)
+  if (action === 'add') return kind === 'floor' ? floorSpots(room) : kind === 'upper' ? upperSpots(room) : wallSpots(room)
   if (action === 'move' && from) return moveSpots(room, kind, from)
   return pickSpots(room, kind, action)
 }
@@ -1023,6 +1164,7 @@ function BlockBuilder({ room, mode, onSpot }) {
   }, [waiting])
 
   const follow = (event) => {
+    ground.constant = mode.kind === 'upper' ? -LOFT.y : 0
     if (waiting || !event.ray.intersectPlane(ground, groundHit)) return
     const next = spotUnder(mode.kind, spots, groundHit)
     if (next !== hover) {
@@ -1034,25 +1176,194 @@ function BlockBuilder({ room, mode, onSpot }) {
   const tone = choosing ? 'add' : mode.action === 'remove' ? 'remove' : 'pick'
   // The block being moved stays marked while the reader picks where it goes.
   const picked = mode.from && (mode.kind === 'wall' ? { ...mode.from, level: 0, levels: mode.from.levels } : mode.from)
+  const walling = mode.kind === 'wall'
+  const hoverWall = (next) => {
+    setHover(next)
+    invalidate()
+  }
   return (
     <>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.03, 0]}
-        onPointerMove={follow}
-        onClick={(event) => {
-          event.stopPropagation()
-          if (waiting || event.delta > 6) return
-          follow(event)
-          const spot = spotUnder(mode.kind, spots, groundHit)
-          if (spot) onSpot(spot)
-        }}
-      >
-        <planeGeometry args={[80, 80]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <BlockGhost room={room} placing={{ kind: mode.kind, spots: waiting ? [] : spots, hover: waiting ? mode.at : hover, tone }} />
+      {!walling && (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.03, 0]}
+          onPointerMove={follow}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (waiting || event.delta > 6) return
+            follow(event)
+            const spot = spotUnder(mode.kind, spots, groundHit)
+            if (spot) onSpot(spot)
+          }}
+        >
+          <planeGeometry args={[80, 80]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
+      <BlockGhost
+        room={room}
+        placing={{ kind: mode.kind, spots: waiting ? [] : spots, hover: waiting ? mode.at : hover, tone }}
+        onHover={walling && !waiting ? hoverWall : undefined}
+        onPick={walling && !waiting ? onSpot : undefined}
+      />
       {picked && <BlockGhost room={room} placing={{ kind: mode.kind, spots: [], hover: picked, tone: 'pick' }} />}
+    </>
+  )
+}
+
+// Pointing at a floor square or a wall shows, just above it, what can be done
+// with it: move it somewhere else, or sell it back for half its price. A
+// block the room cannot do without (the floor has to stay in one piece, and a
+// wall needs floor beside it) has those buttons greyed out. The toolbar stays
+// a moment after the pointer leaves the block, so it can be reached.
+const LENGTH = BLOCKS.floor + 2 * WALL
+
+function BlockTools({ room, tools, upstairs }) {
+  const [hover, setHover] = useState(null) // { kind, at, key }
+  const [asking, setAsking] = useState(false)
+  const timer = useRef(null)
+  const invalidate = useThree((state) => state.invalidate)
+  const options = useMemo(
+    () => ({
+      floor: { move: pickSpots(room, 'floor', 'move'), remove: pickSpots(room, 'floor', 'remove') },
+      wall: { move: pickSpots(room, 'wall', 'move'), remove: pickSpots(room, 'wall', 'remove') },
+      upper: { move: [], remove: pickSpots(room, 'upper', 'remove') },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [room.blocks]
+  )
+  useEffect(() => () => clearTimeout(timer.current), [])
+  // A change to the room's blocks puts the toolbar away.
+  useEffect(() => {
+    setHover(null)
+    setAsking(false)
+  }, [room.blocks])
+
+  const keep = () => clearTimeout(timer.current)
+  const leave = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      setHover(null)
+      setAsking(false)
+      invalidate()
+    }, 900)
+  }
+  const point = (target) => (event) => {
+    event.stopPropagation()
+    keep()
+    if (hover?.key === target.key) return
+    setHover(target)
+    setAsking(false)
+    invalidate()
+  }
+  const pointer = (target) => ({ onPointerOver: point(target), onClick: point(target), onPointerOut: leave })
+
+  const same = (a, b) => a.i === b.i && a.j === b.j && (a.side ?? '') === (b.side ?? '')
+  const movable = hover && options[hover.kind].move.find((spot) => same(spot, hover.at))
+  const removable = hover && options[hover.kind].remove.some((spot) => same(spot, hover.at))
+  const stop = (event) => event.stopPropagation()
+  const name = { wall: 'wall', upper: 'upstairs floor', floor: 'floor block' }[hover?.kind]
+
+  const bar = hover && (
+    <Html zIndexRange={[6, 0]} center position={hover.toolsAt}>
+      <div className="item-tools-wrap" onPointerEnter={keep} onPointerLeave={leave} onPointerDown={stop} onPointerUp={stop} onClick={stop} onWheel={stop}>
+        <div className="item-tools">
+          {asking ? (
+            <>
+              <span className="item-tools-ask">
+                Sell {hover.kind === 'wall' ? 'its top block' : 'it'} for {tools.refund(hover.kind)} Ember?
+              </span>
+              <button type="button" className="item-tool is-danger" onClick={() => tools.sell(hover.kind, hover.at)} aria-label="Yes, sell it">
+                ✓
+              </button>
+              <button type="button" className="item-tool" onClick={() => setAsking(false)} aria-label="Keep it">
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="item-tools-ask">{{ wall: 'Wall', upper: 'Upstairs', floor: 'Floor' }[hover.kind]}</span>
+              <button
+                type="button"
+                className="item-tool"
+                disabled={!movable}
+                onClick={() => tools.move(hover.kind, movable)}
+                title={movable ? `Move this ${name}` : hover.kind === 'upper' ? 'An upstairs floor stays where it is built' : `This ${name} has nowhere else to go`}
+                aria-label={`Move this ${name}`}
+              >
+                ✥
+              </button>
+              <button
+                type="button"
+                className="item-tool is-danger"
+                disabled={!removable}
+                onClick={() => setAsking(true)}
+                title={removable ? `Sell ${hover.kind === 'wall' ? 'its top block' : 'it'} for ${tools.refund(hover.kind)} Ember` : 'The room cannot do without this one'}
+                aria-label={`Sell this ${name}`}
+              >
+                🪙
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </Html>
+  )
+
+  const marked =
+    hover &&
+    (hover.kind === 'wall'
+      ? { ...hover.at, level: 0, levels: hover.height }
+      : hover.at)
+  return (
+    <>
+      {floorCells(room).map(({ i, j }) => {
+        const box = cellBox(i, j)
+        const cx = (box.x[0] + box.x[1]) / 2
+        const cz = (box.z[0] + box.z[1]) / 2
+        const target = { kind: 'floor', at: { i, j }, key: `f${i},${j}`, toolsAt: [cx, 0.5, cz] }
+        return (
+          <mesh key={target.key} position={[cx, 0.005, cz]} {...pointer(target)}>
+            <boxGeometry args={[BLOCKS.floor, 0.01, BLOCKS.floor]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        )
+      })}
+      {upstairs &&
+        upperCells(room).map(({ i, j }) => {
+          const box = cellBox(i, j)
+          const cx = (box.x[0] + box.x[1]) / 2
+          const cz = (box.z[0] + box.z[1]) / 2
+          const target = { kind: 'upper', at: { i, j }, key: `u${i},${j}`, toolsAt: [cx, LOFT.y + 0.5, cz] }
+          return (
+            <mesh key={target.key} position={[cx, LOFT.y + 0.01, cz]} {...pointer(target)}>
+              <boxGeometry args={[BLOCKS.floor, 0.02, BLOCKS.floor]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          )
+        })}
+      {walls(room).map(({ side, i, j, height }) => {
+        const frame = wallFrame(room, { side, i, j })
+        const tall = height * BLOCKS.wall
+        // The toolbar floats above the middle of the wall, in the room.
+        const turn = frame.rotation[1]
+        const toolsAt = [
+          frame.position[0] + (LENGTH / 2) * Math.cos(turn) + WALL * Math.sin(turn),
+          tall + 0.35,
+          frame.position[2] - (LENGTH / 2) * Math.sin(turn) + WALL * Math.cos(turn),
+        ]
+        const target = { kind: 'wall', at: { side, i, j }, height, key: `w${side}${i},${j}`, toolsAt }
+        return (
+          <group key={target.key} position={frame.position} rotation={frame.rotation}>
+            <mesh position={[LENGTH / 2, tall / 2, WALL / 2]} {...pointer(target)}>
+              <boxGeometry args={[LENGTH, tall, WALL + 0.06]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          </group>
+        )
+      })}
+      {marked && <BlockGhost room={room} placing={{ kind: hover.kind, spots: [], hover: marked, tone: asking ? 'remove' : 'pick' }} />}
+      {bar}
     </>
   )
 }
@@ -1072,11 +1383,17 @@ export default function LibraryScene({
   blockMode = null,
   onBlockSpot,
   itemTools,
+  blockTools = null,
   onGesture = () => {},
+  ghost = null,
+  ghostTools,
+  onGhostChange,
+  upstairs = true,
   viewReset = 0,
 }) {
-  // Stored furniture is not in the room at all.
-  const items = room.items.filter((i) => i.placed)
+  // Stored furniture is not in the room at all; nor is what stands upstairs
+  // while the upstairs floor is hidden.
+  const items = room.items.filter((i) => i.placed && (upstairs || (i.level ?? 0) === 0))
   // Only the blocks shape the room; keyed on them alone so moving a chair
   // does not count as rebuilding the room (which re-centres the view).
   const geometry = useMemo(() => roomGeometry({ blocks: room.blocks }), [room.blocks])
@@ -1169,6 +1486,21 @@ export default function LibraryScene({
   const shelfProps = (id) => ({ ...bookProps, caseId: id, books: shelved[id] ?? [], color: room.shelfColor })
   const tableProps = (id) => ({ ...bookProps, books: onTables[id] ?? [] })
 
+  // What a click on the floor or a wall moves: the thing being tried in the
+  // shop, or the item selected in the builder.
+  const selectedItem = editing && !placing ? items.find((i) => i.id === selectedItemId) : null
+  const mover = ghost
+    ? { item: { id: 'ghost', level: 0, size: 1, sx: 1, sy: 1, on: null, ...ghost }, move: (item, next) => onGhostChange(next) }
+    : selectedItem
+      ? {
+          item: selectedItem,
+          move: (item, next) => {
+            onGesture(item)
+            onItemChange(item.id, next)
+          },
+        }
+      : null
+
   return (
     <Canvas
       shadows
@@ -1177,13 +1509,15 @@ export default function LibraryScene({
       onPointerMissed={() => (editing && !placing ? onSelectItem(null) : null)}
     >
       <color attach="background" args={[lighting.background]} />
-      <Camera editing={editing} viewReset={viewReset} geometry={geometry} />
+      {/* something being tried in the shop is dragged like furniture in the
+          builder, so a left-drag moves it, not the view */}
+      <Camera editing={editing || !!ghost} viewReset={viewReset} geometry={geometry} />
 
       <ambientLight intensity={lighting.ambient[0]} color={lighting.ambient[1]} />
       <hemisphereLight args={lighting.sky} />
       <Sun geometry={geometry} light={lighting.sun} />
 
-      <RoomShell room={room} time={time} landings={landings} daylight={daylight} />
+      <RoomShell room={room} time={time} landings={landings} daylight={daylight} upstairs={upstairs} />
       {items.map((item) => (
         <RoomItem
           key={item.id}
@@ -1205,6 +1539,30 @@ export default function LibraryScene({
           table={tableProps(item.id)}
         />
       ))}
+
+      {/* something being tried in the shop: see-through until it is bought */}
+      {ghost && (
+        <RoomItem
+          key={ghost.kind}
+          item={{ id: 'ghost', level: 0, placed: true, lit: true, size: 1, sx: 1, sy: 1, color: null, on: null, ...ghost }}
+          room={room}
+          geometry={geometry}
+          time={time}
+          editing
+          ghost
+          selected
+          others={items}
+          tools={ghostTools}
+          onSelect={() => {}}
+          onGesture={() => {}}
+          onChange={(id, patch) => onGhostChange(patch)}
+          shelf={{ caseId: 'ghost', books: [], color: room.shelfColor }}
+        />
+      )}
+
+      {mover && <ClickToMove room={room} item={mover.item} others={items} onMove={mover.move} />}
+
+      {blockTools && !placing && !ghost && !selectedItemId && <BlockTools room={room} tools={blockTools} upstairs={upstairs} />}
 
       {blockMode && <BlockBuilder room={room} mode={blockMode} onSpot={onBlockSpot} />}
     </Canvas>

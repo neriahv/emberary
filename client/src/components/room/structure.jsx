@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { BoxGeometry, Color, ExtrudeGeometry, Object3D, PlaneGeometry, Shape } from 'three'
-import { BLOCKS, LOFT, cellBox, floorCells, loftCells, roomExtent, wallFace, walls } from '../../api'
+import { BLOCKS, LOFT, cellBox, cutOut, floorCells, loftCells, roomExtent, stairwells, upperCells, wallFace, walls, wallHeight } from '../../api'
 import { Box, Cyl, Shadowed, WOOD, WOOD_DARK } from './parts.jsx'
 import { floorTexture, slateTexture, wallpaperTexture } from './textures.js'
 
@@ -82,6 +82,63 @@ export function wallProfile(shape, length, height) {
       points.push([k * step, top], [(k + 1) * step, top])
     }
     return points
+  }
+  if (shape === 'shape-steps') {
+    // A Dutch stepped gable: four steps up to the middle and four down.
+    const steps = 4
+    const rise = Math.min(1.4, length * 0.2) / steps
+    const run = length / (2 * steps + 1)
+    const points = [[0, height]]
+    for (let k = 0; k < steps; k++) points.push([k * run + run, height + k * rise], [k * run + run, height + (k + 1) * rise])
+    points.push([length - steps * run, height + steps * rise])
+    for (let k = steps - 1; k >= 0; k--) points.push([length - k * run - run, height + (k + 1) * rise], [length - k * run - run, height + k * rise])
+    points.push([length, height])
+    return points
+  }
+  if (shape === 'shape-spires') {
+    // A row of slender Gothic spires with flat stretches between.
+    const spires = Math.max(3, Math.round(length / 1.3))
+    const step = length / spires
+    const points = [[0, height]]
+    for (let k = 0; k < spires; k++) {
+      const middle = k * step + step / 2
+      points.push([middle - step * 0.22, height], [middle, height + 0.7], [middle + step * 0.22, height])
+    }
+    points.push([length, height])
+    return points
+  }
+  if (shape === 'shape-crown') {
+    // A crown: a tall point in the middle, smaller ones either side, and
+    // little ones at the ends.
+    const peaks = [[0.12, 0.3], [0.31, 0.55], [0.5, 0.95], [0.69, 0.55], [0.88, 0.3]]
+    const points = [[0, height]]
+    for (const [at, up] of peaks) {
+      const half = length * 0.07
+      points.push([at * length - half, height + 0.08], [at * length, height + up], [at * length + half, height + 0.08])
+    }
+    points.push([length, height])
+    return points
+  }
+  if (shape === 'shape-cloud') {
+    // Big puffs of cloud, each a different size.
+    const puffs = [0.22, 0.32, 0.46, 0.32, 0.22].map((r) => r * Math.min(1, length / 5))
+    const widths = puffs.map((r) => r * 2)
+    const scale = length / widths.reduce((a, b) => a + b, 0)
+    const points = []
+    let start = 0
+    for (const r of puffs) {
+      const width = r * 2 * scale
+      for (let k = 0; k <= 12; k++) {
+        const u = start + (k / 12) * width
+        points.push([u, height + Math.sin((Math.PI * k) / 12) * r * 1.6])
+      }
+      start += width
+    }
+    return points
+  }
+  if (shape === 'shape-twin') {
+    const peak = Math.min(1.1, length * 0.16)
+    return [[0, height], [length / 4, height + peak], [length / 2, height], [(3 * length) / 4, height + peak], [length, height]]
   }
   if (shape === 'shape-wave') {
     const scallops = Math.max(3, Math.round(length / 0.85))
@@ -356,6 +413,142 @@ function Loft({ room, floorColor, floor, landings }) {
   )
 }
 
+// ------------------------------------------------------------ upstairs
+
+// A flat piece of floor finish lying from x0..x1, z0..z1, with its pattern
+// placed by where it is in the room, so pieces meet without a seam.
+function FloorPiece({ x, z, y, color, finish }) {
+  const geometry = useMemo(() => {
+    const plane = new PlaneGeometry(x[1] - x[0], z[1] - z[0])
+    const position = plane.attributes.position
+    const uv = plane.attributes.uv
+    const cx = (x[0] + x[1]) / 2
+    const cz = (z[0] + z[1]) / 2
+    for (let i = 0; i < uv.count; i++) {
+      // The plane lies in x and -z once it is turned flat.
+      const wx = cx + position.getX(i)
+      const wz = cz - position.getY(i)
+      uv.setXY(i, (wx - CORNER) / SIZE, 1 - (wz - CORNER) / SIZE)
+    }
+    uv.needsUpdate = true
+    return plane
+  }, [x[0], x[1], z[0], z[1]])
+  return (
+    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[(x[0] + x[1]) / 2, y, (z[0] + z[1]) / 2]} receiveShadow>
+      <meshStandardMaterial key={finish} color={color} map={floorTexture(finish)} roughness={0.8} />
+    </mesh>
+  )
+}
+
+// A wooden railing from one point to another along x or z, at the upstairs
+// floor's height.
+function Railing({ from, to }) {
+  const alongX = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1])
+  const length = alongX ? Math.abs(to[0] - from[0]) : Math.abs(to[1] - from[1])
+  if (length < 0.15) return null
+  const mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2]
+  const rail = (y, h, w) => (
+    <Box s={alongX ? [length, h, w] : [w, h, length]} position={[mid[0], LOFT.y + y, mid[1]]} c={WOOD} r={0.5} />
+  )
+  const balusters = Math.max(2, Math.round(length / 0.22))
+  return (
+    <group>
+      {rail(0.95, 0.07, 0.08)}
+      {rail(0.1, 0.05, 0.06)}
+      {Array.from({ length: balusters + 1 }, (_, k) => {
+        const t = k / balusters
+        const px = from[0] + (to[0] - from[0]) * t
+        const pz = from[1] + (to[1] - from[1]) * t
+        return <Cyl key={k} s={[0.022, 0.026, 0.85, 6]} position={[px, LOFT.y + 0.52, pz]} c={WOOD_DARK} r={0.6} />
+      })}
+    </group>
+  )
+}
+
+// The upstairs floor: a wooden slab over every square laid, at the loft's
+// height, in its own finish and colour, with an opening over each staircase.
+// A railing runs along every open edge and round each opening, but not on the
+// side the stairs arrive at, and posts hold up the open corners.
+function UpperFloor({ room, landings }) {
+  const cells = upperCells(room)
+  if (cells.length === 0) return null
+  const holes = stairwells(room)
+  const finish = room.upperFloor ?? 'floor-planks'
+  const color = room.upperFloorColor ?? room.floorColor
+  const has = (i, j) => cells.some((c) => c.i === i && c.j === j)
+  const onUpstairs = (x, z) =>
+    cells.some(({ i, j }) => {
+      const box = cellBox(i, j)
+      return x > box.x[0] && x < box.x[1] && z > box.z[0] && z < box.z[1]
+    })
+
+  const pieces = []
+  const rails = []
+  const posts = new Map()
+  for (const { i, j } of cells) {
+    const box = cellBox(i, j)
+    let parts = [{ x: box.x, z: box.z }]
+    for (const hole of holes) parts = parts.flatMap((part) => cutOut(part, hole))
+    pieces.push(...parts.map((part, n) => ({ key: `${i},${j},${n}`, ...part })))
+    // The open edges: no upstairs floor beyond, and no wall along it.
+    const edges = [
+      [has(i, j - 1) || wallHeight(room, 'x', i, j) > 0, [box.x[0], box.z[0]], [box.x[1], box.z[0]]],
+      [has(i, j + 1) || wallHeight(room, 'x', i, j + 1) > 0, [box.x[0], box.z[1]], [box.x[1], box.z[1]]],
+      [has(i - 1, j) || wallHeight(room, 'z', i, j) > 0, [box.x[0], box.z[0]], [box.x[0], box.z[1]]],
+      [has(i + 1, j) || wallHeight(room, 'z', i + 1, j) > 0, [box.x[1], box.z[0]], [box.x[1], box.z[1]]],
+    ]
+    for (const [closed, from, to] of edges) {
+      if (closed) continue
+      rails.push({ key: `${from}|${to}`, from, to })
+      for (const point of [from, to]) posts.set(point.join(','), point)
+    }
+  }
+  // Round each opening, on the sides with floor beyond them, except where
+  // the stairs come up.
+  for (const hole of holes) {
+    const sides = [
+      ['x0', [hole.x[0], hole.z[0]], [hole.x[0], hole.z[1]], [hole.x[0] - 0.1, (hole.z[0] + hole.z[1]) / 2]],
+      ['x1', [hole.x[1], hole.z[0]], [hole.x[1], hole.z[1]], [hole.x[1] + 0.1, (hole.z[0] + hole.z[1]) / 2]],
+      ['z0', [hole.x[0], hole.z[0]], [hole.x[1], hole.z[0]], [(hole.x[0] + hole.x[1]) / 2, hole.z[0] - 0.1]],
+      ['z1', [hole.x[0], hole.z[1]], [hole.x[1], hole.z[1]], [(hole.x[0] + hole.x[1]) / 2, hole.z[1] + 0.1]],
+    ]
+    const landing = landings
+      .map(([x, z]) => ({ x, z }))
+      .find(({ x, z }) => x > hole.x[0] - 0.6 && x < hole.x[1] + 0.6 && z > hole.z[0] - 0.6 && z < hole.z[1] + 0.6)
+    let open = null
+    if (landing) {
+      const distance = {
+        x0: Math.abs(landing.x - hole.x[0]),
+        x1: Math.abs(landing.x - hole.x[1]),
+        z0: Math.abs(landing.z - hole.z[0]),
+        z1: Math.abs(landing.z - hole.z[1]),
+      }
+      open = Object.keys(distance).sort((a, b) => distance[a] - distance[b])[0]
+    }
+    for (const [name, from, to, beyond] of sides) {
+      if (name === open || !onUpstairs(...beyond)) continue
+      rails.push({ key: `hole${hole.id}${name}`, from, to })
+    }
+  }
+
+  return (
+    <Shadowed>
+      {pieces.map(({ key, x, z }) => (
+        <group key={key}>
+          <Box s={[x[1] - x[0], 0.14, z[1] - z[0]]} position={[(x[0] + x[1]) / 2, LOFT.y - 0.07, (z[0] + z[1]) / 2]} c={WOOD} r={0.8} />
+          <FloorPiece x={x} z={z} y={LOFT.y + 0.002} color={color} finish={finish} />
+        </group>
+      ))}
+      {rails.map(({ key, from, to }) => (
+        <Railing key={key} from={from} to={to} />
+      ))}
+      {[...posts.values()].map(([x, z]) => (
+        <Box key={`${x},${z}`} s={[0.16, LOFT.y, 0.16]} position={[x, LOFT.y / 2, z]} c={WOOD_DARK} r={0.7} />
+      ))}
+    </Shadowed>
+  )
+}
+
 // ------------------------------------------------------------ set dressing
 
 // The little built-in shelf of the room's own old volumes: set dressing, not
@@ -440,16 +633,51 @@ function SpotMarker({ args, position }) {
   )
 }
 
+// A wall spot is shown as the whole see-through wall it would be, faintly, and
+// is itself what the reader points at and clicks.
+function WallSpot({ args, position, spot, onHover, onPick }) {
+  const pointer = onPick
+    ? {
+        onPointerOver: (event) => {
+          event.stopPropagation()
+          onHover(spot)
+        },
+        onPointerOut: () => onHover((current) => (current === spot ? null : current)),
+        onClick: (event) => {
+          event.stopPropagation()
+          if (event.delta > 6) return
+          onPick(spot)
+        },
+      }
+    : {}
+  return (
+    <group position={position}>
+      <mesh {...pointer}>
+        <boxGeometry args={args} />
+        <meshBasicMaterial color="#fff1dc" transparent opacity={0.07} depthWrite={false} />
+      </mesh>
+      <lineSegments>
+        <edgesGeometry args={[outlineOf(args)]} />
+        <lineBasicMaterial color="#fff1dc" transparent opacity={0.35} />
+      </lineSegments>
+    </group>
+  )
+}
+
 // `placing` is { kind, spots, hover, tone }: every spot to choose from, and
 // the one under the pointer, if any. A wall spot covers `levels` blocks from
-// `level` up (one, unless a whole wall is being picked up).
-export function BlockGhost({ room, placing }) {
+// `level` up (one, unless a whole wall is being picked up). With `onHover`
+// and `onPick`, each wall spot answers the pointer itself.
+export function BlockGhost({ room, placing, onHover, onPick }) {
   const { kind, spots, hover, tone = 'add' } = placing
   const color = TONES[tone]
-  if (kind === 'floor') {
+  if (kind === 'floor' || kind === 'upper') {
+    // An upstairs floor block is seen where it would be laid, at the loft's
+    // height.
+    const y = kind === 'upper' ? LOFT.y - 0.1 : -0.15
     const at = (s) => {
       const box = cellBox(s.i, s.j)
-      return [(box.x[0] + box.x[1]) / 2, -0.15, (box.z[0] + box.z[1]) / 2]
+      return [(box.x[0] + box.x[1]) / 2, y, (box.z[0] + box.z[1]) / 2]
     }
     return (
       <>
@@ -473,10 +701,16 @@ export function BlockGhost({ room, placing }) {
   return (
     <>
       {spots.map((s) => {
-        const { frame, bottom } = panel(s)
+        const { frame, height, bottom } = panel(s)
         return (
           <group key={`${s.side}${s.i},${s.j}`} position={frame.position} rotation={frame.rotation}>
-            <SpotMarker args={[LENGTH, 0.05, WALL + 0.04]} position={[LENGTH / 2, bottom + 0.03, WALL / 2]} />
+            <WallSpot
+              args={[LENGTH, height, WALL + 0.04]}
+              position={[LENGTH / 2, bottom + height / 2, WALL / 2]}
+              spot={s}
+              onHover={onHover}
+              onPick={onPick}
+            />
           </group>
         )
       })}
@@ -507,7 +741,7 @@ const WINDOW_LIGHT = {
 // `daylight` is where the light from the first windows falls into the room.
 // Two lights always stand ready, dark until a window needs one: adding a
 // light makes three.js rebuild every material, which would stutter.
-export default function RoomShell({ room, time, landings = [], daylight = [] }) {
+export default function RoomShell({ room, time, landings = [], daylight = [], upstairs = true }) {
   const { wallColor, floorColor, wallpaper, floor, wallShape, roof } = room
   const frames = wallFrames(room)
   const tallest = roomExtent(room).height
@@ -553,6 +787,7 @@ export default function RoomShell({ room, time, landings = [], daylight = [] }) 
 
       {roof === 'roof-beams' && <Beams room={room} height={tallest} />}
       <Loft room={room} floorColor={floorColor} floor={floor} landings={landings} />
+      {upstairs && <UpperFloor room={room} landings={landings} />}
     </>
   )
 }

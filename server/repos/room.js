@@ -25,7 +25,9 @@ const ROOM_COLUMNS = `
   floor,
   wall_shape  AS "wallShape",
   roof,
-  loft`
+  loft,
+  upper_floor       AS "upperFloor",
+  upper_floor_color AS "upperFloorColor"`
 
 const ITEM_COLUMNS = 'id, kind, x, z, rotation, placed, level, lit, y, size, color, sx, sy, on_item AS "on"'
 
@@ -110,11 +112,13 @@ export async function update(db, readerId, patch) {
        floor       = COALESCE($6::text, floor),
        wall_shape  = COALESCE($7::text, wall_shape),
        roof        = COALESCE($8::text, roof),
-       loft        = COALESCE($9::text, loft)
+       loft        = COALESCE($9::text, loft),
+       upper_floor = COALESCE($10::text, upper_floor),
+       upper_floor_color = COALESCE($11::text, upper_floor_color)
      WHERE reader_id = $1`,
     [
       readerId,
-      ...['wallColor', 'floorColor', 'shelfColor', 'wallpaper', 'floor', 'wallShape', 'roof', 'loft']
+      ...['wallColor', 'floorColor', 'shelfColor', 'wallpaper', 'floor', 'wallShape', 'roof', 'loft', 'upperFloor', 'upperFloorColor']
         .map((key) => patch[key] ?? null),
     ]
   )

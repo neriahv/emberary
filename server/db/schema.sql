@@ -135,26 +135,33 @@ UPDATE room_items SET
 ALTER TABLE room_items
   ADD CONSTRAINT room_items_kind_check CHECK (kind IN (
     'window-round', 'window-paned', 'window-octagon', 'window-cathedral', 'window-arcade',
+    'window-lancet', 'window-cottage', 'window-french', 'window-sakura', 'window-stone',
     'built-in-bookcase', 'built-in-shelf', 'bookcase-small', 'bookcase-tall', 'bookcase-wall',
     'bookcase-crate', 'bookcase-pastel', 'bookcase-birch', 'bookcase-arched', 'mint-bookcase',
+    'wizard-bookcase', 'potion-cabinet', 'gothic-bookcase', 'shoji-bookcase', 'cottage-bookcase',
     'side-table', 'coffee-table', 'desk', 'dresser', 'reading-table',
     'tea-table', 'pastel-desk', 'stump-table', 'moon-table', 'wooden-desk',
-    'stool', 'chair', 'cushion', 'armchair', 'rocking-chair',
-    'wingback', 'sofa', 'plaid-armchair', 'pink-chair', 'pouf',
-    'stump-stool', 'velvet-sofa', 'office-chair', 'egg-chair', 'petal-chair',
-    'avocado-swing', 'lantern', 'lamp', 'candelabra', 'sconce',
-    'chandelier', 'fireplace', 'pumpkin-lantern', 'wood-stove', 'fairy-lights',
-    'paper-lantern', 'mushroom-lamp', 'firefly-jar', 'orb-lamp', 'crystal-cluster',
-    'pink-desk-lamp', 'flower-lamp', 'bear-light', 'wood-mushroom', 'rug',
-    'round-rug', 'runner-rug', 'leaf-rug', 'cloud-rug', 'moss-rug',
-    'moon-rug', 'plant', 'monstera', 'indoor-tree', 'pebble-planter',
-    'hanging-plant', 'maple-tree', 'tulip-vase', 'glossy-tulip', 'white-tulips',
-    'sunflower-pot', 'succulent-pot', 'leafy-pot', 'vase', 'globe',
-    'clock', 'book-stack', 'cat-bed', 'library-ladder', 'picture-frames',
-    'pumpkins', 'apple-crate', 'wall-shelf', 'birdcage', 'telescope',
-    'floating-books', 'game-buddy', 'retro-computer', 'keyboard', 'headphones',
-    'microphone', 'matcha', 'pencil-case', 'desk-calendar', 'stairs-straight',
-    'stairs-spiral'
+    'orrery-table', 'crystal-altar', 'stool', 'chair', 'cushion',
+    'armchair', 'rocking-chair', 'wingback', 'sofa', 'plaid-armchair',
+    'pink-chair', 'pouf', 'stump-stool', 'velvet-sofa', 'office-chair',
+    'egg-chair', 'petal-chair', 'avocado-swing', 'wizard-armchair', 'nouveau-chair',
+    'velvet-tub-chair', 'swan-chair', 'lantern', 'lamp', 'candelabra',
+    'sconce', 'chandelier', 'fireplace', 'pumpkin-lantern', 'wood-stove',
+    'fairy-lights', 'paper-lantern', 'mushroom-lamp', 'firefly-jar', 'orb-lamp',
+    'crystal-cluster', 'pink-desk-lamp', 'flower-lamp', 'bear-light', 'wood-mushroom',
+    'brass-lantern', 'iron-candelabra', 'rug', 'round-rug', 'runner-rug',
+    'leaf-rug', 'cloud-rug', 'moss-rug', 'moon-rug', 'arcane-rug',
+    'checker-rug', 'wave-rug', 'star-rug', 'plant', 'monstera',
+    'indoor-tree', 'pebble-planter', 'hanging-plant', 'maple-tree', 'tulip-vase',
+    'glossy-tulip', 'white-tulips', 'sunflower-pot', 'succulent-pot', 'leafy-pot',
+    'vase', 'globe', 'clock', 'book-stack', 'cat-bed',
+    'library-ladder', 'picture-frames', 'pumpkins', 'apple-crate', 'wall-shelf',
+    'birdcage', 'telescope', 'floating-books', 'game-buddy', 'retro-computer',
+    'keyboard', 'headphones', 'microphone', 'matcha', 'pencil-case',
+    'desk-calendar', 'crystal-broom', 'wizard-hat', 'spellbook', 'potion-bottle',
+    'floating-crystal', 'armillary', 'quill-ink', 'trinket-box', 'moon-mirror',
+    'spell-chart', 'moon-chalkboard', 'standing-mirror', 'velvet-chest', 'iron-cauldron',
+    'stairs-straight', 'stairs-spiral'
   )),
   -- Compared as REAL, like the columns. 2.2 stored as a REAL is 2.2000000477,
   -- which is not BETWEEN -2.2 AND 2.2 in exact numeric terms, so an item
@@ -223,8 +230,34 @@ CREATE TABLE IF NOT EXISTS room_blocks (
   UNIQUE (reader_id, kind, side, i, j, level)
 );
 
+-- An "upper" block is a square of upstairs floor over the floor block (i, j).
+-- The checks above were first written without names; they are replaced by
+-- named ones that know about it.
+DO $$
+DECLARE c record;
+BEGIN
+  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'room_blocks'::regclass AND contype = 'c' LOOP
+    EXECUTE format('ALTER TABLE room_blocks DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+END $$;
+ALTER TABLE room_blocks
+  ADD CONSTRAINT room_blocks_kind_check CHECK (kind IN ('floor', 'wall', 'upper')),
+  ADD CONSTRAINT room_blocks_side_check CHECK (side IN ('', 'x', 'z')),
+  ADD CONSTRAINT room_blocks_i_check CHECK (i BETWEEN -3 AND 3),
+  ADD CONSTRAINT room_blocks_j_check CHECK (j BETWEEN -3 AND 3),
+  ADD CONSTRAINT room_blocks_level_check CHECK (level BETWEEN 0 AND 2),
+  ADD CONSTRAINT room_blocks_side_kind_check CHECK ((kind = 'wall') = (side <> '')),
+  ADD CONSTRAINT room_blocks_level_kind_check CHECK (kind = 'wall' OR level = 0);
+
+-- An upstairs floor has its own floor finish and colour.
+ALTER TABLE room_settings
+  ADD COLUMN IF NOT EXISTS upper_floor       TEXT NOT NULL DEFAULT 'floor-planks',
+  ADD COLUMN IF NOT EXISTS upper_floor_color TEXT NOT NULL DEFAULT '#3a2a1e';
+
 -- Named, so this file can add new finishes to a database that already exists.
 ALTER TABLE room_settings
+  DROP CONSTRAINT IF EXISTS room_settings_upper_floor_check,
+  DROP CONSTRAINT IF EXISTS room_settings_upper_floor_color_check,
   DROP CONSTRAINT IF EXISTS room_settings_wallpaper_check,
   DROP CONSTRAINT IF EXISTS room_settings_floor_check,
   DROP CONSTRAINT IF EXISTS room_settings_wall_shape_check,
@@ -234,15 +267,24 @@ ALTER TABLE room_settings
 ALTER TABLE room_settings
   ADD CONSTRAINT room_settings_wallpaper_check CHECK (wallpaper IN (
     'wallpaper-plain', 'wallpaper-stripes', 'wallpaper-trellis', 'wallpaper-sprig', 'wallpaper-panels',
-    'wallpaper-brick', 'wallpaper-leaves', 'wallpaper-floral', 'wallpaper-stars')),
+    'wallpaper-brick', 'wallpaper-leaves', 'wallpaper-floral', 'wallpaper-stars', 'wallpaper-stone',
+    'wallpaper-subway', 'wallpaper-ceramic', 'wallpaper-waves', 'wallpaper-shoji', 'wallpaper-burlap',
+    'wallpaper-cement', 'wallpaper-damask')),
   ADD CONSTRAINT room_settings_floor_check CHECK (floor IN (
     'floor-planks', 'floor-checker', 'floor-herringbone', 'floor-stone', 'floor-terracotta',
-    'floor-moss', 'floor-marble')),
+    'floor-moss', 'floor-marble', 'floor-castle', 'floor-cobble', 'floor-granite',
+    'floor-ceramic', 'floor-wideplanks', 'floor-blackmarble', 'floor-sisal', 'floor-tatami')),
   ADD CONSTRAINT room_settings_wall_shape_check CHECK (wall_shape IN (
-    'shape-straight', 'shape-gable', 'shape-arch', 'shape-castle', 'shape-wave')),
+    'shape-straight', 'shape-gable', 'shape-arch', 'shape-castle', 'shape-wave',
+    'shape-steps', 'shape-spires', 'shape-crown', 'shape-cloud', 'shape-twin')),
   ADD CONSTRAINT room_settings_roof_check CHECK (roof IN (
     'roof-open', 'roof-beams', 'roof-ivy', 'roof-slate', 'roof-glass')),
-  ADD CONSTRAINT room_settings_loft_check CHECK (loft IN ('loft-none', 'loft-gallery'));
+  ADD CONSTRAINT room_settings_loft_check CHECK (loft IN ('loft-none', 'loft-gallery')),
+  ADD CONSTRAINT room_settings_upper_floor_check CHECK (upper_floor IN (
+    'floor-planks', 'floor-checker', 'floor-herringbone', 'floor-stone', 'floor-terracotta',
+    'floor-moss', 'floor-marble', 'floor-castle', 'floor-cobble', 'floor-granite',
+    'floor-ceramic', 'floor-wideplanks', 'floor-blackmarble', 'floor-sisal', 'floor-tatami')),
+  ADD CONSTRAINT room_settings_upper_floor_color_check CHECK (upper_floor_color ~ '^#[0-9a-fA-F]{6}$');
 
 -- The finishes a reader has bought.
 CREATE TABLE IF NOT EXISTS room_unlocks (

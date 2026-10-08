@@ -12,7 +12,11 @@ import {
   blocksValue,
   catalogEntry,
   changeRoomBlocks,
+  checkout,
   clearanceOf,
+  hasUpstairs,
+  roomExtent,
+  upperCells,
   nearestSpot,
   resizable,
   onWallAt,
@@ -27,7 +31,8 @@ import { useRoomSaver } from '../hooks/useRoomSaver.js'
 import AsyncState from '../components/AsyncState.jsx'
 import { EmberCoin } from '../components/EmberBadge.jsx'
 import LibraryScene, { bookcasesIn, layoutBookcases, shelfOrder, tablesIn } from '../components/room/LibraryScene.jsx'
-import { BuildPanel, BuildTray, ShopPanel, StoragePanel, itemNames } from '../components/room/RoomCustomizer.jsx'
+import { BuildShelf, ShopShelf, StoragePanel, itemNames } from '../components/room/RoomCustomizer.jsx'
+import { CatalogBar, ROOM_CATALOGS, catalogOf } from '../components/room/catalogs.jsx'
 import { MODELS } from '../components/room/models.jsx'
 import { alongOf, fitWindow, wallOf } from '../components/room/windows.jsx'
 import BookModal from '../components/room/BookModal.jsx'
@@ -116,7 +121,7 @@ const round2 = (n) => Math.round(n * 100) / 100
 // wall (its own, if that still stands), something for a wall on the nearest
 // one, anything else as near its last spot as there is floor. null when there
 // is nowhere for it.
-function placingSpot(room, item) {
+function placingSpot(room, item, level = 0) {
   const def = MODELS[item.kind]
   if (def?.window || def?.wall) {
     const own = wallOf(item)
@@ -129,8 +134,11 @@ function placingSpot(room, item) {
     delete spot.size
     return spot
   }
+  // On the floor being looked at, or downstairs if there is no room up there.
+  const up = level === 1 && nearestSpot(room, 1, item.x, item.z, clearanceOf(item.kind))
+  if (up) return { ...up, rotation: item.rotation, y: 0, level: 1 }
   const spot = nearestSpot(room, 0, item.x, item.z, clearanceOf(item.kind))
-  return spot && { ...spot, rotation: item.rotation, y: 0 }
+  return spot && { ...spot, rotation: item.rotation, y: 0, level: 0 }
 }
 
 // Emberary's 3D room, filling the window below the site's navigation bar, with
@@ -147,6 +155,18 @@ export default function LibraryRoomPage() {
   const wallet = useEmber()
 
   const [mode, setMode] = useState('view')
+  // Whether the upstairs floor is shown. Hidden, the downstairs is in view
+  // under it.
+  const [upstairs, setUpstairs] = useState(true)
+  // The catalogue open along the top, in the shop and the builder.
+  const [catalog, setCatalog] = useState('bookshelves')
+  // Something being tried in the shop before it is bought: { kind, x, z,
+  // rotation, y, on }, drawn see-through in the room. And a wallpaper, floor
+  // or wall shape being tried on the room.
+  const [ghost, setGhost] = useState(null)
+  const [trying, setTrying] = useState(null)
+  const [shopError, setShopError] = useState(null)
+  const [shopBusy, setShopBusy] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState(null)
   // The book off the shelf, and whether it has opened yet.
   const [pulledId, setPulledId] = useState(null)
@@ -323,20 +343,125 @@ export default function LibraryRoomPage() {
     },
     sell,
     sellPrice: (item) => sellPrice(item.kind),
+    gesture: snapshot,
+    // Happy with where it stands: save it now and let go of it.
+    confirm: () => {
+      saver.flush()
+      setSelectedItemId(null)
+    },
+    // Up or down the stairs, to the nearest place on the other floor.
+    otherLevel: (item) => {
+      const def = MODELS[item.kind]
+      if (!hasUpstairs(room.data) || def?.wall || def?.window || def?.landing) return null
+      const level = (item.level ?? 0) === 1 ? 0 : 1
+      const spot = nearestSpot(room.data, level, item.x, item.z, clearanceOf(item.kind))
+      return spot && { ...spot, level }
+    },
+    switchLevel: (item) => {
+      const next = itemTools.otherLevel(item)
+      if (!next) return
+      snapshot(item)
+      changeItem(item.id, { ...next, on: null, y: 0 })
+      if (next.level === 1) setUpstairs(true)
+    },
+    // A window is re-hung so it stays on its wall at its new size.
+    resize: (item, patch) => {
+      if (!MODELS[item.kind]?.window) return changeItem(item.id, patch)
+      const next = fitWindow(room.data, item.kind, {
+        edge: wallOf(item), along: alongOf(item), y: item.y, size: item.size ?? 1, sx: patch.sx ?? item.sx ?? 1, sy: patch.sy ?? item.sy ?? 1,
+      })
+      changeItem(item.id, { ...patch, x: next.x, z: next.z, y: next.y })
+    },
+  }
+
+  // ---------------------------------------------------------------- shopping
+
+  // Try something from the shop: it appears in the room, see-through, near
+  // the middle of the floor (or on a wall), where the reader can move it.
+  function tryItem(entry) {
+    setShopError(null)
+    setTrying(null)
+    const { x, z } = roomExtent(room.data)
+    const spot = placingSpot(room.data, {
+      kind: entry.id, x: (x[0] + x[1]) / 2, z: (z[0] + z[1]) / 2, rotation: 0, y: 1.75, size: 1, sx: 1, sy: 1,
+    })
+    if (!spot) return setShopError(new Error('Build a wall first: this hangs on one'))
+    setGhost({ kind: entry.id, y: 0, on: null, ...spot })
+  }
+
+  function tryFinish(entry) {
+    setShopError(null)
+    setGhost(null)
+    setTrying(entry)
+  }
+
+  // Bought: furniture arrives in storage, finishes are unlocked.
+  function bought(result) {
+    room.setData((prev) => ({
+      ...prev,
+      items: [...prev.items, ...result.items],
+      unlocks: [...prev.unlocks, ...result.unlocks],
+    }))
+  }
+
+  // The thing being tried is bought: put where it stands, or into storage.
+  async function buyGhost(intoStorage) {
+    const tried = ghost
+    setShopBusy(true)
+    setShopError(null)
+    try {
+      const result = await checkout([tried.kind])
+      bought(result)
+      setGhost(null)
+      if (!intoStorage) {
+        const { x, z, rotation, y, on } = tried
+        const saved = await updateRoomItem(result.items[0].id, { x, z, rotation, y, on, placed: true, level: 0 })
+        room.setData((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === saved.id ? { ...i, ...saved } : i)) }))
+      }
+    } catch (error) {
+      setShopError(error)
+    } finally {
+      setShopBusy(false)
+    }
+  }
+
+  async function buyFinish() {
+    const entry = trying
+    setShopBusy(true)
+    setShopError(null)
+    try {
+      const result = await checkout([entry.id])
+      bought(result)
+      changeRoom({ [entry.type]: entry.id })
+      setTrying(null)
+    } catch (error) {
+      setShopError(error)
+    } finally {
+      setShopBusy(false)
+    }
+  }
+
+  const ghostTools = {
+    turn: (item, by) => setGhost((g) => ({ ...g, rotation: (g.rotation + by + 360) % 360 })),
+    confirm: () => buyGhost(false),
+    store: () => buyGhost(true),
+    cancel: () => setGhost(null),
+    price: (item) => catalogEntry(item.kind)?.price,
   }
 
   // Out of storage and into the room, then selected, ready to move.
   async function placeFromStorage(item) {
     setPlaceError(null)
-    const spot = placingSpot(room.data, item)
+    const spot = placingSpot(room.data, item, upstairs && hasUpstairs(room.data) ? 1 : 0)
     if (!spot) {
       setPlaceError(new Error('Build a wall first: this hangs on one'))
       return
     }
     try {
-      const saved = await updateRoomItem(item.id, { ...spot, placed: true, level: 0, on: null })
+      const saved = await updateRoomItem(item.id, { level: 0, ...spot, placed: true, on: null })
       room.setData((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === item.id ? { ...i, ...saved } : i)) }))
       setMode('build')
+      setCatalog(catalogOf(item.kind) ?? catalog)
       setSelectedItemId(item.id)
     } catch (error) {
       setPlaceError(error)
@@ -347,6 +472,7 @@ export default function LibraryRoomPage() {
     setBlockError(null)
     setSelectedItemId(null)
     setBlockMode(next)
+    if (next.kind === 'upper') setUpstairs(true)
   }
 
   // Send a change to the room's blocks. The server sends the whole room back,
@@ -374,27 +500,32 @@ export default function LibraryRoomPage() {
     else setBlockMode({ ...blockMode, at: spot })
   }
 
-  // Escape stops building blocks, or lets go of the selected item.
+  // What can be done to a floor square or a wall the reader points at, in the
+  // builder or while shopping for expansion: move it, or sell it back.
+  const blockTools = {
+    move: (kind, from) => startBlocks({ action: 'move', kind, from }),
+    sell: (kind, at) => sendBlocks({ type: 'remove', kind, at: kind === 'wall' ? { side: at.side, i: at.i, j: at.j } : at }),
+    refund: blockRefund,
+  }
+  const blockToolsOn = !blockBusy && !trying && (mode === 'build' || (mode === 'shop' && catalog === 'expansion'))
+
+  // Escape stops building blocks, puts back what is being tried, or lets go
+  // of the selected item.
   useEffect(() => {
     const cancel = (event) => {
       if (event.key !== 'Escape') return
       if (blockMode) setBlockMode(null)
-      else setSelectedItemId(null)
+      else {
+        setGhost(null)
+        setTrying(null)
+        setSelectedItemId(null)
+      }
     }
     window.addEventListener('keydown', cancel)
     return () => window.removeEventListener('keydown', cancel)
   }, [blockMode])
 
   const toggleLight = (item) => changeItem(item.id, { lit: item.lit === false })
-
-  // Bought: furniture arrives in storage, finishes are unlocked.
-  function bought(result) {
-    room.setData((prev) => ({
-      ...prev,
-      items: [...prev.items, ...result.items],
-      unlocks: [...prev.unlocks, ...result.unlocks],
-    }))
-  }
 
   // "Spend it in the shop" in the wallet arrives here with ?shop=1.
   useEffect(() => {
@@ -404,12 +535,28 @@ export default function LibraryRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, room.status])
 
-  function switchMode(next) {
+  function switchMode(next, nextCatalog) {
     if (mode === 'build' && next !== 'build') saver.flush()
     setSelectedItemId(null)
     setBlockMode(null)
-    setMode(next === mode ? 'view' : next)
+    setGhost(null)
+    setTrying(null)
+    setShopError(null)
+    const to = next === mode && !nextCatalog ? 'view' : next
+    setMode(to)
+    // The builder has no Expansion: that is bought in the shop.
+    if (nextCatalog) setCatalog(nextCatalog)
+    else if (to === 'build' && catalog === 'expansion') setCatalog('walls')
     dismissWelcome()
+  }
+
+  // Out of the builder's shelf for a catalogue, into the same in the shop.
+  const shopFor = () => switchMode('shop', catalog)
+
+  function pickCatalog(id) {
+    setCatalog(id)
+    setGhost(null)
+    setTrying(null)
   }
 
   function cycleTime() {
@@ -430,9 +577,14 @@ export default function LibraryRoomPage() {
   const storedBooks = ready ? layoutBookcases(entries, bookcasesIn(room.data), tablesIn(room.data)).stored : []
   const storedItems = ready ? room.data.items.filter((i) => !i.placed) : []
   const names = ready ? itemNames(room.data.items) : {}
-  const selected = ready && editing ? room.data.items.find((i) => i.id === selectedItemId && i.placed) : null
   const level = ready ? libraryLevel(room.data) : null
   const timeOfDay = TIMES.find((t) => t.id === time) ?? TIMES[0]
+  // A finish being tried shows on the room before it is bought.
+  const shown = ready && trying ? { ...room.data, [trying.type]: trying.id } : room.data
+  const catalogs = ROOM_CATALOGS.filter((c) => mode === 'shop' || !c.shopOnly)
+  const storedCounts = Object.fromEntries(
+    ROOM_CATALOGS.map((c) => [c.id, storedItems.filter((i) => c.cats.includes(catalogEntry(i.kind)?.category)).length])
+  )
 
   return (
     <div className={`room-screen time-${time} mode-${mode}`}>
@@ -442,7 +594,7 @@ export default function LibraryRoomPage() {
         <div className="room-canvas">
           <LibraryScene
             entries={entries}
-            room={room.data}
+            room={shown}
             time={time}
             selectedBookId={pulledId}
             onSelectBook={pickBook}
@@ -457,6 +609,11 @@ export default function LibraryRoomPage() {
             viewReset={viewReset}
             blockMode={blockMode}
             onBlockSpot={blockSpot}
+            blockTools={blockToolsOn ? blockTools : null}
+            ghost={mode === 'shop' ? ghost : null}
+            upstairs={upstairs}
+            ghostTools={ghostTools}
+            onGhostChange={(patch) => setGhost((g) => (g ? { ...g, ...patch } : g))}
           />
         </div>
       ) : (
@@ -467,6 +624,7 @@ export default function LibraryRoomPage() {
 
       {/* the overlay, like a game's HUD */}
       <div className="hud hud-top">
+        {mode === 'view' && (
         <div className="hud-dream">
           <span className="hud-title">Build your dream library</span>
           {level && (
@@ -487,6 +645,7 @@ export default function LibraryRoomPage() {
             </button>
           )}
         </div>
+        )}
         {USING_MOCK_API && <span className="hud-chip">Demo mode</span>}
       </div>
 
@@ -519,6 +678,18 @@ export default function LibraryRoomPage() {
               </button>
             ))}
             <span className="rail-divider" aria-hidden="true" />
+            {upperCells(room.data).length > 0 && (
+              <button
+                type="button"
+                className="rail-button"
+                aria-pressed={!upstairs}
+                onClick={() => setUpstairs(!upstairs)}
+                title={upstairs ? 'See downstairs: hide the upstairs floor' : 'Show the upstairs floor again'}
+              >
+                <span className="rail-icon" aria-hidden="true">{upstairs ? '⬇' : '⬆'}</span>
+                <span className="rail-label">{upstairs ? 'Downstairs' : 'Upstairs'}</span>
+              </button>
+            )}
             <button type="button" className="rail-button" onClick={cycleTime} aria-label={`Time of day: ${timeOfDay.label}. Change it`}>
               <span className="rail-icon" aria-hidden="true">{timeOfDay.icon}</span>
               <span className="rail-label">{timeOfDay.label}</span>
@@ -536,12 +707,12 @@ export default function LibraryRoomPage() {
           <h2 id="welcome-heading">Build your dream library</h2>
           <ol>
             <li>
-              <strong>🛒 Shop</strong> for furniture, lights, plants, windows and more. Fill your cart and buy: it all
-              waits in your storage room.
+              <strong>🛒 Shop</strong> for furniture, lights, plants, windows and more. Try something right in the
+              room, then buy it where it stands, or into your storage room.
             </li>
             <li>
-              <strong>🔨 Build</strong>: bring things out of storage, move, turn, paint and size them, set little things
-              on tables and shelves, and build the room itself a block at a time.
+              <strong>🔨 Build</strong>: bring things out of storage, move, turn and size them, set little things on
+              tables and shelves, choose the walls and floors, and build the room bigger, even upstairs.
             </li>
             <li>
               <strong>📦 Storage</strong> keeps what is not in the room, and the books waiting for a shelf.
@@ -624,47 +795,48 @@ export default function LibraryRoomPage() {
         </div>
       )}
 
-      {ready && editing && !blockMode && (
-        <div className="hud hud-bottom hud-build">
-          {[blockBusy && { key: 'busy', text: 'Building...' }, blockError && { key: 'block', text: `Could not change the room: ${blockError.message}` },
-            placeError && { key: 'place', text: `Could not put it in the room: ${placeError.message}` },
-            moveError && { key: 'move', text: `Could not move the book: ${moveError.message}` },
-            saver.status === 'error' && { key: 'save', text: `Could not save the room: ${saver.error.message}` }]
-            .filter(Boolean)
-            .map(({ key, text }) => (
-              <p key={key} className="hud-notice" role={key === 'busy' ? 'status' : 'alert'}>
-                {text}
-              </p>
-            ))}
-          <p className="hud-hint">
-            Click something to select it · drag it to move · small things sit on tables, seats and shelves · drag a book to
-            any shelf or table
+      {ready && (mode === 'shop' || mode === 'build') && !blockMode && (
+        <CatalogBar catalogs={catalogs} current={catalog} onPick={pickCatalog} counts={mode === 'build' ? storedCounts : {}} />
+      )}
+
+      {ready && trying && (
+        <div className="hud hud-place" role="status">
+          <p className="place-banner">
+            <strong>Trying {trying.name}.</strong> Buy it for {trying.price} Ember?
           </p>
-          <BuildTray items={storedItems} names={names} onPlace={placeFromStorage} />
+          <button type="button" className="hud-button hud-buy" onClick={buyFinish} disabled={shopBusy}>
+            {shopBusy ? 'Buying...' : `✓ Buy · ${trying.price}`}
+          </button>
+          <button type="button" className="hud-button" onClick={() => setTrying(null)}>
+            ✕ Not this
+          </button>
         </div>
       )}
 
       {ready && mode !== 'view' && !blockMode && (
-        <aside className="edit-drawer">
+        <aside className="shelf-panel">
           {mode === 'shop' && (
-            <ShopPanel room={room.data} balance={wallet.data?.balance} onBought={bought} onGoBuild={() => switchMode('build')} />
-          )}
-          {mode === 'build' && (
-            <BuildPanel
+            <ShopShelf
               room={room.data}
               balance={wallet.data?.balance}
-              selected={selected}
-              names={names}
+              catalog={catalog}
+              onTryItem={tryItem}
+              onTryFinish={tryFinish}
+              onExpansion={startBlocks}
+            />
+          )}
+          {mode === 'build' && (
+            <BuildShelf
+              room={room.data}
+              catalog={catalog}
+              storedItems={storedItems}
+              onPlace={placeFromStorage}
               onRoomChange={changeRoom}
-              onItemChange={changeItem}
-              onGesture={snapshot}
-              onBlockMode={startBlocks}
-              onDeselect={() => setSelectedItemId(null)}
+              onShop={shopFor}
             />
           )}
           {mode === 'storage' && (
             <StoragePanel
-              balance={wallet.data?.balance}
               items={storedItems}
               names={names}
               books={storedBooks}
@@ -674,16 +846,33 @@ export default function LibraryRoomPage() {
               onShop={() => switchMode('shop')}
             />
           )}
-          {placeError && mode === 'storage' && (
-            <p className="error error-inline" role="alert">
-              Could not put it in the room: {placeError.message}
-            </p>
-          )}
-          <p className="muted save-state" role="status">
-            {saver.status === 'saving' && 'Saving...'}
-            {saver.status === 'saved' && 'Room saved.'}
-          </p>
         </aside>
+      )}
+
+      {ready && mode !== 'view' && !blockMode && (
+        <div className="hud hud-bottom hud-modes-bottom">
+          {[blockBusy && { key: 'busy', text: 'Building...' }, shopBusy && { key: 'shop', text: 'Buying...' },
+            blockError && { key: 'block', text: `Could not change the room: ${blockError.message}` },
+            shopError && { key: 'shoperr', text: `Could not buy it: ${shopError.message}` },
+            placeError && { key: 'place', text: `Could not put it in the room: ${placeError.message}` },
+            moveError && { key: 'move', text: `Could not move the book: ${moveError.message}` },
+            saver.status === 'error' && { key: 'save', text: `Could not save the room: ${saver.error.message}` }]
+            .filter(Boolean)
+            .map(({ key, text }) => (
+              <p key={key} className="hud-notice" role={key === 'busy' || key === 'shop' ? 'status' : 'alert'}>
+                {text}
+              </p>
+            ))}
+          <p className="hud-hint">
+            {mode === 'shop'
+              ? ghost
+                ? 'Drag it, or click where it goes · ✓ buys it there · 📦 buys it into storage · ✕ puts it back'
+                : 'Pick a catalogue along the top, then something to try in the room'
+              : mode === 'build'
+                ? 'Click something to select it · drag it, or click where it goes · point at a wall or floor to move or sell it · small things sit on tables, seats and shelves · drag a book to any shelf or table'
+                : 'What is not in the room waits here'}
+          </p>
+        </div>
       )}
 
       {openEntry && (
@@ -702,15 +891,17 @@ export default function LibraryRoomPage() {
 // What the reader is asked while building with blocks.
 function BlockBanner({ mode }) {
   const { action, kind, from, at } = mode
-  const name = `${kind} block`
+  const name = kind === 'upper' ? 'upstairs floor' : `${kind} block`
   if (action === 'add') {
     return (
       <>
         <strong>Choose where your {name} goes.</strong>{' '}
         {kind === 'floor'
           ? 'Point at a square beside the floor'
-          : `Point at an edge of the floor (walls stack up to ${BLOCKS.maxLevels} high)`}{' '}
-        and click: that is when its {blockPrice(kind)} Ember is paid. Drag to turn the view.
+          : kind === 'upper'
+            ? 'Point at a lit square over the floor (it leaves an opening for the stairs)'
+            : `Point at one of the see-through walls at the back of the room (walls stack up to ${BLOCKS.maxLevels} high)`}{' '}
+        and click it: that is when its {blockPrice(kind)} Ember is paid. Right-drag to move the view.
       </>
     )
   }

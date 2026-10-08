@@ -321,15 +321,15 @@ export function createApp(
     response.json(await room.get(pool, READER_ID))
   }))
 
-  // Body: any of { wallColor, floorColor, shelfColor } and the finishes:
-  // { wallpaper, floor, wallShape, roof, loft }. How big the room is changes
-  // only by building blocks (below).
+  // Body: any of { wallColor, floorColor, shelfColor, upperFloorColor } and
+  // the finishes: { wallpaper, floor, wallShape, roof, loft, upperFloor }. How
+  // big the room is changes only by building blocks (below).
   app.patch('/api/room', route(async (request, response) => {
     const { errors, value } = validateRoom(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
     const owned = await room.unlocks(pool, READER_ID)
-    const locked = FINISH_TYPES.map((key) => value[key]).find((id) => id && !owned.includes(id))
+    const locked = [...FINISH_TYPES, 'upperFloor'].map((key) => value[key]).find((id) => id && !owned.includes(id))
     if (locked) return response.status(409).json({ error: 'Buy that in the shop first' })
     const current = await room.settings(pool, READER_ID)
     if (value.loft === 'loft-gallery' && !hasLoft({ ...current, loft: value.loft })) {
@@ -360,9 +360,9 @@ export function createApp(
     response.status(201).json(result)
   }))
 
-  // Body: { type: "add" | "move" | "remove", kind: "floor" | "wall", at } or,
-  // to move, { from, to }. A block is paid for when it is put down, and gives
-  // half its price back when taken away.
+  // Body: { type: "add" | "move" | "remove", kind: "floor" | "wall" | "upper",
+  // at } or, to move, { from, to }. A block is paid for when it is put down,
+  // and gives half its price back when taken away.
   app.post('/api/room/blocks', route(async (request, response) => {
     const { errors, value } = validateBlockChange(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
@@ -370,10 +370,13 @@ export function createApp(
     const result = await transaction(pool, (db) => room.changeRoomBlocks(db, READER_ID, value))
     const refusals = {
       max: `A room can have ${BLOCKS.maxFloor} floor blocks`,
-      spot: value.kind === 'floor'
-        ? 'A floor block goes on an empty square beside the floor'
-        : `A wall block goes on an edge of the floor, up to ${BLOCKS.maxLevels} high`,
-      none: `There is no ${value.kind} block there`,
+      spot: {
+        floor: 'A floor block goes on an empty square beside the floor, not behind a wall',
+        wall: `A wall block goes on a back edge of the floor, up to ${BLOCKS.maxLevels} high`,
+        upper: `An upstairs floor needs a staircase in the room, and goes over a floor square with a wall ${BLOCKS.upperWalls} blocks high behind it, or beside another upstairs square`,
+      }[value.kind],
+      none: value.kind === 'upper' ? 'There is no upstairs floor there' : `There is no ${value.kind} block there`,
+      upper: 'Take away the upstairs floor above it first',
       last: 'A room needs at least one floor block',
       apart: 'The floor has to stay in one piece',
       walls: 'Take away the walls standing on that floor block first',
@@ -392,7 +395,7 @@ export function createApp(
     return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null
   }
 
-  // Body: any of { x, z, rotation, level, placed, lit }. level 1 is the loft;
+  // Body: any of { x, z, rotation, level, placed, lit }. level 1 is upstairs;
   // lit switches a light on or off; placed: false puts the item in storage.
   // Nothing a reader bought is ever thrown away.
   app.patch('/api/room/items/:id', route(async (request, response) => {
@@ -400,7 +403,7 @@ export function createApp(
     const current = id && (await room.getItem(pool, READER_ID, id))
     if (!current) return response.status(404).json({ error: 'Room item not found' })
 
-    const settings = await room.settings(pool, READER_ID)
+    const settings = { ...(await room.settings(pool, READER_ID)), items: await room.listItems(pool, READER_ID) }
     const { errors, value } = validateRoomItem(request.body ?? {}, settings, current)
     if (errors.length > 0) return badRequest(response, errors)
 

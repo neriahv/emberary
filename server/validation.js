@@ -16,7 +16,7 @@ import {
   catalogEntry,
   clearanceOf,
   forSale,
-  hasLoft,
+  hasUpstairs,
   isSmall,
   itemFits,
   nearestSpot,
@@ -133,7 +133,7 @@ export function validateRoom(body) {
   const errors = []
   const value = {}
 
-  for (const key of ['wallColor', 'floorColor', 'shelfColor']) {
+  for (const key of ['wallColor', 'floorColor', 'shelfColor', 'upperFloorColor']) {
     if (!has(body, key)) continue
     if (typeof body[key] !== 'string' || !HEX_COLOUR.test(body[key])) {
       errors.push(`${key} must be a hex colour`)
@@ -150,9 +150,14 @@ export function validateRoom(body) {
     }
     value[key] = body[key]
   }
+  // The upstairs floor takes any floor finish.
+  if (has(body, 'upperFloor')) {
+    if (catalogEntry(body.upperFloor)?.type !== 'floor') errors.push("upperFloor must be one of the shop's floor finishes")
+    value.upperFloor = body.upperFloor
+  }
 
   if (errors.length === 0 && Object.keys(value).length === 0) {
-    errors.push(`send at least one of wallColor, floorColor, shelfColor, ${FINISH_TYPES.join(', ')}`)
+    errors.push(`send at least one of wallColor, floorColor, shelfColor, upperFloorColor, ${FINISH_TYPES.join(', ')}, upperFloor`)
   }
 
   return { errors, value }
@@ -172,8 +177,8 @@ export function validateRoomItem(body, room, current) {
   const value = {}
 
   if (has(body, 'level')) {
-    if (body.level !== 0 && body.level !== 1) errors.push('level must be 0 (the floor) or 1 (the loft)')
-    else if (body.level === 1 && !hasLoft(room)) errors.push('level 1 is the loft: build one first')
+    if (body.level !== 0 && body.level !== 1) errors.push('level must be 0 (the floor) or 1 (upstairs)')
+    else if (body.level === 1 && !hasUpstairs(room)) errors.push('level 1 is upstairs: build an upstairs floor first')
     value.level = body.level
   }
 
@@ -208,7 +213,7 @@ export function validateRoomItem(body, room, current) {
     if (!itemFits(room, level, x, z, clearance)) {
       const moved = has(value, 'level') && !has(body, 'x') && !has(body, 'z') && nearestSpot(room, level, x, z, clearance)
       if (moved) Object.assign(value, moved)
-      else errors.push(level === 1 ? 'x and z must be a spot on the loft' : "x and z must be a spot on the room's floor")
+      else errors.push(level === 1 ? 'x and z must be a spot upstairs' : "x and z must be a spot on the room's floor")
     }
   }
 
@@ -228,7 +233,9 @@ export function validateRoomItem(body, room, current) {
 
   // How high it is (a window on its wall, or something standing on
   // something), its size, and how much wider and taller it is made.
-  const limits = { ...WINDOW_LIMITS, ...SIZE_LIMITS }
+  // Furniture on the floor stands at height 0; only a window keeps clear of
+  // the floor, which the room sees to when it hangs one.
+  const limits = { ...WINDOW_LIMITS, y: [0, WINDOW_LIMITS.y[1]], ...SIZE_LIMITS }
   for (const key of ['y', 'size', 'sx', 'sy']) {
     if (!has(body, key)) continue
     if ((key === 'sx' || key === 'sy') && !resizable(current.kind)) {
@@ -274,7 +281,8 @@ function blockSpot(spot, kind, name, errors) {
 // A change to the room's blocks:
 //   { type: "add", kind, at }    { type: "remove", kind, at }
 //   { type: "move", kind, from, to }
-// with kind "floor" or "wall". Whether the room allows it is the room's to say.
+// with kind "floor", "wall" or "upper" (a square of upstairs floor). Whether
+// the room allows it is the room's to say.
 export function validateBlockChange(body) {
   const errors = []
   const { type, kind } = body
