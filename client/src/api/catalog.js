@@ -252,11 +252,9 @@ export const EMBER_RULES = {
   dailyGoalReward: 5, // ...for this, once per day
 }
 
-// A reader can own this many things in all, placed or in storage.
+// A reader can own this many things in all, placed or in storage. As many as
+// they like can stand in the room at once.
 export const MAX_OWNED_ITEMS = 200
-// The smallest room holds this many at once (see placedLimit); the rest
-// wait in storage.
-export const MAX_PLACED_ITEMS = 30
 
 export const ITEM_KINDS = CATALOG.filter((entry) => entry.type === 'item').map((entry) => entry.id)
 // What the shop sells: everything but the pieces built into every room.
@@ -492,12 +490,6 @@ export function cutOut(r, hole) {
     { x, z: [r.z[0], hole.z[0]] },
     { x, z: [hole.z[1], r.z[1]] },
   ].filter((piece) => piece.x[1] - piece.x[0] > 0.05 && piece.z[1] - piece.z[0] > 0.05)
-}
-
-// How many things stand in the room at once: more for every floor block,
-// downstairs or up.
-export function placedLimit(room) {
-  return MAX_PLACED_ITEMS + 10 * (blockCount(room, 'floor') - 1) + 10 * blockCount(room, 'upper')
 }
 
 // ---------------------------------------------------------------- standing room

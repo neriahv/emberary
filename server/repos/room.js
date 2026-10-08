@@ -187,14 +187,6 @@ export async function getItem(db, readerId, id) {
   return result.rows[0] ?? null
 }
 
-export async function countPlaced(db, readerId) {
-  const result = await db.query(
-    'SELECT count(*)::int AS n FROM room_items WHERE reader_id = $1 AND placed AND NOT sold',
-    [readerId]
-  )
-  return result.rows[0].n
-}
-
 // Move, turn, switch, store or place an item, size or paint it, or stand it
 // on something. Returns null if it is not this reader's. Whatever stood on
 // an item that goes into storage comes down to the floor where it was.

@@ -23,7 +23,6 @@ import { FinishSwatch, ItemThumb, StructureSwatch, ThumbnailStudio } from './thu
 function ShopButton({ label, onClick }) {
   return (
     <button type="button" className="shelf-shop-button" onClick={onClick}>
-      <span className="shelf-shop-icon" aria-hidden="true">🛍️</span>
       {label}
     </button>
   )

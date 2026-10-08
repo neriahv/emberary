@@ -6,7 +6,7 @@ import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
-import { BLOCKS, FINISH_TYPES, LOFT, catalogEntry, hasLoft, placedLimit } from './catalog.js'
+import { BLOCKS, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
 import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
 import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
 import {
@@ -412,13 +412,6 @@ export function createApp(
     if (value.on) {
       const under = await room.getItem(pool, READER_ID, value.on)
       if (!under?.placed) return badRequest(response, ['on must be the id of another item in the room, or null'])
-    }
-
-    const limit = placedLimit(settings)
-    if (value.placed && !current.placed && (await room.countPlaced(pool, READER_ID)) >= limit) {
-      return response.status(409).json({
-        error: `The room already holds ${limit} things. Store something first`,
-      })
     }
 
     response.json(await room.updateItem(pool, READER_ID, id, value))

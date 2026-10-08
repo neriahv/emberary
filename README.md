@@ -220,9 +220,9 @@ on the Library Room shelves; one that joins them from Want to Read goes to the
 end, and moving between the other statuses keeps its place.
 
 What the shop sells, and its prices, are in `server/catalog.js` (kept identical
-to `client/src/api/catalog.js`, and a test checks they match). A room holds 30
-things at once and a reader owns at most 60; the rest wait in storage, and
-nothing bought is ever deleted. The floor is 5 by 5 metres centred on 0: `x`
+to `client/src/api/catalog.js`, and a test checks they match). A reader owns at
+most 200 things and can put as many of them in the room as they like; the rest
+wait in storage, and nothing bought is ever deleted. The floor is 5 by 5 metres centred on 0: `x`
 runs from -2.2 (the window wall) to 2.2, and `z` from -2.2 (the bookcase wall) to
 2.2; `rotation` is whole degrees from 0 to 359.
 

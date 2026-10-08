@@ -402,7 +402,6 @@ test('the catalogue and its prices are the same on the client and the server', a
   assert.deepEqual(client.CATALOG, server.CATALOG)
   assert.deepEqual(client.SHOP_CATEGORIES, server.SHOP_CATEGORIES)
   assert.deepEqual(client.EMBER_RULES, server.EMBER_RULES)
-  assert.equal(client.MAX_PLACED_ITEMS, server.MAX_PLACED_ITEMS)
   assert.equal(client.MAX_OWNED_ITEMS, server.MAX_OWNED_ITEMS)
 })
 
@@ -539,19 +538,16 @@ test('an item goes into storage and comes back out, never lost', async () => {
   assert.equal(placed.body.placed, true)
 })
 
-test('a room holds 30 things at once; the rest wait in storage', async () => {
+test('there is no limit to how many things stand in the room at once', async () => {
   // A cart holds 20 things at most.
-  const { body } = await call('POST', '/api/shop/checkout', { items: Array(20).fill('vase') })
-  const one = await call('POST', '/api/shop/checkout', { items: ['vase'] })
-  // 10 in the room already: 20 more fill it.
-  for (const item of body.items) {
+  const first = await call('POST', '/api/shop/checkout', { items: Array(20).fill('vase') })
+  const second = await call('POST', '/api/shop/checkout', { items: Array(20).fill('vase') })
+  // 10 in the room already: 40 more is 50, more than the room once held.
+  for (const item of [...first.body.items, ...second.body.items]) {
     assert.equal((await call('PATCH', `/api/room/items/${item.id}`, { placed: true })).status, 200)
   }
-  const last = one.body.items[0].id
-  const blocked = await call('PATCH', `/api/room/items/${last}`, { placed: true })
-  assert.equal(blocked.status, 409)
-  await call('PATCH', '/api/room/items/1', { placed: false })
-  assert.equal((await call('PATCH', `/api/room/items/${last}`, { placed: true })).status, 200)
+  const { items } = (await call('GET', '/api/room')).body
+  assert.equal(items.filter((i) => i.placed).length, 50)
 })
 
 test('an item cannot change kind, leave the room, or turn past 359', async () => {
@@ -840,18 +836,6 @@ test('a light is switched off and on, and stays that way', async () => {
   assert.equal(off.body.lit, false)
   assert.equal((await call('GET', '/api/room')).body.items.find((i) => i.id === 5).lit, false)
   assert.equal((await call('PATCH', '/api/room/items/5', { lit: true })).body.lit, true)
-})
-
-test('every floor block laid lets the room hold more things at once', async () => {
-  await add('floor', { i: 1, j: 0 })
-  const first = await call('POST', '/api/shop/checkout', { items: Array(20).fill('vase') })
-  const second = await call('POST', '/api/shop/checkout', { items: Array(11).fill('vase') })
-  const vases = [...first.body.items, ...second.body.items]
-  // 10 in the room already; two floor blocks hold 40.
-  for (const item of vases.slice(0, 30)) {
-    assert.equal((await call('PATCH', `/api/room/items/${item.id}`, { placed: true })).status, 200)
-  }
-  assert.equal((await call('PATCH', `/api/room/items/${vases[30].id}`, { placed: true })).status, 409)
 })
 
 test('a window is bought one at a time, goes on the window wall, and can be sized', async () => {

@@ -1835,7 +1835,6 @@ body.room-open { overflow: hidden; }
 }
 .shelf-shop-button:hover:not(:disabled) { color: #3a1604; filter: brightness(1.05); }
 .shelf-shop-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #b8601a; }
-.shelf-shop-icon { font-size: 1.1rem; line-height: 1; }
 .shelf-actions { display: flex; flex-direction: column; gap: var(--space-2); }
 .shelf-action-pair { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .shelf .paint-swatches { grid-template-columns: repeat(5, minmax(0, 1fr)); }

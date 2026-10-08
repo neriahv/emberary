@@ -284,6 +284,67 @@ At least six entries. One per real use. Every entry needs a commit link.
     cost.
 - **Commit:** https://github.com/neriahv/emberary/commit/d609d9ec226a2096813e2529784fb362ba39c7bf
 
+### 2026-10-08 - Shop, Build and Storage Modes, and an Upstairs (Week 4)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** Over several rounds, with reference pictures each
+  time, I asked for the Library Room to play like a building game: separate
+  Shop, Build and Storage modes; choosing things from picture categories;
+  trying furniture in the room before buying it; more furniture, wall and
+  floor designs; and a second floor reached by the stairs.
+- **What it gave back:**
+  - **Modes:** Shop, Build and Storage buttons in a column on the right, with
+    the Ember balance above them. Category picture tabs run along the top, and
+    the items in the chosen category are listed on the left: with prices in
+    the shop, and what I own in the builder.
+  - **Trying before buying:** an item picked in the shop appears see-through in
+    the room, where I can drag it or click where it goes. Its toolbar turns
+    it, buys it where it stands (✓), buys it into storage (📦) or puts it back
+    (✕). A wallpaper, floor or wall top is shown on the room before I buy it.
+  - **Building:** a small toolbar over the selected item: undo, turn, size
+    (bookcases and windows), store, sell and a ✓ to confirm. Small things
+    stand on tables, seats and shelves. Pointing at a wall or a floor square
+    shows buttons to move it or sell it back.
+  - **Expansion:** floor and wall blocks bought from the shop and placed
+    straight away. Walls go only on the back edges of the room, never closing
+    off the front. No floor is laid behind a wall.
+  - **An upstairs:** an upstairs floor, laid one square at a time once there
+    is a staircase and a wall two blocks high. It leaves an opening for the
+    stairs, has railings and its own floor design, and can be hidden to see
+    downstairs. Furniture can be taken up and down.
+  - **New things:** about 60 new items, among them wizard furniture and
+    potions, iron and velvet pieces, rugs, windows and themed bookcases. Also
+    16 new wall and floor patterns (stone among them) and a Wall tops
+    category with five new designs.
+  - **Server and tests:** the same rules on the server and in the demo,
+    database changes for the upstairs floor, and server tests (105 in all).
+- **What I kept, what I changed, and why:**
+  - Kept the modes, the shop's try-in-the-room and the shared rules.
+  - I changed the design after trying each version:
+    - **No cart:** I removed the cart and the Add to cart button; buying
+      happens on the item in the room instead.
+    - **Colours:** I removed recolouring furniture and kept colour for the
+      walls and floors only.
+    - **Layout:** the mode buttons first spread along the top and crowded the
+      room, so I asked for them lined up on the right, then bigger and better
+      placed. I asked for the category tabs centred, see-through, in the same
+      style as the mode buttons, and without text.
+    - **Shop pictures:** I asked for every tile to be the same size, and for
+      the shop links to become proper buttons.
+    - **Moving things:** dragging in the shop turned the room instead of the
+      item, so I asked for it to work like the builder. I also asked to move
+      things by clicking where they should go, and for a ✓ button to confirm.
+    - **Blocks:** I moved block expansion from Build mode into the shop, and
+      took the loft and roof out of the shop. I asked to pick the see-through
+      wall itself when adding one, to remove walls that close off the room, to
+      stop floors behind walls, and for move and sell buttons on the blocks in
+      place of a list.
+    - **Categories:** I split the wall patterns from the wall tops, and then
+      gave wall tops their own category.
+  - **Fixes:** I reported "y must be a number from 0.3 to 9" when putting
+    something in the room; the limit now starts at 0, with a test for it.
+- **Commit:** (add the link after committing)
+
 ## 2. Where the AI got it wrong
 
 ### Case 1 - A Database Constraint that Rejected its Own Boundary (Week 2)

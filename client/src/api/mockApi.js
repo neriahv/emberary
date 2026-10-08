@@ -34,7 +34,6 @@ import {
   hasUpstairs,
   itemFits,
   nearestSpot,
-  placedLimit,
   sellPrice,
 } from './catalog.js'
 import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } from './bookFromGoogle.js'
@@ -843,10 +842,6 @@ export async function updateRoomItem(id, patch) {
   if (value.on) {
     const under = db.room.items.find((i) => i.id === value.on)
     if (!under?.placed) throw new Error('on must be the id of another item in the room, or null')
-  }
-  const limit = placedLimit(db.room)
-  if (value.placed && !item.placed && db.room.items.filter((i) => i.placed).length >= limit) {
-    throw new Error(`The room already holds ${limit} things. Store something first`)
   }
   Object.assign(item, value)
   if (value.placed === false) bringDown(db, id)
