@@ -9,9 +9,10 @@ import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
-import { BLOCKS, EMBER_RULES, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
+import { BLOCKS, EMAIL_PATTERN, EMBER_RULES, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
 import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
 import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
+import { emailDomainStatus } from './emailDomain.js'
 import {
   validateCheckout,
   validateStatus,
@@ -56,7 +57,8 @@ async function transaction(pool, work) {
 // Google; tests pass their own instead of going to the internet.
 // secureCookies sends the session cookie over HTTPS only (true in
 // production). authLimit is how many failed sign-ins or sign-ups one address
-// gets in 15 minutes.
+// gets in 15 minutes. checkEmailDomain says whether an email's domain takes
+// mail; tests pass their own instead of asking DNS.
 export function createApp(
   pool,
   {
@@ -66,6 +68,7 @@ export function createApp(
     fetch: fetchImpl = globalThis.fetch,
     secureCookies = false,
     authLimit = 10,
+    checkEmailDomain = emailDomainStatus,
   } = {}
 ) {
   const app = express()
@@ -127,6 +130,11 @@ export function createApp(
   app.post('/api/auth/signup', authLimiter, route(async (request, response) => {
     const { errors, value } = validateSignup(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
+    // A domain that does not exist, or takes no mail, is a typo or made up.
+    // If DNS does not answer, the sign-up goes ahead rather than wait on it.
+    if ((await checkEmailDomain(value.email.split('@')[1])) === 'none') {
+      return badRequest(response, ["that email's domain does not receive email. Check it for a typo"])
+    }
     const passwordHash = await hashPassword(value.password)
     const account = await transaction(pool, async (db) => {
       const created = await accounts.createReader(db, { email: value.email, displayName: value.displayName, passwordHash })
@@ -153,6 +161,23 @@ export function createApp(
     if (token) await accounts.deleteSession(pool, token)
     response.set('Set-Cookie', sessionCookie(null, { secure: secureCookies }))
     response.status(204).end()
+  }))
+
+  // Body: { email }. Whether the email looks like one and its domain takes
+  // mail, for the sign-up form to show while it is typed: { status: 'invalid'
+  // | 'ok' | 'none' | 'unknown' }. Says nothing about who has an account.
+  // Limited, since each one asks DNS.
+  const emailCheckLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 30,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Too many checks. Wait a moment' },
+  })
+  app.post('/api/auth/check-email', emailCheckLimiter, route(async (request, response) => {
+    const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : ''
+    if (email.length > 254 || !EMAIL_PATTERN.test(email)) return response.json({ status: 'invalid' })
+    response.json({ status: await checkEmailDomain(email.split('@')[1]) })
   }))
 
   // Who is signed in, or 401.

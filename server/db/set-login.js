@@ -10,16 +10,18 @@
 
 import { pool } from './pool.js'
 import { hashPassword } from '../auth.js'
+import { EMAIL_PATTERN, passwordProblems } from '../catalog.js'
 
 const [readerId, email] = process.argv.slice(2)
 const password = process.env.LOGIN_PASSWORD ?? ''
 
-if (!/^[0-9]+$/.test(readerId ?? '') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email ?? '')) {
+if (!/^[0-9]+$/.test(readerId ?? '') || !EMAIL_PATTERN.test(email ?? '')) {
   console.error('Usage: LOGIN_PASSWORD=... npm run login:set -- <reader id> <email>')
   process.exit(1)
 }
-if (password.length < 8) {
-  console.error('Set LOGIN_PASSWORD to a password of at least 8 characters.')
+const problems = passwordProblems(password, email)
+if (problems.length > 0) {
+  console.error(`LOGIN_PASSWORD needs: ${problems.join('; ')}.`)
   process.exit(1)
 }
 

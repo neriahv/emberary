@@ -62,8 +62,15 @@ async function fakeGoogle(url) {
 }
 let base
 
+// A stand-in for DNS, so the tests never touch the internet: example.com and
+// example.org take mail, nowhere.invalid does not exist, and anything else
+// does not answer, which lets a sign-up through.
+const DOMAINS = { 'example.com': 'ok', 'example.org': 'ok', 'nowhere.invalid': 'none' }
+const fakeDomains = async (domain) => DOMAINS[domain] ?? 'unknown'
+
 before(async () => {
-  server = createApp(pool, { fetch: fakeGoogle }).listen(0)
+  // Many failed sign-ups are tested on purpose, so the limit on them is raised.
+  server = createApp(pool, { fetch: fakeGoogle, checkEmailDomain: fakeDomains, authLimit: 1000 }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   base = `http://localhost:${server.address().port}`
 })
@@ -106,7 +113,7 @@ const cookieFrom = (result) => result.setCookie?.split(';')[0]
 // ------------------------------------------------------------ accounts
 
 test('a new reader signs up, is signed in, and starts with their own empty library', async () => {
-  const signedUp = await call('POST', '/api/auth/signup', { email: ' New.Reader@Example.com ', password: 'a long password', displayName: 'New Reader' }, null)
+  const signedUp = await call('POST', '/api/auth/signup', { email: ' New.Reader@Example.com ', password: 'Long-pass-77', displayName: 'New Reader' }, null)
   assert.equal(signedUp.status, 201)
   assert.equal(signedUp.body.email, 'new.reader@example.com')
   assert.match(signedUp.setCookie, /^emberary_session=[^;]+; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000$/)
@@ -123,24 +130,60 @@ test('a new reader signs up, is signed in, and starts with their own empty libra
   assert.equal((await call('PATCH', '/api/room/items/5', { x: 0 }, cookie)).status, 404)
   assert.ok((await call('GET', '/api/my-books')).body.length > 0, 'the seeded reader still has theirs')
 
-  const again = await call('POST', '/api/auth/signup', { email: 'new.reader@example.com', password: 'another one!', displayName: 'Copy' }, null)
+  const again = await call('POST', '/api/auth/signup', { email: 'new.reader@example.com', password: 'Another-one-8', displayName: 'Copy' }, null)
   assert.equal(again.status, 409)
   const bad = await call('POST', '/api/auth/signup', { email: 'not-an-email', password: 'short', displayName: '' }, null)
   assert.equal(bad.status, 400)
   assert.match(bad.body.error, /email.*password.*display name/)
 })
 
-test('signing in needs the right email and password, and signing out ends the session', async () => {
-  await call('POST', '/api/auth/signup', { email: 'reader@example.com', password: 'correct horse', displayName: 'Reader' }, null)
+test('a new password has to meet every rule, and the email has to be a real domain', async () => {
+  const signUp = (email, password) => call('POST', '/api/auth/signup', { email, password, displayName: 'Tester' }, null)
+  for (const [password, missing] of [
+    ['Sh0rt!', /at least 8 characters/],
+    ['alllowercase-9', /an uppercase letter/],
+    ['ALLUPPERCASE-9', /a lowercase letter/],
+    ['No-Numbers-Here', /a number/],
+    ['NoSymbols123', /a symbol/],
+    ['Password-123', /not a common password/],
+    ['Tester-Mail-1', /not your email/],
+  ]) {
+    const refused = await signUp('tester@example.com', password)
+    assert.equal(refused.status, 400, password)
+    assert.match(refused.body.error, missing, password)
+  }
+  // Everything the form says is wrong, at once.
+  assert.match((await signUp('tester@example.com', 'abc')).body.error, /8 characters.*uppercase.*number.*symbol/)
 
-  const wrong = await call('POST', '/api/auth/login', { email: 'reader@example.com', password: 'wrong horse' }, null)
+  const nowhere = await signUp('tester@nowhere.invalid', 'Good-Pass-9')
+  assert.equal(nowhere.status, 400)
+  assert.match(nowhere.body.error, /domain does not receive email/)
+  assert.equal((await signUp('tester@example', 'Good-Pass-9')).status, 400, 'no dot in the domain')
+  assert.equal((await signUp('tester@example.c', 'Good-Pass-9')).status, 400, 'a one-letter ending')
+
+  // The form asks as the email is typed.
+  const check = async (email) => (await call('POST', '/api/auth/check-email', { email }, null)).body.status
+  assert.equal(await check('tester@example.com'), 'ok')
+  assert.equal(await check('tester@nowhere.invalid'), 'none')
+  assert.equal(await check('tester@quiet-dns.net'), 'unknown')
+  assert.equal(await check('tester@exam'), 'invalid')
+
+  // DNS not answering does not stop anyone signing up.
+  assert.equal((await signUp('tester@quiet-dns.net', 'Good-Pass-9')).status, 201)
+  assert.equal((await signUp('tester@example.org', 'Good-Pass-9')).status, 201)
+})
+
+test('signing in needs the right email and password, and signing out ends the session', async () => {
+  await call('POST', '/api/auth/signup', { email: 'reader@example.com', password: 'Correct-Horse-4', displayName: 'Reader' }, null)
+
+  const wrong = await call('POST', '/api/auth/login', { email: 'reader@example.com', password: 'Wrong-Horse-4' }, null)
   assert.equal(wrong.status, 401)
-  const nobody = await call('POST', '/api/auth/login', { email: 'nobody@example.com', password: 'correct horse' }, null)
+  const nobody = await call('POST', '/api/auth/login', { email: 'nobody@example.com', password: 'Correct-Horse-4' }, null)
   assert.equal(nobody.status, 401)
   assert.equal(nobody.body.error, wrong.body.error, 'the same answer either way')
   assert.equal(wrong.setCookie, null)
 
-  const signedIn = await call('POST', '/api/auth/login', { email: 'READER@example.com', password: 'correct horse' }, null)
+  const signedIn = await call('POST', '/api/auth/login', { email: 'READER@example.com', password: 'Correct-Horse-4' }, null)
   assert.equal(signedIn.status, 200)
   const cookie = cookieFrom(signedIn)
   assert.equal((await call('GET', '/api/auth/me', undefined, cookie)).body.email, 'reader@example.com')
@@ -154,7 +197,7 @@ test('signing in needs the right email and password, and signing out ends the se
   // Passwords are kept only as hashes.
   const row = (await pool.query("SELECT password_hash FROM readers WHERE email = 'reader@example.com'")).rows[0]
   assert.match(row.password_hash, /^scrypt\$/)
-  assert.ok(!row.password_hash.includes('correct horse'))
+  assert.ok(!row.password_hash.includes('Correct-Horse-4'))
 })
 
 test('without a session, every reader route answers 401 and changes nothing', async () => {

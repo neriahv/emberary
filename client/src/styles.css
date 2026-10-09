@@ -1934,6 +1934,16 @@ body.room-open { overflow: hidden; }
 .auth-form label { display: flex; flex-direction: column; gap: 4px; }
 .auth-form input { width: 100%; }
 .auth-hint { font-weight: 400; font-size: 0.8rem; }
+.auth-field-error { font-weight: 600; font-size: 0.8rem; color: var(--danger); }
+.auth-ok { font-weight: 700; font-size: 0.8rem; color: var(--status-reading); }
+.auth-form input[aria-invalid='true'] { border-color: var(--danger); }
+.auth-password { display: flex; gap: var(--space-2); }
+.auth-password input { flex: 1; min-width: 0; }
+.auth-show { padding: 0 var(--space-3); border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-deep); box-shadow: none; font-weight: 700; }
+.auth-show:hover:not(:disabled) { color: var(--accent-deep); filter: brightness(0.97); }
+.auth-rules { list-style: none; margin: calc(-1 * var(--space-2)) 0 0; padding: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); }
+.auth-rules li > span:first-child { display: inline-block; width: 1.1em; font-weight: 800; }
+.auth-rules li.is-met { color: var(--status-reading); }
 .auth-error { margin: 0; padding: var(--space-2) var(--space-3); background: var(--error-bg); border: 1px solid var(--error-line); border-radius: var(--radius-sm); color: var(--danger); }
 .auth-submit { width: 100%; padding: var(--space-3); font-size: 1rem; }
 .auth-demo { margin: 0; padding: var(--space-2) var(--space-3); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: var(--radius-sm); font-size: var(--text-sm); }

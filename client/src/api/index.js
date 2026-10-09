@@ -47,6 +47,9 @@ export {
   cellBox,
   cutOut,
   edgeSides,
+  EMAIL_PATTERN,
+  PASSWORD_RULES,
+  passwordProblems,
   floorCells,
   floorSpots,
   hasLoft,
@@ -77,6 +80,7 @@ export const STATUS_LABELS = {
 
 export const {
   getMe,
+  checkEmail,
   signUp,
   logIn,
   logOut,

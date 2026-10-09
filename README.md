@@ -225,7 +225,7 @@ one, with its books and room) a login:
 
 | Method and path | What it does |
 | --- | --- |
-| `POST /api/auth/signup` | Make an account: `{ email, password, displayName }` (password 8 to 200 characters). Signs in, and starts the welcome Ember. 409 if the email has an account |
+| `POST /api/auth/signup` | Make an account: `{ email, password, displayName }`. The password needs 8 or more characters with an uppercase and a lowercase letter, a number and a symbol, and must not contain the email's name or a common password (`PASSWORD_RULES` in `catalog.js`). The email's domain must exist and take mail (checked in DNS, `server/emailDomain.js`). Signs in, and starts the welcome Ember. 409 if the email has an account |
 | `POST /api/auth/login` | `{ email, password }`. 401, the same either way, if they do not match |
 | `POST /api/auth/logout` | End this session |
 | `GET /api/auth/me` | Who is signed in: `{ id, displayName, email }`, or 401 |

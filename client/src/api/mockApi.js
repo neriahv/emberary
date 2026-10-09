@@ -35,6 +35,8 @@ import {
   itemFits,
   nearestSpot,
   sellPrice,
+  EMAIL_PATTERN,
+  passwordProblems,
 } from './catalog.js'
 import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } from './bookFromGoogle.js'
 
@@ -493,24 +495,56 @@ export async function getMe() {
   return demoAccount(read())
 }
 
-function checkAccount({ email, password }) {
-  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error('email must be an email address')
-  if (typeof password !== 'string' || password.length < 8) throw new Error('password must be 8 to 200 characters')
+// Whether an email's domain takes mail, the same question the server asks
+// DNS, here through Google's public DNS-over-HTTPS service, since a browser
+// cannot ask DNS itself. 'unknown' if it does not answer.
+async function emailDomainStatus(domain) {
+  const ask = async (type) => {
+    const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`
+    return (await fetch(url, { signal: AbortSignal.timeout(3000) })).json()
+  }
+  try {
+    const mx = await ask('MX')
+    if (mx.Status === 3) return 'none' // no such domain
+    const records = (mx.Answer ?? []).filter((answer) => answer.type === 15)
+    // "0 ." is a null MX: the domain takes no mail.
+    if (records.length > 0) return records.some((answer) => !/^0 \.?$/.test(answer.data.trim())) ? 'ok' : 'none'
+    const a = await ask('A')
+    return (a.Answer ?? []).some((answer) => answer.type === 1) ? 'ok' : 'none'
+  } catch {
+    return 'unknown'
+  }
 }
 
-export async function logIn(credentials) {
-  await delay()
-  checkAccount(credentials)
-  localStorage.removeItem(SIGNED_OUT)
-  return demoAccount(read(), credentials.email.trim().toLowerCase())
+export async function checkEmail(email) {
+  const address = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  if (!EMAIL_PATTERN.test(address)) return { status: 'invalid' }
+  return { status: await emailDomainStatus(address.split('@')[1]) }
 }
 
-export async function signUp(details) {
+export async function logIn({ email, password }) {
   await delay()
-  checkAccount(details)
-  if (!details.displayName?.trim()) throw new Error('display name must be 1 to 60 characters')
+  if (typeof email !== 'string' || !EMAIL_PATTERN.test(email.trim())) throw new Error('email must be an email address')
+  if (typeof password !== 'string' || password.length < 8) throw new Error('That email and password do not match an account')
   localStorage.removeItem(SIGNED_OUT)
-  return demoAccount(read(), details.email.trim().toLowerCase())
+  return demoAccount(read(), email.trim().toLowerCase())
+}
+
+// The same checks as the server's sign-up.
+export async function signUp({ email, password, displayName }) {
+  await delay()
+  const address = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  const errors = []
+  if (!EMAIL_PATTERN.test(address)) errors.push('email must be an email address')
+  const problems = passwordProblems(password, address)
+  if (problems.length > 0) errors.push(`password needs: ${problems.map((p) => p.toLowerCase()).join('; ')}`)
+  if (!displayName?.trim() || displayName.trim().length > 60) errors.push('display name must be 1 to 60 characters')
+  if (errors.length > 0) throw new Error(errors.join('; '))
+  if ((await emailDomainStatus(address.split('@')[1])) === 'none') {
+    throw new Error("that email's domain does not receive email. Check it for a typo")
+  }
+  localStorage.removeItem(SIGNED_OUT)
+  return demoAccount(read(), address)
 }
 
 export async function logOut() {

@@ -53,7 +53,8 @@ before(async () => {
   appUrl.password = LOCAL_ONLY_PASSWORD
   app = new pg.Pool({ connectionString: appUrl.toString(), max: 3 })
 
-  server = createApp(app).listen(0)
+  // A stand-in for DNS, which this test has no reason to ask.
+  server = createApp(app, { checkEmailDomain: async () => 'ok' }).listen(0)
   await new Promise((resolve) => server.once('listening', resolve))
   base = `http://localhost:${server.address().port}`
 })
@@ -109,8 +110,8 @@ test('the whole app works when it logs in as the app role', async () => {
 
   // Signing up, in and out: a new reader, a session, and its end. Last,
   // because signing out ends this test's own session too.
-  assert.equal((await call('POST', '/api/auth/signup', { email: 'role@example.com', password: 'role test pass', displayName: 'Role' })).status, 201)
-  assert.equal((await call('POST', '/api/auth/login', { email: 'role@example.com', password: 'role test pass' })).status, 200)
+  assert.equal((await call('POST', '/api/auth/signup', { email: 'role@example.com', password: 'Shelf-Keeper-7', displayName: 'Role' })).status, 201)
+  assert.equal((await call('POST', '/api/auth/login', { email: 'role@example.com', password: 'Shelf-Keeper-7' })).status, 200)
   assert.equal((await call('POST', '/api/auth/logout')).status, 204)
 })
 

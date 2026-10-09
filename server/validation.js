@@ -21,6 +21,8 @@ import {
   itemFits,
   nearestSpot,
   resizable,
+  EMAIL_PATTERN,
+  passwordProblems,
 } from './catalog.js'
 
 export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-finish']
@@ -337,17 +339,17 @@ export function validateShelfOrder(body) {
 
 // ------------------------------------------------------------ accounts
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 // { email, password, displayName } to make an account. The email is kept in
-// lower case, so it matches however it is typed later.
+// lower case, so it matches however it is typed later. The password must meet
+// every one of PASSWORD_RULES (catalog.js), the same ones the form shows.
 export function validateSignup(body) {
   const errors = []
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body.password === 'string' ? body.password : ''
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : ''
-  if (email.length > 254 || !EMAIL.test(email)) errors.push('email must be an email address')
-  if (password.length < 8 || password.length > 200) errors.push('password must be 8 to 200 characters')
+  if (email.length > 254 || !EMAIL_PATTERN.test(email)) errors.push('email must be an email address')
+  const problems = passwordProblems(password, email)
+  if (problems.length > 0) errors.push(`password needs: ${problems.map((p) => p.toLowerCase()).join('; ')}`)
   if (!displayName || displayName.length > 60) errors.push('display name must be 1 to 60 characters')
   return { errors, value: { email, password, displayName } }
 }

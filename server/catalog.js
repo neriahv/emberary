@@ -1,4 +1,5 @@
-// What the Library Room shop sells, and what Ember is earned for.
+// What the Library Room shop sells, what Ember is earned for, and what a new
+// account's email and password must be.
 //
 // Kept IDENTICAL in server/catalog.js and client/src/api/catalog.js. The server
 // is deployed on its own and cannot import from the client, and the client
@@ -818,3 +819,41 @@ export function pickSpots(room, kind, type) {
   if (type === 'remove') return options.filter((at) => !changeBlocks(room, room?.items ?? [], { type, kind, at }).error)
   return options.filter((from) => moveSpots(room, kind, from).length > 0)
 }
+
+// ---------------------------------------------------------------- accounts
+//
+// What a new account's password must be, checked as the reader types it (the
+// sign-up form shows each rule ticking off) and again by the server. Each rule
+// is { id, label, test(password, email) }.
+const COMMON_PASSWORDS = ['password', 'passw0rd', 'qwerty', '12345', 'letmein', 'iloveyou', 'welcome', 'admin', 'emberary', 'abc123']
+
+export const PASSWORD_RULES = [
+  { id: 'length', label: 'At least 8 characters', test: (password) => password.length >= 8 },
+  { id: 'lower', label: 'A lowercase letter', test: (password) => /[a-z]/.test(password) },
+  { id: 'upper', label: 'An uppercase letter', test: (password) => /[A-Z]/.test(password) },
+  { id: 'number', label: 'A number', test: (password) => /[0-9]/.test(password) },
+  { id: 'symbol', label: 'A symbol, such as ! ? # or -', test: (password) => /[^A-Za-z0-9\s]/.test(password) },
+  {
+    id: 'personal',
+    label: 'Not your email, and not a common password',
+    test: (password, email = '') => {
+      const lower = password.toLowerCase()
+      const name = String(email).toLowerCase().split('@')[0]
+      return !COMMON_PASSWORDS.some((word) => lower.includes(word)) && !(name.length >= 3 && lower.includes(name))
+    },
+  },
+]
+export const PASSWORD_MAX = 200
+
+// The rules a password does not meet yet, by label; empty when it is fine.
+export function passwordProblems(password, email = '') {
+  const value = typeof password === 'string' ? password : ''
+  const problems = PASSWORD_RULES.filter((rule) => !rule.test(value, email)).map((rule) => rule.label)
+  if (value.length > PASSWORD_MAX) problems.push(`At most ${PASSWORD_MAX} characters`)
+  return problems
+}
+
+// An email address: something, an @, and a domain with a dot and a name after
+// it of two letters or more. Whether the domain takes mail is checked when the
+// account is made (server/emailDomain.js).
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/

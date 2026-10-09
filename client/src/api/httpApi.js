@@ -44,6 +44,8 @@ export const signUp = ({ email, password, displayName }) =>
   request('/api/auth/signup', json('POST', { email, password, displayName }))
 export const logIn = ({ email, password }) => request('/api/auth/login', json('POST', { email, password }))
 export const logOut = () => request('/api/auth/logout', { method: 'POST' })
+// Whether an email's domain takes mail, for the sign-up form as it is typed.
+export const checkEmail = (email) => request('/api/auth/check-email', json('POST', { email }))
 
 // catalogue
 export const listBooks = ({ query = '', genre = '' } = {}) =>
