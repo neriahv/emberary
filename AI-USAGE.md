@@ -661,6 +661,55 @@ At least six entries. One per real use. Every entry needs a commit link.
     are set, so GitHub Pages stays the public demo, and ran the secret search
     over the whole git history. Only placeholders came back.
 
+**Search, filter and sort on My Books**
+
+- **Files:** `client/src/pages/filterBooks.js` (all of it), and in
+  `client/src/pages/MyBooksPage.jsx` the genre, rating and sort dropdowns,
+  reading them from the URL, the "Showing X of Y" line, Clear filters and the
+  empty messages; in `client/src/styles.css`, the `.filter-field` and
+  `.filter-summary` rules
+- **Commits:**
+  - Moving the filtering into its own function: https://github.com/neriahv/emberary/commit/ad578dc6360abbd8dcbda92be33e304b819d390f
+  - Genre and rating filters: https://github.com/neriahv/emberary/commit/ce90e03d07b10a8549c23dc4a481cf80b8de6cf8
+  - Sorting: https://github.com/neriahv/emberary/commit/e46683d642e2d20adb9f904517a9a9cccb85d273
+  - The dropdowns, the count, Clear filters and the empty messages: (add the link after committing)
+- **How it was made:** I wrote this code myself. Claude Code gave me a spec
+  and broke it into five steps, pointed me to the patterns already in the
+  page (how the status tab is kept in the URL, and the `update()` helper),
+  explained things like `localeCompare` and why `.sort()` must sort a copy,
+  and reviewed each step after I finished it. It ran my functions against the
+  demo books to check them, but it did not write any of this code.
+- **What it does and why it is built this way:**
+  - **Two plain functions.** `filterBooks(entries, { tab, search, genre,
+    rating })` keeps the books that match all four choices, and
+    `sortBooks(entries, sort)` puts them in order. They are separate from the
+    page, so the page stays short and the functions can be tested on their
+    own.
+  - **Filtering.** The search ignores capital letters and spaces at either
+    end, and looks in the title and author. A rating of "4" means at least 4
+    stars; unrated books are never counted as rated, because I check for
+    `null` on purpose instead of relying on `null >= 4` being false.
+  - **Sorting.** `sortBooks` sorts a copy (`[...entries]`), because `.sort()`
+    changes the array it is called on. Titles and authors are compared with
+    `localeCompare`, unrated books always go last when sorting by rating, and
+    a book with 0 pages counts as 0% read instead of dividing by zero.
+  - **Kept in the URL.** Genre, rating and sort live in the address, like the
+    status tab, so a refresh keeps them. Rating and sort are checked against
+    lists of allowed values, so `?sort=banana` falls back to "Recently
+    updated". Choosing a default removes it from the URL, so an unfiltered
+    page stays plain `/my-books`.
+  - **The genre list** is built from the reader's own books with a `Set`, so
+    it only offers genres they have. If the URL names a genre they no longer
+    have, it still appears as an option, so the dropdown is never blank.
+  - **The right message.** "Showing X of Y books" appears only while a filter
+    is on (sorting does not count, since it hides nothing), and is in an
+    `aria-live` region so screen readers hear the new count. An empty tab
+    says "No books marked … yet"; filters that hide everything say "No books
+    match these filters" with a Clear filters button, which resets the
+    search, genre and rating but keeps the tab and the sort.
+  - **What I would do next:** sort authors by surname, so Austen comes before
+    Conan Doyle.
+
 ### The AI-written part I understand best
 
 **The frontend's mock/real API switch**

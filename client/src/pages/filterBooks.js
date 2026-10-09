@@ -1,5 +1,4 @@
-
- // Filters books by reading status, search text, genre, and rating.
+// Filters books by reading status, search text, genre, and rating.
 export function filterBooks(
   entries,
   { tab, search = '', genre = 'all', rating = 'any' }

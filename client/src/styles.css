@@ -577,6 +577,11 @@ button:disabled { opacity: 0.55; cursor: default; }
 .search-field .icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .search-field input { width: 100%; padding: 0.65rem 1rem 0.65rem 2.7rem; border-radius: var(--pill); background: var(--card); }
 
+/* Gives the book filter dropdowns a rounded appearance. */
+.filter-field select {
+  border-radius: var(--pill);
+  padding: 0.65rem 1rem;
+}
 /* ------------------------------------------------------------------ book pieces */
 
 .book-cover {
@@ -776,6 +781,27 @@ button.book-card-select:hover .book-card-title { color: var(--accent); }
 }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-5); }
+
+
+/* Displays the filtered book count and reset button. */
+
+/* Displays the filtered book count and reset button. */
+.filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.filter-summary span {
+  font-size: 0.9rem;
+}
+
+.filter-summary:empty {
+  display: none;
+}
 
 /* ------------------------------------------------------------------ discover */
 
