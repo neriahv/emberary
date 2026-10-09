@@ -131,6 +131,47 @@ export function validateProfile(current, body) {
   return { errors, value: { displayName, bio, yearlyGoal } }
 }
 
+
+
+// Validates the reader's settings after merging any changes.
+export function validateSettings(current, body) {
+  const merged = { ...current }
+
+  for (const key of ['timezone', 'dailyPageGoal', 'theme']) {
+    if (has(body, key)) merged[key] = body[key]
+  }
+
+  const errors = []
+  const { timezone, theme } = merged
+  const dailyPageGoal = Number(merged.dailyPageGoal)
+
+  const timezones = Intl.supportedValuesOf('timeZone')
+
+  if (
+    typeof timezone !== 'string' ||
+    (timezone !== 'UTC' && !timezones.includes(timezone))
+  ) {
+    errors.push('timezone must be a valid time zone')
+  }
+
+  if (
+    !Number.isInteger(dailyPageGoal) ||
+    dailyPageGoal < 5 ||
+    dailyPageGoal > 500
+  ) {
+    errors.push('daily page goal must be a whole number from 5 to 500')
+  }
+
+  if (!['light', 'dark', 'system'].includes(theme)) {
+    errors.push('theme must be light, dark, or system')
+  }
+
+  return {
+    errors,
+    value: { timezone, dailyPageGoal, theme }
+  }
+}
+
 export function validateRoom(body) {
   const errors = []
   const value = {}

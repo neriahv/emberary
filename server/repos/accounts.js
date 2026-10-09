@@ -47,14 +47,22 @@ export async function createSession(db, readerId) {
   return token
 }
 
-// The account a session token belongs to, if the session is still good.
+
+// Finds the signed-in reader and their reading preferences.
 export async function readerForToken(db, token) {
   const result = await db.query(
-    `SELECT r.id, r.display_name AS "displayName", r.email
-     FROM sessions s JOIN readers r ON r.id = s.reader_id
+    `SELECT
+       r.id,
+       r.display_name AS "displayName",
+       r.email,
+       r.timezone,
+       r.daily_page_goal AS "dailyPageGoal"
+     FROM sessions s
+     JOIN readers r ON r.id = s.reader_id
      WHERE s.token_hash = $1 AND s.expires_at > now()`,
     [tokenHash(token)]
   )
+
   return result.rows[0] ?? null
 }
 

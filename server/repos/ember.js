@@ -38,7 +38,7 @@ async function record(db, readerId, amount, reason, ref) {
 
 // Everything the wallet shows: the balance, today's progress and the most
 // recent changes.
-export async function summary(db, readerId, timezone) {
+export async function summary(db, readerId, timezone, goal) {
   const day = await today(db, timezone)
   const [total, checkedIn, reading, history] = await Promise.all([
     balance(db, readerId),
@@ -59,7 +59,7 @@ export async function summary(db, readerId, timezone) {
     today: day,
     checkedInToday: checkedIn.rowCount > 0,
     pagesToday,
-    dailyPageGoal: EMBER_RULES.dailyPageGoal,
+    dailyPageGoal: goal,
     rules: EMBER_RULES,
     history: history.rows,
   }
@@ -81,7 +81,7 @@ export async function checkIn(db, readerId, timezone) {
 //   - pages: 1 Ember per 50 pages reached, counted against what this book has
 //     already earned, so paging back and forth earns nothing new.
 //   - the daily goal: pages read today (forward only) reaching the goal.
-export async function rewardReading(db, readerId, bookId, before, after, timezone) {
+export async function rewardReading(db, readerId, bookId, before, after, timezone, goal) {
   const earned = []
 
   if (after.status === 'read' && before?.status !== 'read') {
@@ -106,12 +106,23 @@ export async function rewardReading(db, readerId, bookId, before, after, timezon
        RETURNING pages, day::text AS day`,
       [readerId, timezone, forward]
     )
-    const { pages, day: date } = day.rows[0]
-    const goal = EMBER_RULES.dailyPageGoal
-    if (pages - forward < goal && pages >= goal) {
-      const row = await record(db, readerId, EMBER_RULES.dailyGoalReward, 'daily-goal', date)
-      if (row) earned.push(row)
-    }
+      const { pages, day: date } = day.rows[0]
+
+      // A changed goal earns its reward on the next reading that crosses
+      // the new target, not immediately when settings are saved.
+      // The ledger prevents the same daily reward from being earned twice.
+      if (pages - forward < goal && pages >= goal) {
+        const row = await record(
+          db,
+          readerId,
+          EMBER_RULES.dailyGoalReward,
+          'daily-goal',
+          date
+        )
+
+        if (row) earned.push(row)
+      }
+
   }
 
   return earned

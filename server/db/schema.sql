@@ -36,6 +36,28 @@ ALTER TABLE readers ADD CONSTRAINT readers_email_check
   CHECK (email IS NULL OR (char_length(email) BETWEEN 3 AND 254 AND email LIKE '%_@_%'));
 CREATE UNIQUE INDEX IF NOT EXISTS readers_email_idx ON readers (lower(email));
 
+-- Reader preferences for time zone, daily reading goal, and theme.
+ALTER TABLE readers
+  ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Manila',
+  ADD COLUMN IF NOT EXISTS daily_page_goal INTEGER NOT NULL DEFAULT 20,
+  ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'system';
+
+-- Validate the daily reading goal.
+ALTER TABLE readers
+  DROP CONSTRAINT IF EXISTS readers_daily_page_goal_check;
+
+ALTER TABLE readers
+  ADD CONSTRAINT readers_daily_page_goal_check
+  CHECK (daily_page_goal BETWEEN 5 AND 500);
+
+-- Validate the selected theme.
+ALTER TABLE readers
+  DROP CONSTRAINT IF EXISTS readers_theme_check;
+
+ALTER TABLE readers
+  ADD CONSTRAINT readers_theme_check
+  CHECK (theme IN ('light', 'dark', 'system'));
+
 -- A signed-in browser. The cookie holds a random token; only its SHA-256 hash
 -- is kept here, so the table cannot be used to sign in as anyone.
 CREATE TABLE IF NOT EXISTS sessions (

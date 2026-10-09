@@ -18,6 +18,7 @@ import {
   validateStatus,
   validateEntryPatch,
   validateProfile,
+  validateSettings,
   validateRoom,
   validateRoomItem,
   validateBlockChange,
@@ -25,6 +26,7 @@ import {
   validateSignup,
   validateLogin,
 } from './validation.js'
+import * as settings from './repos/settings.js'
 
 // Express 4 does not pass a rejected promise to the error handler by itself.
 // Without this, a failed query leaves the request hanging until it times out.
@@ -197,6 +199,8 @@ export function createApp(
     accounts.readerForToken(pool, token).then((account) => {
       if (!account) return response.status(401).json({ error: 'Your session has ended. Sign in again' })
       request.readerId = account.id
+      request.timezone = account.timezone
+      request.pageGoal = account.dailyPageGoal
       next()
     }, next)
   })
@@ -317,7 +321,7 @@ export function createApp(
       if (fromGoogle) await books.insertIfMissing(db, fromGoogle)
       const added = await myBooks.add(db, request.readerId, bookId, status)
       if (!added) return null
-      const rewards = await ember.rewardReading(db, request.readerId, bookId, null, added, timezone)
+      const rewards = await ember.rewardReading(db, request.readerId, bookId, null, added, request.timezone, request.pageGoal)
       return { ...added, rewards }
     })
     if (!entry) {
@@ -359,7 +363,7 @@ export function createApp(
       const before = await myBooks.lock(db, request.readerId, bookId)
       if (!before) return null
       const after = await myBooks.update(db, request.readerId, bookId, value)
-      const rewards = await ember.rewardReading(db, request.readerId, bookId, before, after, timezone)
+      const rewards = await ember.rewardReading(db, request.readerId, bookId, before, after, request.timezone, request.pageGoal)
       return { ...after, rewards }
     })
     if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
@@ -405,18 +409,84 @@ export function createApp(
     response.json(await profile.update(pool, request.readerId, value))
   }))
 
-  // ------------------------------------------------------------ ember
+  
+  // ------------------------------------------------------------ settings
 
-  // The wallet: balance, today's check-in and reading, and recent changes.
-  app.get('/api/ember', route(async (request, response) => {
-    response.json(await ember.summary(pool, request.readerId, timezone))
+  // Returns the signed-in reader's preferences.
+  app.get('/api/settings', route(async (request, response) => {
+    const current = await settings.get(pool, request.readerId)
+
+    if (!current) {
+      return response.status(404).json({
+        error: 'Settings not found'
+      })
+    }
+
+    response.json(current)
   }))
 
-  app.post('/api/ember/check-in', route(async (request, response) => {
-    const reward = await ember.checkIn(pool, request.readerId, timezone)
-    if (!reward) return response.status(409).json({ error: 'You already checked in today' })
-    response.status(201).json({ reward, ...(await ember.summary(pool, request.readerId, timezone)) })
+  // Body: any of { timezone, dailyPageGoal, theme }.
+  app.patch('/api/settings', route(async (request, response) => {
+    const current = await settings.get(pool, request.readerId)
+
+    if (!current) {
+      return response.status(404).json({
+        error: 'Settings not found'
+      })
+    }
+
+    const { errors, value } = validateSettings(
+      current,
+      request.body ?? {}
+    )
+
+    if (errors.length > 0) {
+      return badRequest(response, errors)
+    }
+
+    response.json(
+      await settings.update(pool, request.readerId, value)
+    )
   }))
+
+
+// ------------------------------------------------------------ ember
+
+// The wallet: balance, today's check-in and reading, and recent changes.
+app.get('/api/ember', route(async (request, response) => {
+  response.json(
+    await ember.summary(
+      pool,
+      request.readerId,
+      request.timezone,
+      request.pageGoal
+    )
+  )
+}))
+
+app.post('/api/ember/check-in', route(async (request, response) => {
+  const reward = await ember.checkIn(
+    pool,
+    request.readerId,
+    request.timezone
+  )
+
+  if (!reward) {
+    return response.status(409).json({
+      error: 'You already checked in today'
+    })
+  }
+
+  const summary = await ember.summary(
+    pool,
+    request.readerId,
+    request.timezone,
+    request.pageGoal
+  )
+
+  response.status(201).json({ reward, ...summary })
+}))
+
 
   // ------------------------------------------------------------ library room
 
