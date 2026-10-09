@@ -343,7 +343,65 @@ At least six entries. One per real use. Every entry needs a commit link.
       gave wall tops their own category.
   - **Fixes:** I reported "y must be a number from 0.3 to 9" when putting
     something in the room; the limit now starts at 0, with a test for it.
-- **Commit:** (add the link after committing)
+- **Commit:** https://github.com/neriahv/emberary/commit/aa0ea60fc119b51abf2101dc5521ded82fc3a836
+
+### 2026-10-09 - Reader Accounts, Sign-up Checks and More Library Styles (Week 4)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **How we split it:** About half and half. Claude Code wrote the code. My
+  half was everything around it: deciding what to build and how it should
+  work, choosing the reference pictures, setting the rules (such as only
+  adding things that belong in a library, and what a password must have),
+  trying every version in the browser and sending back what was wrong, and
+  deploying it myself.
+- **What I asked for:**
+  - **More of the library:** more items in more styles (modern, minimalist,
+    girly and cute, for boys, cosy and creative), more staircase designs, and
+    Ctrl+Z to undo everything in Build mode, colours included. I asked that
+    every new item help build a library room, not just any room.
+  - **Accounts:** after reading the course's "lock it down" notice, I asked
+    whether my own login would replace the Basic Auth gate, then asked for
+    reader accounts.
+  - **Sign-up checks:** a password that meets basic standards, an email that
+    really exists, and a checker that works while the reader types.
+- **What it gave back:**
+  - **Library pieces:** 33 new things, among them a librarian's desk, a study
+    table, a card catalogue, a library book cart, a window reading seat, a
+    canopy reading nest and a rocket bookcase, and five new staircases,
+    including one with a shelf of books in every step.
+  - **Undo:** one history for Build mode. Ctrl+Z undoes moving, turning,
+    sizing, storing, placing, colours, finishes and block moves; buying and
+    selling are not undone, because they spend or return Ember.
+  - **Accounts:** sign up, sign in and sign out, with passwords kept as scrypt
+    hashes and a session cookie (HttpOnly, SameSite=Lax, HTTPS-only in
+    production). Every other API route needs a session, and the reader's id
+    comes only from it, so no reader can reach another's books, room or Ember.
+    Failed sign-ins are rate-limited. The Basic Auth gate became optional, and
+    `npm run login:set` gives my existing reader a login.
+  - **Sign-up checks:** one set of password rules (8 or more characters, an
+    uppercase and a lowercase letter, a number, a symbol, and not the email's
+    name or a common password) used by the form, the server and demo mode. The
+    email's domain is checked in DNS, so made-up or mistyped domains are
+    refused. The form ticks each rule off, checks the email and whether the
+    two passwords match, all while typing.
+  - **Tests:** 108 server tests, including new ones for accounts, keeping each
+    reader's data their own, and the sign-up rules.
+- **What I kept, what I changed, and why:**
+  - Kept the accounts design, the shared password rules and the undo history.
+  - **Is the email real?** The AI explained that a DNS check can only prove
+    the domain takes mail, not that the mailbox exists, and that only sending
+    a code proves it. I kept the DNS check for now; a code by email needs a
+    sending service.
+  - **Checking while typing:** the first sign-up form only checked the
+    password's length when I pressed the button. I asked for the checks to
+    happen while typing, and every part of the form now does.
+  - **The README:** I asked for it to be brought up to date with the accounts
+    and the Library Room, and added my demo video link myself.
+  - **Deploying:** I asked for the deployment steps one at a time, then
+    updated the Neon database, gave my reader its login and changed Render's
+    settings myself.
+- **Commit:** https://github.com/neriahv/emberary/commit/a121f689b47263de44c25e2096d226b73ac3342d
+  (sign-up checks: https://github.com/neriahv/emberary/commit/39f6e31ef8941f783ab7b37373a534c88f8bae38)
 
 ## 2. Where the AI got it wrong
 

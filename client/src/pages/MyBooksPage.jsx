@@ -7,6 +7,7 @@ import BookCard from '../components/BookCard.jsx'
 import BookDetailPanel from '../components/BookDetailPanel.jsx'
 import Icon from '../components/Icon.jsx'
 import { BooksArt } from '../components/Illustrations.jsx'
+import { filterBooks } from './filterBooks.js'
 
 // The traditional half of Emberary: your collection, sorted into the four
 // reading statuses. The tab and selected book live in the URL, so a link from
@@ -21,14 +22,7 @@ export default function MyBooksPage() {
 
   const entries = result.data ?? []
   const needle = filter.trim().toLowerCase()
-  const visible = entries
-    .filter((e) => tab === 'all' || e.status === tab)
-    .filter(
-      (e) =>
-        !needle ||
-        e.book.title.toLowerCase().includes(needle) ||
-        e.book.author.toLowerCase().includes(needle),
-    )
+  const visible = filterBooks(entries, { tab, search: filter })
   const selected = entries.find((e) => e.bookId === selectedId)
 
   function update(next) {
