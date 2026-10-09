@@ -1,3 +1,6 @@
+import Avatar, { AVATARS } from '../components/Avatar.jsx'
+import { ReadingMilestones, AccountSecurity } from '../components/ReaderTools.jsx'
+import { useAuth } from '../components/AuthGate.jsx'
 import { useState } from 'react'
 import { getProfile, updateProfile, getReadingStats } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
@@ -7,6 +10,7 @@ import StatCard from '../components/StatCard.jsx'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default function ProfilePage() {
+  const { updateAccount } = useAuth()
   const profile = useAsync(getProfile)
   const stats = useAsync(getReadingStats)
   const [editing, setEditing] = useState(false)
@@ -26,13 +30,17 @@ export default function ProfilePage() {
             onCancel={() => setEditing(false)}
             onSaved={(saved) => {
               profile.setData(saved)
+              updateAccount({
+                displayName: saved.displayName,
+                avatar: saved.avatar,
+              })
               setEditing(false)
             }}
           />
         ) : (
           <section className="card profile-card">
             <div className="avatar" aria-hidden="true">
-              {profile.data.displayName.charAt(0).toUpperCase()}
+              <Avatar name={profile.data.avatar} />
             </div>
             <div>
               <h2>{profile.data.displayName}</h2>
@@ -51,6 +59,8 @@ export default function ProfilePage() {
           </section>
         ))}
 
+      <ReadingMilestones />
+      <AccountSecurity />
       <section className="section" aria-labelledby="insights-heading">
         <h2 id="insights-heading">Reading insights</h2>
         <AsyncState {...stats} label="Working out your insights" />
@@ -223,6 +233,7 @@ function ProfileForm({ profile, onSaved, onCancel }) {
     displayName: profile.displayName,
     bio: profile.bio,
     yearlyGoal: profile.yearlyGoal,
+    avatar: profile.avatar ?? 'flame',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -242,6 +253,22 @@ function ProfileForm({ profile, onSaved, onCancel }) {
   return (
     <form className="card form" onSubmit={handleSubmit}>
       <h2>Edit profile</h2>
+      <fieldset>
+        <legend>Choose your avatar</legend>
+        <div className="avatar-options">
+          {AVATARS.map((name) => (
+            <button
+              type="button"
+              key={name}
+              aria-label={`Choose ${name}`}
+              aria-pressed={form.avatar === name}
+              onClick={() => setForm({ ...form, avatar: name })}
+            >
+              <Avatar name={name} />
+            </button>
+          ))}
+        </div>
+      </fieldset>
       <label htmlFor="displayName">Display name</label>
       <input
         id="displayName"

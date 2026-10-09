@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { USING_MOCK_API } from '../api'
+import Avatar from './Avatar.jsx'
+import Theme from './Theme.jsx'
 import DemoNotice from './DemoNotice.jsx'
 import { useAuth } from './AuthGate.jsx'
 import EmberBadge from './EmberBadge.jsx'
@@ -19,11 +21,10 @@ const LINKS = [
 function Account() {
   const { account, signOut } = useAuth()
   const [leaving, setLeaving] = useState(false)
-  const initial = (account.displayName || account.email || '?').trim().charAt(0).toUpperCase()
   return (
     <div className="account">
       <span className="account-avatar" title={`Signed in as ${account.email}`} aria-hidden="true">
-        {initial}
+        <Avatar name={account.avatar} />
       </span>
       <span className="visually-hidden">Signed in as {account.email}.</span>
       <button
@@ -58,6 +59,7 @@ export default function Layout() {
 
   return (
     <>
+      <Theme />
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -82,6 +84,12 @@ export default function Layout() {
               ))}
             </ul>
           </nav>
+          <NavLink to="/lists" className="utility-link">
+            Lists
+          </NavLink>
+          <NavLink to="/settings" className="utility-link">
+            Settings
+          </NavLink>
           <Account />
         </div>
       </header>
@@ -99,8 +107,8 @@ export default function Layout() {
         {/* Say what the live app keeps. Demo mode says it in DemoNotice instead. */}
         {!USING_MOCK_API && (
           <p className="privacy-note">
-            Emberary saves your shelves, reading progress, ratings, reviews, profile, room and
-            Ember history in its database, and nothing else. Nothing is shared or sold.
+            Emberary saves your shelves, reading activity, notes, lists, profile, settings, room layouts and
+            Ember history in its database. Nothing is shared or sold.
           </p>
         )}
         {/* The covers are not ours: they are served by Google Books. */}

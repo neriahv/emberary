@@ -36,6 +36,7 @@ import { CatalogBar, ROOM_CATALOGS, catalogOf } from '../components/room/catalog
 import { MODELS } from '../components/room/models.jsx'
 import { alongOf, fitWindow, wallOf } from '../components/room/windows.jsx'
 import BookModal from '../components/room/BookModal.jsx'
+import RoomSnapshots from '../components/RoomSnapshots.jsx'
 import BookFinder from '../components/room/BookFinder.jsx'
 
 // How long a book takes to slide off the shelf before it opens.
@@ -645,6 +646,15 @@ export default function LibraryRoomPage() {
 
   return (
     <div className={`room-screen time-${time} mode-${mode}`}>
+      {ready && (
+        <RoomSnapshots
+          beforeSave={saver.flush}
+          onRestored={(saved) => {
+            room.setData(saved)
+            books.reload()
+          }}
+        />
+      )}
       <h1 className="visually-hidden">Library Room: build your dream library</h1>
 
       {ready ? (
@@ -727,7 +737,9 @@ export default function LibraryRoomPage() {
                 onClick={() => switchMode(id)}
                 title={mode === id ? `Close ${label}` : label}
               >
-                <span className="rail-icon" aria-hidden="true">{icon}</span>
+                <span className="rail-icon" aria-hidden="true">
+                  {icon}
+                </span>
                 <span className="rail-label">{label}</span>
                 {id === 'storage' && storedItems.length + storedBooks.length > 0 && (
                   <span className="rail-count">{storedItems.length + storedBooks.length}</span>
@@ -743,12 +755,21 @@ export default function LibraryRoomPage() {
                 onClick={() => setUpstairs(!upstairs)}
                 title={upstairs ? 'See downstairs: hide the upstairs floor' : 'Show the upstairs floor again'}
               >
-                <span className="rail-icon" aria-hidden="true">{upstairs ? '⬇' : '⬆'}</span>
+                <span className="rail-icon" aria-hidden="true">
+                  {upstairs ? '⬇' : '⬆'}
+                </span>
                 <span className="rail-label">{upstairs ? 'Downstairs' : 'Upstairs'}</span>
               </button>
             )}
-            <button type="button" className="rail-button" onClick={cycleTime} aria-label={`Time of day: ${timeOfDay.label}. Change it`}>
-              <span className="rail-icon" aria-hidden="true">{timeOfDay.icon}</span>
+            <button
+              type="button"
+              className="rail-button"
+              onClick={cycleTime}
+              aria-label={`Time of day: ${timeOfDay.label}. Change it`}
+            >
+              <span className="rail-icon" aria-hidden="true">
+                {timeOfDay.icon}
+              </span>
               <span className="rail-label">{timeOfDay.label}</span>
             </button>
             <button type="button" className="rail-button" onClick={() => setViewReset((n) => n + 1)} title="Put the view back">
@@ -965,12 +986,13 @@ function BlockBanner({ mode }) {
   if (action === 'move') {
     return from ? (
       <>
-        <strong>Now choose where it goes.</strong> {kind === 'floor' ? 'Furniture on it moves with it.' : 'Windows on it move with it.'}
+        <strong>Now choose where it goes.</strong>{' '}
+        {kind === 'floor' ? 'Furniture on it moves with it.' : 'Windows on it move with it.'}
       </>
     ) : (
       <>
-        <strong>Pick the {kind === 'floor' ? name : 'wall'} to move.</strong> Only ones the room can do without are
-        lit up.
+        <strong>Pick the {kind === 'floor' ? name : 'wall'} to move.</strong> Only ones the room can do
+        without are lit up.
       </>
     )
   }
@@ -981,7 +1003,8 @@ function BlockBanner({ mode }) {
     </>
   ) : (
     <>
-      <strong>Pick the {name} to take away.</strong> {kind === 'wall' ? 'The top block of a wall comes off.' : 'The floor has to stay in one piece.'}
+      <strong>Pick the {name} to take away.</strong>{' '}
+      {kind === 'wall' ? 'The top block of a wall comes off.' : 'The floor has to stay in one piece.'}
     </>
   )
 }

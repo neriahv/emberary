@@ -93,6 +93,36 @@ test('the whole app works when it logs in as the app role', async () => {
   assert.equal((await call('POST', '/api/my-books', { bookId: book.id, status: 'currently-reading' })).status, 201)
   const finished = await call('PATCH', `/api/my-books/${book.id}`, { status: 'read', currentPage: book.pages })
   assert.equal(finished.status, 200, JSON.stringify(finished.body))
+  // Reader tools also work under the limited runtime role.
+  for (const path of [
+    '/api/settings',
+    '/api/reading',
+    '/api/year-review',
+    '/api/quests',
+    '/api/timer',
+    '/api/lists',
+    '/api/room/snapshots',
+  ])
+    assert.equal((await call('GET', path)).status, 200, path)
+  assert.equal((await call('PATCH', '/api/settings', { theme: 'dark' })).status, 200)
+  const note = await call('POST', `/api/my-books/${book.id}/notes`, {
+    text: 'A note',
+    kind: 'note',
+  })
+  assert.equal(note.status, 201)
+  assert.equal((await call('DELETE', `/api/my-books/${book.id}/notes/${note.body.id}`)).status, 204)
+  const list = await call('POST', '/api/lists', { name: 'Role list' })
+  assert.equal(list.status, 201)
+  assert.equal((await call('PUT', `/api/lists/${list.body.id}/books/${book.id}`)).status, 204)
+  assert.equal((await call('DELETE', `/api/lists/${list.body.id}`)).status, 204)
+  const snapshot = await call('POST', '/api/room/snapshots', {
+    name: 'Role layout',
+  })
+  assert.equal(snapshot.status, 201)
+  assert.equal((await call('POST', `/api/room/snapshots/${snapshot.body.id}/restore`)).status, 200)
+  assert.equal((await call('DELETE', `/api/room/snapshots/${snapshot.body.id}`)).status, 204)
+  assert.equal((await call('POST', '/api/timer/start')).status, 200)
+  assert.equal((await call('POST', '/api/timer/stop')).status, 200)
   assert.equal((await call('DELETE', `/api/my-books/${book.id}`)).status, 204)
 
   // Profile, wallet and the daily check-in.

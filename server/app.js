@@ -7,6 +7,8 @@ import * as books from './repos/books.js'
 import * as myBooks from './repos/myBooks.js'
 import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
+import * as settings from './repos/settings.js'
+import { registerReaderTools } from './readerTools.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
 import { BLOCKS, EMAIL_PATTERN, EMBER_RULES, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
@@ -18,7 +20,6 @@ import {
   validateStatus,
   validateEntryPatch,
   validateProfile,
-  validateSettings,
   validateRoom,
   validateRoomItem,
   validateBlockChange,
@@ -26,7 +27,6 @@ import {
   validateSignup,
   validateLogin,
 } from './validation.js'
-import * as settings from './repos/settings.js'
 
 // Express 4 does not pass a rejected promise to the error handler by itself.
 // Without this, a failed query leaves the request hanging until it times out.
@@ -129,34 +129,60 @@ export function createApp(
 
   // Body: { email, password, displayName }. A new reader starts with the
   // welcome Ember, an empty shelf and a fresh room, and is signed in.
-  app.post('/api/auth/signup', authLimiter, route(async (request, response) => {
-    const { errors, value } = validateSignup(request.body ?? {})
-    if (errors.length > 0) return badRequest(response, errors)
-    // A domain that does not exist, or takes no mail, is a typo or made up.
-    // If DNS does not answer, the sign-up goes ahead rather than wait on it.
-    if ((await checkEmailDomain(value.email.split('@')[1])) === 'none') {
-      return badRequest(response, ["that email's domain does not receive email. Check it for a typo"])
-    }
-    const passwordHash = await hashPassword(value.password)
-    const account = await transaction(pool, async (db) => {
-      const created = await accounts.createReader(db, { email: value.email, displayName: value.displayName, passwordHash })
-      if (created) await ember.earn(db, created.id, EMBER_RULES.welcome, 'welcome', '')
-      return created
+  app.post(
+    '/api/auth/signup',
+    authLimiter,
+    route(async (request, response) => {
+      const { errors, value } = validateSignup(request.body ?? {})
+      if (errors.length > 0) return badRequest(response, errors)
+      // A domain that does not exist, or takes no mail, is a typo or made up.
+      // If DNS does not answer, the sign-up goes ahead rather than wait on it.
+      if ((await checkEmailDomain(value.email.split('@')[1])) === 'none') {
+        return badRequest(response, ["that email's domain does not receive email. Check it for a typo"])
+      }
+      const passwordHash = await hashPassword(value.password)
+      const account = await transaction(pool, async (db) => {
+        const created = await accounts.createReader(db, {
+          email: value.email,
+          displayName: value.displayName,
+          passwordHash,
+        })
+        if (created) {
+          await db.query('UPDATE readers SET timezone=$2 WHERE id=$1', [created.id, timezone])
+          await ember.earn(db, created.id, EMBER_RULES.welcome, 'welcome', '')
+        }
+        return created
+      })
+      if (!account)
+        return response.status(409).json({ error: 'That email already has an account. Sign in instead' })
+      await signIn(response, account, 201)
     })
-    if (!account) return response.status(409).json({ error: 'That email already has an account. Sign in instead' })
-    await signIn(response, account, 201)
-  }))
+  )
 
   // Body: { email, password }. The same answer whether the email or the
   // password was wrong, so it says nothing about who has an account.
-  app.post('/api/auth/login', authLimiter, route(async (request, response) => {
-    const { errors, value } = validateLogin(request.body ?? {})
-    if (errors.length > 0) return badRequest(response, errors)
-    const found = await accounts.findByEmail(pool, value.email)
-    const matches = await checkPassword(value.password, found?.passwordHash ?? (await decoyHash()))
-    if (!found || !matches) return response.status(401).json({ error: 'That email and password do not match an account' })
-    await signIn(response, { id: found.id, displayName: found.displayName, email: found.email }, 200)
-  }))
+  app.post(
+    '/api/auth/login',
+    authLimiter,
+    route(async (request, response) => {
+      const { errors, value } = validateLogin(request.body ?? {})
+      if (errors.length > 0) return badRequest(response, errors)
+      const found = await accounts.findByEmail(pool, value.email)
+      const matches = await checkPassword(value.password, found?.passwordHash ?? (await decoyHash()))
+      if (!found || !matches)
+        return response.status(401).json({ error: 'That email and password do not match an account' })
+      await signIn(
+        response,
+        {
+          id: found.id,
+          displayName: found.displayName,
+          email: found.email,
+          avatar: found.avatar,
+        },
+        200
+      )
+    })
+  )
 
   app.post('/api/auth/logout', route(async (request, response) => {
     const token = readCookie(request, SESSION_COOKIE)
@@ -196,13 +222,26 @@ export function createApp(
   app.use('/api', (request, response, next) => {
     const token = readCookie(request, SESSION_COOKIE)
     if (!token) return response.status(401).json({ error: 'Sign in first' })
-    accounts.readerForToken(pool, token).then((account) => {
-      if (!account) return response.status(401).json({ error: 'Your session has ended. Sign in again' })
-      request.readerId = account.id
-      request.timezone = account.timezone
-      request.pageGoal = account.dailyPageGoal
-      next()
-    }, next)
+    accounts
+      .readerForToken(pool, token)
+      .then((account) => {
+        if (!account) return response.status(401).json({ error: 'Your session has ended. Sign in again' })
+        request.readerId = account.id
+        return settings.get(pool, account.id).then((preferences) => {
+          request.preferences = preferences
+          next()
+        })
+      })
+      .catch(next)
+  })
+
+  registerReaderTools(app, {
+    pool,
+    route,
+    transaction,
+    badRequest,
+    checkEmailDomain,
+    authLimiter,
   })
 
   // ------------------------------------------------------------ catalogue
@@ -294,41 +333,52 @@ export function createApp(
   }))
 
   // Body: { bookId, status }. status defaults to want-to-read, as in the mock.
-  app.post('/api/my-books', route(async (request, response) => {
-    const { bookId, status = 'want-to-read' } = request.body ?? {}
-    if (typeof bookId !== 'string' || !bookId) return badRequest(response, ['bookId is required'])
-    const errors = validateStatus(status)
-    if (errors.length > 0) return badRequest(response, errors)
+  app.post(
+    '/api/my-books',
+    route(async (request, response) => {
+      const { bookId, status = 'want-to-read' } = request.body ?? {}
+      if (typeof bookId !== 'string' || !bookId) return badRequest(response, ['bookId is required'])
+      const errors = validateStatus(status)
+      if (errors.length > 0) return badRequest(response, errors)
 
-    // A book found on Google joins the catalogue the first time anyone adds it.
-    // The server fetches it from Google itself rather than trusting a title or
-    // cover sent by the browser.
-    let book = await books.getById(pool, bookId)
-    let fromGoogle = null
-    if (!book && isGoogleId(bookId)) {
-      try {
-        fromGoogle = await google.volume(volumeIdOf(bookId))
-      } catch (error) {
-        if (error instanceof GoogleBooksError) return response.status(502).json({ error: error.message })
-        throw error
+      // A book found on Google joins the catalogue the first time anyone adds it.
+      // The server fetches it from Google itself rather than trusting a title or
+      // cover sent by the browser.
+      let book = await books.getById(pool, bookId)
+      let fromGoogle = null
+      if (!book && isGoogleId(bookId)) {
+        try {
+          fromGoogle = await google.volume(volumeIdOf(bookId))
+        } catch (error) {
+          if (error instanceof GoogleBooksError) return response.status(502).json({ error: error.message })
+          throw error
+        }
+        book = fromGoogle
       }
-      book = fromGoogle
-    }
-    if (!book) return response.status(404).json({ error: 'Book not found' })
+      if (!book) return response.status(404).json({ error: 'Book not found' })
 
-    // A book added as Read has been finished, and earns what finishing earns.
-    const entry = await transaction(pool, async (db) => {
-      if (fromGoogle) await books.insertIfMissing(db, fromGoogle)
-      const added = await myBooks.add(db, request.readerId, bookId, status)
-      if (!added) return null
-      const rewards = await ember.rewardReading(db, request.readerId, bookId, null, added, request.timezone, request.pageGoal)
-      return { ...added, rewards }
+      // A book added as Read has been finished, and earns what finishing earns.
+      const entry = await transaction(pool, async (db) => {
+        await db.query('SELECT id FROM readers WHERE id=$1 FOR UPDATE', [request.readerId])
+        if (fromGoogle) await books.insertIfMissing(db, fromGoogle)
+        const added = await myBooks.add(db, request.readerId, bookId, status)
+        if (!added) return null
+        const rewards = await ember.rewardReading(
+          db,
+          request.readerId,
+          bookId,
+          null,
+          added,
+          request.preferences.timezone
+        )
+        return { ...added, rewards }
+      })
+      if (!entry) {
+        return response.status(409).json({ error: `"${book.title}" is already in your collection` })
+      }
+      response.status(201).json(entry)
     })
-    if (!entry) {
-      return response.status(409).json({ error: `"${book.title}" is already in your collection` })
-    }
-    response.status(201).json(entry)
-  }))
+  )
 
   // Body: { bookIds: [...] }, one Library Room shelf from left to right.
   // Registered before /:bookId so "order" is never read as a book id.
@@ -340,35 +390,46 @@ export function createApp(
   }))
 
   // Body: any of { status, currentPage, rating, review, shelfPosition, shelfSpot }.
-  app.patch('/api/my-books/:bookId', route(async (request, response) => {
-    const existing = await myBooks.get(pool, request.readerId, request.params.bookId)
-    if (!existing) return response.status(404).json({ error: 'That book is not in your collection' })
+  app.patch(
+    '/api/my-books/:bookId',
+    route(async (request, response) => {
+      const existing = await myBooks.get(pool, request.readerId, request.params.bookId)
+      if (!existing) return response.status(404).json({ error: 'That book is not in your collection' })
 
-    const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
-    if (errors.length > 0) return badRequest(response, errors)
+      const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
+      if (errors.length > 0) return badRequest(response, errors)
 
-    // A book can only stand in the built-in bookcase, or on a bookcase or
-    // table the reader owns.
-    const bookcase = value.shelfSpot?.bookcase
-    if (bookcase && bookcase !== 'main') {
-      const item = await room.getItem(pool, request.readerId, Number(bookcase))
-      if (!catalogEntry(item?.kind)?.holds) {
-        return badRequest(response, ['That bookcase or table is not in your room'])
+      // A book can only stand in the built-in bookcase, or on a bookcase or
+      // table the reader owns.
+      const bookcase = value.shelfSpot?.bookcase
+      if (bookcase && bookcase !== 'main') {
+        const item = await room.getItem(pool, request.readerId, Number(bookcase))
+        if (!catalogEntry(item?.kind)?.holds) {
+          return badRequest(response, ['That bookcase or table is not in your room'])
+        }
       }
-    }
 
-    // The reply carries the Ember this save earned, as `rewards` (often []).
-    const bookId = request.params.bookId
-    const entry = await transaction(pool, async (db) => {
-      const before = await myBooks.lock(db, request.readerId, bookId)
-      if (!before) return null
-      const after = await myBooks.update(db, request.readerId, bookId, value)
-      const rewards = await ember.rewardReading(db, request.readerId, bookId, before, after, request.timezone, request.pageGoal)
-      return { ...after, rewards }
+      // The reply carries the Ember this save earned, as `rewards` (often []).
+      const bookId = request.params.bookId
+      const entry = await transaction(pool, async (db) => {
+        await db.query('SELECT id FROM readers WHERE id=$1 FOR UPDATE', [request.readerId])
+        const before = await myBooks.lock(db, request.readerId, bookId)
+        if (!before) return null
+        const after = await myBooks.update(db, request.readerId, bookId, value)
+        const rewards = await ember.rewardReading(
+          db,
+          request.readerId,
+          bookId,
+          before,
+          after,
+          request.preferences.timezone
+        )
+        return { ...after, rewards }
+      })
+      if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
+      response.json(entry)
     })
-    if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
-    response.json(entry)
-  }))
+  )
 
   app.delete('/api/my-books/:bookId', route(async (request, response) => {
     const removed = await myBooks.remove(pool, request.readerId, request.params.bookId)
@@ -409,84 +470,27 @@ export function createApp(
     response.json(await profile.update(pool, request.readerId, value))
   }))
 
-  
-  // ------------------------------------------------------------ settings
+  // ------------------------------------------------------------ ember
 
-  // Returns the signed-in reader's preferences.
-  app.get('/api/settings', route(async (request, response) => {
-    const current = await settings.get(pool, request.readerId)
-
-    if (!current) {
-      return response.status(404).json({
-        error: 'Settings not found'
-      })
-    }
-
-    response.json(current)
-  }))
-
-  // Body: any of { timezone, dailyPageGoal, theme }.
-  app.patch('/api/settings', route(async (request, response) => {
-    const current = await settings.get(pool, request.readerId)
-
-    if (!current) {
-      return response.status(404).json({
-        error: 'Settings not found'
-      })
-    }
-
-    const { errors, value } = validateSettings(
-      current,
-      request.body ?? {}
-    )
-
-    if (errors.length > 0) {
-      return badRequest(response, errors)
-    }
-
-    response.json(
-      await settings.update(pool, request.readerId, value)
-    )
-  }))
-
-
-// ------------------------------------------------------------ ember
-
-// The wallet: balance, today's check-in and reading, and recent changes.
-app.get('/api/ember', route(async (request, response) => {
-  response.json(
-    await ember.summary(
-      pool,
-      request.readerId,
-      request.timezone,
-      request.pageGoal
-    )
-  )
-}))
-
-app.post('/api/ember/check-in', route(async (request, response) => {
-  const reward = await ember.checkIn(
-    pool,
-    request.readerId,
-    request.timezone
-  )
-
-  if (!reward) {
-    return response.status(409).json({
-      error: 'You already checked in today'
+  // The wallet: balance, today's check-in and reading, and recent changes.
+  app.get(
+    '/api/ember',
+    route(async (request, response) => {
+      response.json(await ember.summary(pool, request.readerId, request.preferences.timezone))
     })
-  }
-
-  const summary = await ember.summary(
-    pool,
-    request.readerId,
-    request.timezone,
-    request.pageGoal
   )
 
-  response.status(201).json({ reward, ...summary })
-}))
-
+  app.post(
+    '/api/ember/check-in',
+    route(async (request, response) => {
+      const reward = await ember.checkIn(pool, request.readerId, request.preferences.timezone)
+      if (!reward) return response.status(409).json({ error: 'You already checked in today' })
+      response.status(201).json({
+        reward,
+        ...(await ember.summary(pool, request.readerId, request.preferences.timezone)),
+      })
+    })
+  )
 
   // ------------------------------------------------------------ library room
 

@@ -27,3 +27,9 @@ ON room_unlocks, ember_ledger TO emberary_app;
 GRANT USAGE
 ON SEQUENCE readers_id_seq, room_items_id_seq, room_blocks_id_seq, ember_ledger_id_seq
 TO emberary_app;
+
+-- Reader tools: owned rows only through authenticated repository methods.
+GRANT SELECT, INSERT ON reading_events, reader_badges TO emberary_app;
+GRANT SELECT, INSERT, UPDATE ON daily_activity, reading_minutes, reading_timers TO emberary_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON book_notes, book_lists, book_list_entries, room_snapshots TO emberary_app;
+GRANT USAGE ON SEQUENCE reading_events_id_seq, book_notes_id_seq, book_lists_id_seq, reading_timers_id_seq, room_snapshots_id_seq TO emberary_app;

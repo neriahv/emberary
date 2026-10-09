@@ -2,80 +2,85 @@ import { useEffect, useState } from 'react'
 import { EMAIL_PATTERN, PASSWORD_RULES, USING_MOCK_API, checkEmail, logIn, signUp } from '../api'
 import mark from '../assets/emberary-mark.svg'
 
-// Sign in, or make an account. Making one, everything is checked as it is
-// typed: the email (and, once it looks complete, whether its domain can
-// receive mail), each password rule ticking off as it is met, and the second
-// password matching the first. The button waits until all of that is true,
-// and the server checks it all again. A new reader starts with
-// an empty shelf, a fresh Library Room and the welcome Ember.
+// Authentication form contract: trim addresses and names, preserve passwords,
+// show each signup rule, debounce domain checks, and report server failures.
 export default function SignInPage({ onSignedIn }) {
-  const [creating, setCreating] = useState(false)
-  const [fields, setFields] = useState({ email: '', password: '', confirm: '', displayName: '' })
-  const [showPassword, setShowPassword] = useState(false)
-  const [touched, setTouched] = useState({})
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  const set = (key) => (event) => setFields((prev) => ({ ...prev, [key]: event.target.value }))
-  const touch = (key) => () => setTouched((prev) => ({ ...prev, [key]: true }))
-
-  const email = fields.email.trim()
-  const emailOk = EMAIL_PATTERN.test(email)
-  const rules = PASSWORD_RULES.map((rule) => ({ ...rule, met: rule.test(fields.password, email) }))
-  const passwordOk = rules.every((rule) => rule.met) && fields.password.length <= 200
-  const matches = fields.confirm === fields.password
-  const nameOk = fields.displayName.trim().length > 0
-
-  // The email's domain, asked a moment after typing stops: { email, status }
-  // with status 'checking', 'ok', 'none' (no such domain, or it takes no
-  // mail) or 'unknown' (could not tell; the server tries again on sign-up).
-  const [domain, setDomain] = useState({ email: '', status: null })
+  const [mode, setMode] = useState('login')
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    confirmation: '',
+    displayName: '',
+  })
+  const [visible, setVisible] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('')
+  const [domain, setDomain] = useState({ address: '', status: 'unknown' })
+  const creating = mode === 'signup',
+    email = form.email.trim().toLowerCase()
+  const emailOk = email.length <= 254 && EMAIL_PATTERN.test(email)
+  const rules = PASSWORD_RULES.map((rule) => ({
+    ...rule,
+    met: rule.test(form.password, email),
+  }))
+  const passwordOk = form.password.length <= 200 && rules.every((r) => r.met)
+  const domainStatus = domain.address === email ? domain.status : 'unknown'
   useEffect(() => {
-    if (!creating || !emailOk) return undefined
-    let current = true
-    setDomain({ email, status: 'checking' })
-    const timer = setTimeout(() => {
-      checkEmail(email).then(
-        (result) => current && setDomain({ email, status: result.status }),
-        () => current && setDomain({ email, status: 'unknown' })
-      )
-    }, 600)
+    if (!creating || !emailOk) return
+    let cancelled = false
+    setDomain({ address: email, status: 'checking' })
+    const timer = setTimeout(
+      () =>
+        checkEmail(email).then(
+          (result) => {
+            if (!cancelled) setDomain({ address: email, status: result.status })
+          },
+          () => {
+            if (!cancelled) setDomain({ address: email, status: 'unknown' })
+          }
+        ),
+      600
+    )
     return () => {
-      current = false
+      cancelled = true
       clearTimeout(timer)
     }
-  }, [creating, emailOk, email])
-  const domainStatus = emailOk && domain.email === email ? domain.status : null
-  const domainName = email.split('@')[1] ?? ''
-
+  }, [creating, email, emailOk])
   const ready = creating
-    ? emailOk && domainStatus !== 'none' && passwordOk && matches && nameOk
-    : email && fields.password
-
-  async function submit(event) {
-    event.preventDefault()
-    setTouched({ email: true, confirm: true, displayName: true })
-    if (!ready) return
+    ? emailOk &&
+      domainStatus !== 'none' &&
+      passwordOk &&
+      form.password === form.confirmation &&
+      form.displayName.trim().length > 0 &&
+      form.displayName.trim().length <= 60
+    : Boolean(email && form.password && form.password.length <= 200)
+  const field = (key) => ({
+    value: form[key],
+    onChange: (e) => setForm((prev) => ({ ...prev, [key]: e.target.value })),
+  })
+  function switchMode(next) {
+    setMode(next)
+    setForm((prev) => ({ ...prev, password: '', confirmation: '' }))
+    setError('')
+    setVisible(false)
+  }
+  async function submit(e) {
+    e.preventDefault()
+    if (!ready || busy) return
     setBusy(true)
-    setError(null)
+    setError('')
     try {
-      const account = creating
-        ? await signUp({ email, password: fields.password, displayName: fields.displayName })
-        : await logIn({ email, password: fields.password })
-      onSignedIn(account)
-    } catch (failure) {
-      setError(failure)
+      const values = {
+        email,
+        password: form.password,
+        displayName: form.displayName.trim(),
+      }
+      onSignedIn(await (creating ? signUp(values) : logIn(values)))
+    } catch (e) {
+      setError(e.message)
       setBusy(false)
     }
   }
-
-  function switchTo(next) {
-    setCreating(next)
-    setError(null)
-    setTouched({})
-    setFields((prev) => ({ ...prev, password: '', confirm: '' }))
-  }
-
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="auth-heading">
@@ -89,22 +94,27 @@ export default function SignInPage({ onSignedIn }) {
             ? 'Your own shelves, reading goals and a Library Room to build, a block at a time.'
             : 'Sign in to your shelves and your Library Room.'}
         </p>
-
-        <div className="auth-tabs" role="tablist" aria-label="Sign in or make an account">
-          <button type="button" role="tab" aria-selected={!creating} className="auth-tab" onClick={() => switchTo(false)}>
-            Sign in
-          </button>
-          <button type="button" role="tab" aria-selected={creating} className="auth-tab" onClick={() => switchTo(true)}>
-            Create account
-          </button>
+        <div className="auth-tabs" aria-label="Account options">
+          {[
+            ['login', 'Sign in'],
+            ['signup', 'Create account'],
+          ].map(([value, label]) => (
+            <button
+              type="button"
+              className="auth-tab"
+              aria-pressed={mode === value}
+              key={value}
+              onClick={() => switchMode(value)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-
         <form className="auth-form" onSubmit={submit} noValidate>
           {creating && (
             <label>
               Your name
-              <input type="text" autoComplete="nickname" maxLength={60} value={fields.displayName} onChange={set('displayName')} onBlur={touch('displayName')} />
-              {touched.displayName && !nameOk && <span className="auth-field-error">Tell us what to call you.</span>}
+              <input autoComplete="nickname" maxLength={60} {...field('displayName')} />
             </label>
           )}
           <label>
@@ -113,80 +123,87 @@ export default function SignInPage({ onSignedIn }) {
               type="email"
               autoComplete="email"
               maxLength={254}
-              value={fields.email}
-              onChange={set('email')}
-              onBlur={touch('email')}
-              aria-invalid={creating && ((touched.email && !emailOk) || domainStatus === 'none')}
+              {...field('email')}
+              aria-invalid={creating && Boolean(email) && (!emailOk || domainStatus === 'none')}
             />
             {creating && email && !emailOk && (
-              <span className={touched.email ? 'auth-field-error' : 'auth-hint'}>
-                {touched.email ? '✗ ' : ''}An email address looks like name@example.com.
+              <span className="auth-field-error">Use an address like name@example.com.</span>
+            )}
+            {creating && emailOk && (
+              <span className={domainStatus === 'none' ? 'auth-field-error' : 'auth-hint'}>
+                {domainStatus === 'checking'
+                  ? 'Checking email domain…'
+                  : domainStatus === 'none'
+                    ? 'This domain does not receive email. Check for a typo.'
+                    : domainStatus === 'ok'
+                      ? '✓ This domain receives email.'
+                      : 'The server will check the domain when you sign up.'}
               </span>
-            )}
-            {creating && domainStatus === 'checking' && <span className="auth-hint">Checking that {domainName} can receive email...</span>}
-            {creating && domainStatus === 'ok' && <span className="auth-ok">✓ {domainName} can receive email</span>}
-            {creating && domainStatus === 'none' && (
-              <span className="auth-field-error">✗ {domainName} does not receive email. Check it for a typo.</span>
-            )}
-            {creating && domainStatus === 'unknown' && (
-              <span className="auth-hint">Could not check {domainName} just now. It is checked again when you sign up.</span>
             )}
           </label>
           <label>
             Password
             <span className="auth-password">
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={visible ? 'text' : 'password'}
                 autoComplete={creating ? 'new-password' : 'current-password'}
                 maxLength={200}
-                value={fields.password}
-                onChange={set('password')}
+                {...field('password')}
               />
-              <button type="button" className="auth-show" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword}>
-                {showPassword ? 'Hide' : 'Show'}
+              <button
+                type="button"
+                className="auth-show"
+                aria-pressed={visible}
+                onClick={() => setVisible((v) => !v)}
+              >
+                {visible ? 'Hide' : 'Show'}
               </button>
             </span>
           </label>
           {creating && (
             <>
               <ul className="auth-rules" aria-label="Your password needs">
-                {rules.map((rule) => (
-                  <li key={rule.id} className={rule.met ? 'is-met' : ''}>
-                    <span aria-hidden="true">{rule.met ? '✓' : '○'}</span> {rule.label}
-                    <span className="visually-hidden">{rule.met ? ': done' : ': not yet'}</span>
+                {rules.map((r) => (
+                  <li key={r.id} className={r.met ? 'is-met' : ''}>
+                    <span aria-hidden="true">{r.met ? '✓' : '○'}</span> {r.label}
+                    <span className="visually-hidden">{r.met ? ': done' : ': not yet'}</span>
                   </li>
                 ))}
               </ul>
               <label>
                 Type the password again
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={visible ? 'text' : 'password'}
                   autoComplete="new-password"
                   maxLength={200}
-                  value={fields.confirm}
-                  onChange={set('confirm')}
-                  onBlur={touch('confirm')}
-                  aria-invalid={Boolean(fields.confirm) && !matches}
+                  {...field('confirmation')}
+                  aria-invalid={Boolean(form.confirmation) && form.confirmation !== form.password}
                 />
-                {fields.confirm && !matches && <span className="auth-field-error">✗ The two passwords are different.</span>}
-                {fields.confirm && matches && passwordOk && <span className="auth-ok">✓ The passwords match</span>}
+                {form.confirmation && form.confirmation !== form.password && (
+                  <span className="auth-field-error">The two passwords are different.</span>
+                )}
               </label>
             </>
           )}
           {error && (
             <p className="auth-error" role="alert">
-              {error.message}
+              {error}
             </p>
           )}
-          <button type="submit" className="auth-submit" disabled={busy || !ready}>
-            {busy ? (creating ? 'Making your library...' : 'Signing in...') : creating ? 'Create account' : 'Sign in'}
+          <button className="auth-submit" disabled={!ready || busy}>
+            {busy
+              ? creating
+                ? 'Making your library…'
+                : 'Signing in…'
+              : creating
+                ? 'Create account'
+                : 'Sign in'}
           </button>
         </form>
-
         {USING_MOCK_API && (
           <p className="auth-demo">
-            <strong>Demo mode:</strong> any email and a password of 8 or more characters opens the demo library, kept in
-            this browser. Making an account checks the same rules as the real one.
+            <strong>Demo mode:</strong> any email and a password of 8 or more characters opens the demo
+            library in this browser. Sign-up checks the same password rules as the server.
           </p>
         )}
       </section>

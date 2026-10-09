@@ -1,3 +1,4 @@
+import { DailyQuests, ReadingTimer } from '../components/ReaderTools.jsx'
 import { Link } from 'react-router-dom'
 import { listMyBooks, getReadingStats, getRecommendations, getProfile } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
@@ -57,6 +58,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      <div className="feature-stack">
+        <DailyQuests />
+        <ReadingTimer />
+      </div>
       <div className="home-row">
         <section className="card panel" aria-labelledby="reading-heading">
           <div className="section-head">
@@ -66,7 +71,8 @@ export default function HomePage() {
           <AsyncState {...books} label="Loading your books" />
           {books.status === 'ready' && reading.length === 0 && (
             <p className="empty">
-              Nothing on the go. <Link to="/my-books?status=want-to-read">Start something from Want to Read</Link>.
+              Nothing on the go.{' '}
+              <Link to="/my-books?status=want-to-read">Start something from Want to Read</Link>.
             </p>
           )}
           {/* The two most recently updated, so the card stays compact. */}

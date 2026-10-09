@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import BookNotes from '../BookNotes.jsx'
 import BookCover from '../BookCover.jsx'
 import BookEditForm from '../BookEditForm.jsx'
 import ProgressBar from '../ProgressBar.jsx'
@@ -101,6 +102,7 @@ export default function BookModal({ entry, onShelves, onSaved, onRemoved, onClos
             <div className="page-details-narrow">{details()}</div>
             <h3 className="page-heading">Your notes</h3>
             <BookEditForm key={entry.bookId} entry={entry} onSaved={onSaved} onRemoved={handleRemoved} heading={null} />
+            <BookNotes book={book} />
             {/* Gone if the book is changed to Want to Read here: it leaves the shelves. */}
             {onShelves && (
               <div className="page-shelf">

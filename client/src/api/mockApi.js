@@ -37,6 +37,8 @@ import {
   sellPrice,
   EMAIL_PATTERN,
   passwordProblems,
+  wallOf,
+  wallHeight,
 } from './catalog.js'
 import { bookKey, isGoogleId, searchUrl, volumeIdOf, volumeToBook, volumeUrl } from './bookFromGoogle.js'
 
@@ -125,7 +127,7 @@ function withRoomDefaults(db) {
 function withBuiltIns(db) {
   if (db.room.builtInsGiven) return false
   const moved = db.room.fixtures ?? {}
-  let id = Math.max(0, ...db.room.items.map((i) => i.id))
+  let id = Math.max(db.room.lastItemId ?? 0, ...db.room.items.map((i) => i.id))
   BUILT_INS.forEach((piece, n) => {
     const at = { ...piece, ...moved[['main', 'decor'][n]] }
     db.room.items.push({
@@ -317,6 +319,7 @@ export async function addToCollection(bookId, status = 'want-to-read') {
     review: '',
     addedAt: now,
     updatedAt: now,
+    finishedAt: status === 'read' ? now : null,
   }
   db.userBooks.push(entry)
   const rewards = rewardReading(db, bookId, null, entry)
@@ -337,8 +340,14 @@ export async function updateMyBook(bookId, patch) {
     if (!catalogEntry(item?.kind)?.holds) throw new Error('That bookcase or table is not in your room')
   }
 
-  const before = { status: entry.status, currentPage: entry.currentPage }
+  const before = {
+    status: entry.status,
+    currentPage: entry.currentPage,
+    rating: entry.rating,
+  }
   const next = { ...entry, ...patch }
+  if (next.status === 'read' && before.status !== 'read') next.finishedAt = new Date().toISOString()
+  else if (next.status !== 'read') next.finishedAt = null
   if ('currentPage' in patch) next.currentPage = Number(patch.currentPage)
   if ('rating' in patch && patch.rating !== null) next.rating = Number(patch.rating)
   if ('shelfPosition' in patch && patch.shelfPosition !== null) {
@@ -369,6 +378,10 @@ export async function removeFromCollection(bookId) {
     throw new Error('That book is not in your collection')
   }
   db.userBooks = db.userBooks.filter((entry) => entry.bookId !== bookId)
+  db.notes = db.notes?.filter((n) => n.bookId !== bookId)
+  db.lists?.forEach((list) => {
+    list.bookIds = list.bookIds.filter((id) => id !== bookId)
+  })
   write(db)
 }
 
@@ -416,7 +429,7 @@ export async function getReadingStats() {
   const finishedByMonth = entries
     .filter((e) => e.status === 'read')
     .reduce((acc, e) => {
-      const month = e.updatedAt.slice(0, 7)
+      const month = (e.finishedAt ?? e.updatedAt).slice(0, 7)
       return { ...acc, [month]: (acc[month] ?? 0) + 1 }
     }, {})
 
@@ -482,7 +495,12 @@ export async function getRecommendations(limit = 4) {
 const SIGNED_OUT = 'emberary:demo-signed-out'
 
 function demoAccount(db, email) {
-  return { id: 1, displayName: db.profile.displayName, email: email ?? 'demo@emberary.app' }
+  return {
+    id: 1,
+    displayName: db.profile.displayName,
+    avatar: db.profile.avatar ?? 'flame',
+    email: email ?? 'demo@emberary.app',
+  }
 }
 
 export async function getMe() {
@@ -569,6 +587,7 @@ export async function updateProfile(patch) {
   if (!Number.isInteger(goal) || goal < 1 || goal > 365) {
     throw new Error('yearly goal must be a whole number from 1 to 365')
   }
+  if (next.avatar && !avatarNames.includes(next.avatar)) throw Error('Choose an avatar from the gallery')
   db.profile = { ...next, displayName: name, yearlyGoal: goal }
   write(db)
   return db.profile
@@ -577,10 +596,13 @@ export async function updateProfile(patch) {
 // ---------------------------------------------------------------- ember
 
 // The visitor's own calendar day, as YYYY-MM-DD.
-const localDay = () => new Date().toLocaleDateString('en-CA')
+const localDay = (db = read()) =>
+  new Date().toLocaleDateString('en-CA', {
+    timeZone: db.settings?.timezone ?? 'Asia/Manila',
+  })
 
 // One-off rewards, recorded at most once each, like the server's unique index.
-const ONCE = ['welcome', 'daily-check-in', 'daily-goal', 'book-finished']
+const ONCE = ['welcome', 'daily-check-in', 'daily-goal', 'book-finished', 'achievement', 'daily-quest']
 
 const emberBalance = (db) => db.ledger.reduce((sum, row) => sum + row.amount, 0)
 
@@ -608,27 +630,36 @@ function rewardReading(db, bookId, before, after) {
 
   const forward = after.currentPage - (before?.currentPage ?? 0)
   if (forward > 0) {
-    const day = localDay()
+    const day = localDay(db)
     const pages = (db.readingDays[day] ?? 0) + forward
     db.readingDays[day] = pages
-    const goal = EMBER_RULES.dailyPageGoal
+    const goal = db.settings?.dailyPageGoal ?? EMBER_RULES.dailyPageGoal
     if (pages - forward < goal && pages >= goal) {
       const row = record(db, EMBER_RULES.dailyGoalReward, 'daily-goal', day)
       if (row) earned.push(row)
     }
   }
 
+  if (forward > 0) {
+    db.readingEvents ??= []
+    db.readingEvents.push({ pages: forward, at: new Date().toISOString() })
+  }
+  if (after.rating !== null && after.rating !== before?.rating) {
+    db.ratedDays ??= {}
+    db.ratedDays[localDay(db)] = true
+  }
+  earned.push(...awardBadges(db))
   return earned
 }
 
 function emberSummary(db) {
-  const day = localDay()
+  const day = localDay(db)
   return {
     balance: emberBalance(db),
     today: day,
     checkedInToday: db.ledger.some((r) => r.reason === 'daily-check-in' && r.ref === day),
     pagesToday: db.readingDays[day] ?? 0,
-    dailyPageGoal: EMBER_RULES.dailyPageGoal,
+    dailyPageGoal: db.settings?.dailyPageGoal ?? EMBER_RULES.dailyPageGoal,
     rules: EMBER_RULES,
     history: [...db.ledger].sort((a, b) => b.id - a.id).slice(0, 8),
   }
@@ -642,7 +673,7 @@ export async function getEmber() {
 export async function checkIn() {
   await delay()
   const db = read()
-  const reward = record(db, EMBER_RULES.dailyCheckIn, 'daily-check-in', localDay())
+  const reward = record(db, EMBER_RULES.dailyCheckIn, 'daily-check-in', localDay(db))
   if (!reward) throw new Error('You already checked in today')
   write(db)
   return { reward, ...emberSummary(db) }
@@ -806,7 +837,7 @@ export async function checkout(ids) {
 
   record(db, -cost, 'purchase', ids.join(', '))
   db.room.unlocks.push(...finishes.map((e) => e.id))
-  let id = Math.max(0, ...db.room.items.map((i) => i.id))
+  let id = Math.max(db.room.lastItemId ?? 0, ...db.room.items.map((i) => i.id))
   let wallFree = !slotTaken(db.room.items)
   let windows = db.room.items.filter((i) => catalogEntry(i.kind)?.category === 'windows').length
   const items = furniture.map((entry, n) => {
@@ -833,6 +864,7 @@ export async function checkout(ids) {
       on: null,
     }
   })
+  db.room.lastItemId = id
   db.room.items.push(...items)
   write(db)
   return { balance: funds - cost, items, unlocks: finishes.map((e) => e.id) }
@@ -938,4 +970,355 @@ export async function resetDemo() {
   await delay()
   localStorage.removeItem(KEY)
   read()
+}
+
+// The same reader tools in browser-only demo mode. Account credentials are
+// deliberately absent here; the live server is the authority for changes.
+const defaults = { timezone: 'Asia/Manila', dailyPageGoal: 20, theme: 'system' }
+const avatarNames = ['flame', 'owl', 'fox', 'cat', 'bear', 'rabbit', 'leaf', 'book']
+const badgeDefinitions = [
+  { id: 'first-book', label: 'First book finished', reward: 5 },
+  { id: 'ten-books', label: '10 books read', reward: 20 },
+  { id: 'seven-days', label: '7-day streak', reward: 15 },
+]
+function toolsDb() {
+  const db = read()
+  db.settings = { ...defaults, ...db.settings }
+  db.notes ??= []
+  db.lists ??= []
+  db.snapshots ??= []
+  db.minutes ??= {}
+  db.badges ??= {}
+  db.ratedDays ??= {}
+  db.readingEvents ??= []
+  return db
+}
+function streakOf(db) {
+  const days = [
+    ...new Set([
+      ...Object.keys(db.readingDays ?? {}).filter((d) => db.readingDays[d] > 0),
+      ...Object.keys(db.minutes ?? {}).filter((d) => db.minutes[d] >= 60),
+    ]),
+  ].sort()
+  let best = 0,
+    run = 0,
+    last = null
+  for (const day of days) {
+    const date = Date.parse(day)
+    run = last !== null && date - last === 86400000 ? run + 1 : 1
+    best = Math.max(best, run)
+    last = date
+  }
+  const today = Date.parse(localDay(db))
+  return {
+    current: last !== null && today - last >= 0 && today - last <= 86400000 ? run : 0,
+    best,
+  }
+}
+function awardBadges(db) {
+  db.badges ??= {}
+  const finished = db.ledger.filter((r) => r.reason === 'book-finished').length
+  const eligible = [finished >= 1, finished >= 10, streakOf(db).best >= 7]
+  const rewards = []
+  badgeDefinitions.forEach((b, i) => {
+    if (eligible[i] && !db.badges[b.id]) {
+      db.badges[b.id] = new Date().toISOString()
+      const reward = record(db, b.reward, 'achievement', b.id)
+      if (reward) rewards.push(reward)
+    }
+  })
+  return rewards
+}
+export async function getSettings() {
+  return toolsDb().settings
+}
+export async function updateSettings(patch) {
+  const db = toolsDb(),
+    value = { ...db.settings, ...patch }
+  new Intl.DateTimeFormat('en', { timeZone: value.timezone }).format()
+  if (
+    !Number.isInteger(value.dailyPageGoal) ||
+    value.dailyPageGoal < 5 ||
+    value.dailyPageGoal > 500 ||
+    !['light', 'dark', 'system'].includes(value.theme)
+  )
+    throw Error('Choose valid settings')
+  db.settings = value
+  write(db)
+  return value
+}
+export async function changePassword() {
+  throw Error('Account changes require the live server')
+}
+export async function changeEmail() {
+  throw Error('Account changes require the live server')
+}
+export async function getReading() {
+  const db = toolsDb()
+  const rewards = awardBadges(db)
+  write(db)
+  if (rewards.length) window.dispatchEvent(new Event('emberary:ember-changed'))
+  return {
+    streak: streakOf(db),
+    minutes: Math.floor(Object.values(db.minutes).reduce((a, b) => a + b, 0) / 60),
+    badges: badgeDefinitions.map((b) => ({
+      ...b,
+      earnedAt: db.badges[b.id] ?? null,
+    })),
+  }
+}
+export async function getYearReview() {
+  const db = toolsDb(),
+    year = Number(localDay(db).slice(0, 4))
+  const finished = db.userBooks.filter(
+    (e) => e.status === 'read' && (e.finishedAt ?? e.updatedAt).startsWith(String(year))
+  )
+  const tally = (field) => {
+    const counts = {}
+    finished.forEach((e) => {
+      const value = field(e)
+      counts[value] = (counts[value] ?? 0) + 1
+    })
+    return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null
+  }
+  return {
+    year,
+    booksFinished: finished.length,
+    pagesRead: db.readingEvents.filter((e) => e.at.startsWith(String(year))).reduce((n, e) => n + e.pages, 0),
+    longestBook:
+      finished.map((e) => findBook(db, e.bookId)).sort((a, b) => b.pages - a.pages)[0]?.title ?? null,
+    busiestMonth: tally((e) =>
+      new Date(e.finishedAt ?? e.updatedAt).toLocaleString('en', {
+        month: 'long',
+        timeZone: db.settings.timezone,
+      })
+    ),
+    favoriteGenre: tally((e) => findBook(db, e.bookId).genre),
+  }
+}
+function questsOf(db) {
+  const day = localDay(db),
+    target = 15 + (Math.floor(Date.parse(day) / 86400000) % 3) * 5
+  return {
+    day,
+    items: [
+      {
+        id: 'pages',
+        label: `Read ${target} pages today`,
+        target,
+        progress: db.readingDays[day] ?? 0,
+        reward: 4,
+      },
+      {
+        id: 'rating',
+        label: 'Rate a book today',
+        target: 1,
+        progress: Number(Boolean(db.ratedDays[day])),
+        reward: 2,
+      },
+      {
+        id: 'check-in',
+        label: 'Check in today',
+        target: 1,
+        progress: Number(db.ledger.some((r) => r.reason === 'daily-check-in' && r.ref === day)),
+        reward: 2,
+      },
+    ].map((q) => ({
+      ...q,
+      claimed: db.ledger.some((r) => r.reason === 'daily-quest' && r.ref === `${day}:${q.id}`),
+    })),
+  }
+}
+export async function getQuests() {
+  return questsOf(toolsDb())
+}
+export async function claimQuest(id) {
+  const db = toolsDb(),
+    quests = questsOf(db),
+    q = quests.items.find((q) => q.id === id)
+  if (!q || q.claimed || q.progress < q.target)
+    throw Error('Complete the quest first, or it is already claimed')
+  const reward = record(db, q.reward, 'daily-quest', `${quests.day}:${id}`)
+  write(db)
+  return { reward }
+}
+export async function getTimer() {
+  return toolsDb().timer ?? null
+}
+export async function startTimer() {
+  const db = toolsDb()
+  db.timer ??= { startedAt: new Date().toISOString() }
+  write(db)
+  return db.timer
+}
+export async function stopTimer() {
+  const db = toolsDb()
+  if (!db.timer) throw Error('No timer is running')
+  let at = Date.parse(db.timer.startedAt),
+    stop = Math.min(Date.now(), at + 43200000)
+  while (at < stop) {
+    const day = new Date(at).toLocaleDateString('en-CA', {
+      timeZone: db.settings.timezone,
+    })
+    const next = Math.min(stop, Math.floor(at / 60000) * 60000 + 60000)
+    db.minutes[day] = (db.minutes[day] ?? 0) + (Math.floor(next / 1000) - Math.floor(at / 1000))
+    at = next
+  }
+  db.timer = null
+  const rewards = awardBadges(db)
+  write(db)
+  return { stopped: true, rewards }
+}
+const nextId = (rows) => Math.max(0, ...rows.map((row) => row.id)) + 1
+const ownBook = (db, id) => {
+  if (!db.userBooks.some((e) => e.bookId === id)) throw Error('Not found in your library')
+  return findBook(db, id)
+}
+export async function getNotes(id) {
+  const db = toolsDb()
+  ownBook(db, id)
+  return db.notes.filter((n) => n.bookId === id).reverse()
+}
+export async function addNote(id, { text, page = null, kind = 'quote' }) {
+  const db = toolsDb(),
+    book = ownBook(db, id)
+  if (
+    typeof text !== 'string' ||
+    !text.trim() ||
+    text.length > 2000 ||
+    !['note', 'quote'].includes(kind) ||
+    (page !== null && (!Number.isInteger(page) || page < 1 || page > book.pages))
+  )
+    throw Error('Enter text and a valid page')
+  const note = {
+    id: nextId(db.notes),
+    bookId: id,
+    text: text.trim(),
+    page,
+    kind,
+  }
+  db.notes.push(note)
+  write(db)
+  return note
+}
+export async function deleteNote(book, id) {
+  const db = toolsDb()
+  db.notes = db.notes.filter((n) => n.id !== id || n.bookId !== book)
+  write(db)
+}
+export async function getLists() {
+  return toolsDb().lists
+}
+function listName(name) {
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 60)
+    throw Error('List name must be 1 to 60 characters')
+  return name.trim()
+}
+export async function createList(name) {
+  const db = toolsDb(),
+    list = { id: nextId(db.lists), name: listName(name), bookIds: [] }
+  db.lists.push(list)
+  write(db)
+  return list
+}
+export async function renameList(id, name) {
+  const db = toolsDb(),
+    list = db.lists.find((l) => l.id === id)
+  if (!list) throw Error('List not found')
+  list.name = listName(name)
+  write(db)
+  return list
+}
+export async function deleteList(id) {
+  const db = toolsDb()
+  db.lists = db.lists.filter((l) => l.id !== id)
+  write(db)
+}
+export async function setListBook(id, book, present) {
+  const db = toolsDb(),
+    list = db.lists.find((l) => l.id === id)
+  ownBook(db, book)
+  if (!list) throw Error('List not found')
+  list.bookIds = list.bookIds.filter((b) => b !== book)
+  if (present) list.bookIds.push(book)
+  write(db)
+}
+export async function getSnapshots() {
+  return toolsDb().snapshots.map(({ id, name }) => ({ id, name }))
+}
+export async function saveSnapshot(name) {
+  const db = toolsDb()
+  const snapshot = {
+    id: nextId(db.snapshots),
+    name: listName(name),
+    layout: {
+      settings: Object.fromEntries(
+        ['wallColor', 'floorColor', 'shelfColor', 'upperFloorColor', ...FINISH_TYPES, 'upperFloor'].map(
+          (k) => [k, db.room[k]]
+        )
+      ),
+      items: clone(db.room.items),
+      books: db.userBooks.map((e) => ({
+        bookId: e.bookId,
+        shelfSpot: e.shelfSpot,
+        shelfPosition: e.shelfPosition,
+      })),
+    },
+  }
+  db.snapshots.push(snapshot)
+  write(db)
+  return { id: snapshot.id, name: snapshot.name }
+}
+export async function deleteSnapshot(id) {
+  const db = toolsDb()
+  db.snapshots = db.snapshots.filter((s) => s.id !== id)
+  write(db)
+}
+export async function restoreSnapshot(id) {
+  const db = toolsDb(),
+    snapshot = db.snapshots.find((s) => s.id === id)
+  if (!snapshot) throw Error('Layout not found')
+  const skipped = []
+  const savedIds = new Set(snapshot.layout.items.map((i) => i.id))
+  for (const item of db.room.items)
+    if (!savedIds.has(item.id)) Object.assign(item, { placed: false, on: null })
+  for (const [key, value] of Object.entries(snapshot.layout.settings)) {
+    if (['loft', 'roof'].includes(key)) continue
+    const entry = catalogEntry(value)
+    if (!entry || entry.price === 0 || db.room.unlocks.includes(value)) db.room[key] = value
+  }
+  for (const saved of snapshot.layout.items) {
+    const current = db.room.items.find((i) => i.id === saved.id && i.kind === saved.kind)
+    if (!current) {
+      skipped.push(saved.id)
+      continue
+    }
+    if(saved.placed&&catalogEntry(saved.kind)?.wall){const edge=wallOf(saved);if(wallHeight(db.room,edge.side,edge.i,edge.j)===0){Object.assign(current,{placed:false,on:null});skipped.push(saved.id);continue}}
+    if (
+      saved.placed &&
+      !saved.on &&
+      !itemFits(db.room, saved.level, saved.x, saved.z, clearanceOf(saved.kind))
+    ) {
+      current.placed = false
+      current.on = null
+      skipped.push(saved.id)
+    } else
+      Object.assign(current, saved, {
+        on: db.room.items.some((i) => i.id === saved.on) ? saved.on : null,
+      })
+  }
+  for(const item of db.room.items)if(item.on&&!db.room.items.find(parent=>parent.id===item.on)?.placed){Object.assign(item,{placed:false,on:null,y:0});if(!skipped.includes(item.id))skipped.push(item.id)}
+  for (const saved of snapshot.layout.books) {
+    const current = db.userBooks.find((e) => e.bookId === saved.bookId)
+    if (current)
+      Object.assign(current, saved, {
+        shelfSpot:
+          saved.shelfSpot?.bookcase === 'main' ||
+          db.room.items.some((i) => String(i.id) === saved.shelfSpot?.bookcase)
+            ? saved.shelfSpot
+            : null,
+      })
+  }
+  write(db)
+  return { room: roomView(db), skipped }
 }

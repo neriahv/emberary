@@ -5,6 +5,8 @@ import AuthGate from './components/AuthGate.jsx'
 import HomePage from './pages/HomePage.jsx'
 import DiscoverPage from './pages/DiscoverPage.jsx'
 import MyBooksPage from './pages/MyBooksPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
+import ListsPage from './pages/ListsPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 
 // three.js is several times the size of the rest of the app, so the Library
@@ -32,6 +34,8 @@ export default function App() {
               }
             />
             <Route path="my-books" element={<MyBooksPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="lists" element={<ListsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="*" element={<NotFound />} />
           </Route>

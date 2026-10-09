@@ -79,6 +79,27 @@ export const STATUS_LABELS = {
 }
 
 export const {
+  getSettings,
+  updateSettings,
+  changePassword,
+  changeEmail,
+  getReading,
+  getYearReview,
+  getQuests,
+  getTimer,
+  startTimer,
+  getNotes,
+  addNote,
+  deleteNote,
+  getLists,
+  createList,
+  renameList,
+  deleteList,
+  setListBook,
+  getSnapshots,
+  saveSnapshot,
+  deleteSnapshot,
+  restoreSnapshot,
   getMe,
   checkEmail,
   signUp,
@@ -124,6 +145,8 @@ const announcing =
     return result
   }
 
+export const claimQuest = announcing(implementation.claimQuest)
+export const stopTimer = announcing(implementation.stopTimer)
 export const addToCollection = announcing(implementation.addToCollection)
 export const updateMyBook = announcing(implementation.updateMyBook)
 export const checkout = announcing(implementation.checkout)

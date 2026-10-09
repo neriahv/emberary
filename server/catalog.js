@@ -39,6 +39,17 @@ export const SHOP_CATEGORIES = [
 //   stairwell: a staircase; how far its footprint reaches [across, along]
 //            from its middle, so an upstairs floor leaves an opening for it
 export const CATALOG = [
+  // Emberary original collection
+  { id: 'ember-reading-bench', category: 'chairs', type: 'item', name: 'Reading bench', price: 9 },
+  { id: 'ember-teacup-lamp', category: 'lamps', type: 'item', name: 'Teacup glow lamp', price: 6, small: true },
+  { id: 'ember-owl-bookends', category: 'decor', type: 'item', name: 'Owl bookends', price: 4, small: true },
+  { id: 'ember-terrarium', category: 'plants', type: 'item', name: 'Ember terrarium', price: 5, small: true },
+  { id: 'ember-moon-mobile', category: 'decor', type: 'item', name: 'Moon desk mobile', price: 4, small: true },
+  { id: 'ember-book-trolley', category: 'decor', type: 'item', name: 'Autumn book trolley', price: 8 },
+  { id: 'ember-fox-cushion', category: 'chairs', type: 'item', name: 'Fox cushion', price: 3, small: true },
+  { id: 'ember-star-table', category: 'tables', type: 'item', name: 'Star inlay table', price: 7 },
+  { id: 'ember-rain-vase', category: 'plants', type: 'item', name: 'Rainflower vase', price: 4, small: true },
+  { id: 'ember-mushroom-stool', category: 'chairs', type: 'item', name: 'Mushroom footstool', price: 5 },
   // ---------------------------------------------------------------- build
   { id: 'window-round', category: 'windows', type: 'item', name: 'Round window', price: 4, wall: true },
   { id: 'window-paned', category: 'windows', type: 'item', name: 'Tall paned window', price: 5, wall: true },

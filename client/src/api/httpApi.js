@@ -25,7 +25,7 @@ async function request(path, options) {
     }
     // A session that has ended while the app was open: the app shows the
     // sign-in page again.
-    if (response.status === 401 && !path.startsWith('/api/auth/')) {
+    if (response.status === 401 && !path.startsWith('/api/auth/') && !path.startsWith('/api/account/')) {
       window.dispatchEvent(new Event('emberary:signed-out'))
     }
     const error = new Error(message)
@@ -105,3 +105,39 @@ export const sellRoomItem = (id) =>
 export const getEmber = () => request('/api/ember')
 
 export const checkIn = () => request('/api/ember/check-in', { method: 'POST' })
+
+// Reader tools
+export const getSettings = () => request('/api/settings')
+export const updateSettings = (patch) => request('/api/settings', json('PATCH', patch))
+export const changePassword = (body) => request('/api/account/password', json('POST', body))
+export const changeEmail = (body) => request('/api/account/email', json('POST', body))
+export const getReading = () =>
+  request('/api/reading').then((value) => {
+    if (value.rewards?.length) window.dispatchEvent(new Event('emberary:ember-changed'))
+    return value
+  })
+export const getYearReview = () => request('/api/year-review')
+export const getQuests = () => request('/api/quests')
+export const claimQuest = (id) => request(`/api/quests/${encodeURIComponent(id)}/claim`, { method: 'POST' })
+export const getTimer = () => request('/api/timer')
+export const startTimer = () => request('/api/timer/start', { method: 'POST' })
+export const stopTimer = () => request('/api/timer/stop', { method: 'POST' })
+export const getNotes = (id) => request(`/api/my-books/${encodeURIComponent(id)}/notes`)
+export const addNote = (id, body) =>
+  request(`/api/my-books/${encodeURIComponent(id)}/notes`, json('POST', body))
+export const deleteNote = (book, id) =>
+  request(`/api/my-books/${encodeURIComponent(book)}/notes/${id}`, {
+    method: 'DELETE',
+  })
+export const getLists = () => request('/api/lists')
+export const createList = (name) => request('/api/lists', json('POST', { name }))
+export const renameList = (id, name) => request(`/api/lists/${id}`, json('PATCH', { name }))
+export const deleteList = (id) => request(`/api/lists/${id}`, { method: 'DELETE' })
+export const setListBook = (id, book, present) =>
+  request(`/api/lists/${id}/books/${encodeURIComponent(book)}`, {
+    method: present ? 'PUT' : 'DELETE',
+  })
+export const getSnapshots = () => request('/api/room/snapshots')
+export const saveSnapshot = (name) => request('/api/room/snapshots', json('POST', { name }))
+export const deleteSnapshot = (id) => request(`/api/room/snapshots/${id}`, { method: 'DELETE' })
+export const restoreSnapshot = (id) => request(`/api/room/snapshots/${id}/restore`, { method: 'POST' })

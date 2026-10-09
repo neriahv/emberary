@@ -12,7 +12,11 @@ export const useAuth = () => useContext(AuthContext)
 // unmounts the whole app, so nothing of one reader's is left on screen for
 // the next.
 export default function AuthGate({ children }) {
-  const [state, setState] = useState({ status: 'checking', account: null, error: null })
+  const [state, setState] = useState({
+    status: 'checking',
+    account: null,
+    error: null,
+  })
 
   const check = useCallback(() => {
     setState({ status: 'checking', account: null, error: null })
@@ -50,5 +54,19 @@ export default function AuthGate({ children }) {
   if (state.status === 'out') {
     return <SignInPage onSignedIn={(account) => setState({ status: 'in', account, error: null })} />
   }
-  return <AuthContext.Provider value={{ account: state.account, signOut }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{
+        account: state.account,
+        signOut,
+        updateAccount: (patch) =>
+          setState((prev) => ({
+            ...prev,
+            account: { ...prev.account, ...patch },
+          })),
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }

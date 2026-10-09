@@ -84,17 +84,16 @@ export async function unlocks(db, readerId) {
 export async function get(db, readerId) {
   // The settings first: reading them gives a new room its starting pieces.
   const room = await settings(db, readerId)
-  const [items, owned] = await Promise.all([listItems(db, readerId), unlocks(db, readerId)])
+  const items = await listItems(db, readerId)
+  const owned = await unlocks(db, readerId)
   return { ...room, unlocks: owned, items }
 }
 
 // The room's settings and blocks, without its items.
 export async function settings(db, readerId) {
   await ensureRow(db, readerId)
-  const [result, blocks] = await Promise.all([
-    db.query(`SELECT ${ROOM_COLUMNS} FROM room_settings WHERE reader_id = $1`, [readerId]),
-    listBlocks(db, readerId),
-  ])
+  const result = await db.query(`SELECT ${ROOM_COLUMNS} FROM room_settings WHERE reader_id = $1`, [readerId])
+  const blocks = await listBlocks(db, readerId)
   return { ...result.rows[0], blocks }
 }
 

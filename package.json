@@ -4,7 +4,9 @@
   "description": "Build and start commands for the deployed app: Express serves the API and the built React client from one address.",
   "scripts": {
     "build": "npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server",
-    "start": "npm start --prefix server"
+    "start": "npm start --prefix server",
+    "test": "npm test --prefix server && npm test --prefix client",
+    "check": "npm test && npm run build --prefix client"
   },
   "engines": {
     "node": ">=20"

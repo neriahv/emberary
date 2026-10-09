@@ -11,28 +11,39 @@ export function useRoomSaver(delay = 500) {
   const [state, setState] = useState({ status: 'idle', error: null }) // idle | saving | saved | error
   const pending = useRef(new Map())
   const timer = useRef(null)
+  const inFlight = useRef(Promise.resolve())
 
   const send = (key, patch) => (key === 'room' ? updateRoom(patch) : updateRoomItem(key, patch))
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(() => {
     clearTimeout(timer.current)
     const batch = pending.current
     pending.current = new Map()
-    if (batch.size === 0) return
-    setState({ status: 'saving', error: null })
-    try {
-      for (const [key, patch] of batch) await send(key, patch)
-      setState({ status: 'saved', error: null })
-    } catch (error) {
-      setState({ status: 'error', error })
-    }
+    if (batch.size === 0) return inFlight.current
+    const save = inFlight.current
+      .catch(() => {})
+      .then(async () => {
+        setState({ status: 'saving', error: null })
+        try {
+          for (const [key, patch] of batch) await send(key, patch)
+          setState({ status: 'saved', error: null })
+        } catch (error) {
+          // Preserve unsaved changes for a retry, with newer changes winning.
+          for (const [key, patch] of batch)
+            pending.current.set(key, { ...patch, ...pending.current.get(key) })
+          setState({ status: 'error', error })
+          throw error
+        }
+      })
+    inFlight.current = save
+    return save
   }, [])
 
   const queue = useCallback(
     (key, patch) => {
       pending.current.set(key, { ...pending.current.get(key), ...patch })
       clearTimeout(timer.current)
-      timer.current = setTimeout(flush, delay)
+      timer.current = setTimeout(() => flush().catch(() => {}), delay)
     },
     [flush, delay]
   )

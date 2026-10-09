@@ -58,6 +58,15 @@ ALTER TABLE readers
   ADD CONSTRAINT readers_theme_check
   CHECK (theme IN ('light', 'dark', 'system'));
 
+-- The reader's picture, one of the avatar gallery's drawings.
+ALTER TABLE readers
+  ADD COLUMN IF NOT EXISTS avatar TEXT NOT NULL DEFAULT 'flame';
+ALTER TABLE readers
+  DROP CONSTRAINT IF EXISTS readers_avatar_check;
+ALTER TABLE readers
+  ADD CONSTRAINT readers_avatar_check
+  CHECK (avatar IN ('flame', 'owl', 'fox', 'cat', 'bear', 'rabbit', 'leaf', 'book'));
+
 -- A signed-in browser. The cookie holds a random token; only its SHA-256 hash
 -- is kept here, so the table cannot be used to sign in as anyone.
 CREATE TABLE IF NOT EXISTS sessions (
@@ -178,6 +187,7 @@ UPDATE room_items SET
 -- The kinds are the "item" entries of server/catalog.js.
 ALTER TABLE room_items
   ADD CONSTRAINT room_items_kind_check CHECK (kind IN (
+    'ember-reading-bench', 'ember-teacup-lamp', 'ember-owl-bookends', 'ember-terrarium', 'ember-moon-mobile', 'ember-book-trolley', 'ember-fox-cushion', 'ember-star-table', 'ember-rain-vase', 'ember-mushroom-stool',
     'window-round', 'window-paned', 'window-octagon', 'window-cathedral', 'window-arcade',
     'window-lancet', 'window-cottage', 'window-french', 'window-sakura', 'window-stone',
     'built-in-bookcase', 'built-in-shelf', 'bookcase-small', 'bookcase-tall', 'bookcase-wall',
@@ -362,7 +372,7 @@ CREATE TABLE IF NOT EXISTS ember_ledger (
 -- "sale" is furniture sold back for half its price.
 ALTER TABLE ember_ledger DROP CONSTRAINT IF EXISTS ember_ledger_reason_check;
 ALTER TABLE ember_ledger ADD CONSTRAINT ember_ledger_reason_check CHECK (reason IN (
-  'welcome', 'daily-check-in', 'daily-goal', 'book-finished', 'pages-read', 'purchase', 'sale'
+  'welcome', 'daily-check-in', 'daily-goal', 'book-finished', 'pages-read', 'purchase', 'sale', 'achievement', 'daily-quest'
 ));
 
 CREATE INDEX IF NOT EXISTS ember_ledger_reader_idx ON ember_ledger (reader_id, id DESC);
@@ -389,3 +399,74 @@ SELECT setval(pg_get_serial_sequence('readers', 'id'), (SELECT max(id) FROM read
 
 INSERT INTO room_settings (reader_id) VALUES (1)
   ON CONFLICT (reader_id) DO NOTHING;
+
+-- Reader tools: reading activity, achievements, notes, lists, the timer and
+-- saved room layouts. Every row belongs to one reader.
+CREATE TABLE IF NOT EXISTS reading_events (
+ id SERIAL PRIMARY KEY,
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ book_id TEXT NOT NULL REFERENCES books(id),
+ pages INTEGER NOT NULL CHECK (pages > 0),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS reading_events_reader_idx ON reading_events(reader_id, created_at);
+CREATE TABLE IF NOT EXISTS reader_badges (
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ badge TEXT NOT NULL CHECK (badge IN ('first-book','ten-books','seven-days')),
+ earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(reader_id,badge)
+);
+CREATE TABLE IF NOT EXISTS daily_activity (
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ day DATE NOT NULL,
+ rated BOOLEAN NOT NULL DEFAULT false,
+ PRIMARY KEY(reader_id,day)
+);
+CREATE TABLE IF NOT EXISTS book_notes (
+ id SERIAL PRIMARY KEY,
+ reader_id INTEGER NOT NULL,
+ book_id TEXT NOT NULL,
+ text TEXT NOT NULL CHECK (char_length(text) BETWEEN 1 AND 2000),
+ page INTEGER CHECK (page >= 1),
+ kind TEXT NOT NULL CHECK (kind IN ('note','quote')),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ FOREIGN KEY(reader_id,book_id) REFERENCES user_books(reader_id,book_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS book_lists (
+ id SERIAL PRIMARY KEY,
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+ UNIQUE(reader_id,id)
+);
+CREATE TABLE IF NOT EXISTS book_list_entries (
+ reader_id INTEGER NOT NULL,
+ list_id INTEGER NOT NULL,
+ book_id TEXT NOT NULL,
+ PRIMARY KEY(reader_id,list_id,book_id),
+ FOREIGN KEY(reader_id,list_id) REFERENCES book_lists(reader_id,id) ON DELETE CASCADE,
+ FOREIGN KEY(reader_id,book_id) REFERENCES user_books(reader_id,book_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS reading_timers (
+ id SERIAL PRIMARY KEY,
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ stopped_at TIMESTAMPTZ,
+ CHECK (stopped_at IS NULL OR stopped_at >= started_at)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS reading_timers_active_idx ON reading_timers(reader_id) WHERE stopped_at IS NULL;
+CREATE TABLE IF NOT EXISTS reading_minutes (
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ day DATE NOT NULL,
+ seconds INTEGER NOT NULL DEFAULT 0 CHECK (seconds >= 0),
+ PRIMARY KEY(reader_id,day)
+);
+CREATE TABLE IF NOT EXISTS room_snapshots (
+ id SERIAL PRIMARY KEY,
+ reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+ name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+ layout JSONB NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Achievements and daily quests are paid once each.
+CREATE UNIQUE INDEX IF NOT EXISTS ember_ledger_reader_tools_once_idx ON ember_ledger(reader_id,reason,ref)
+ WHERE reason IN ('achievement','daily-quest');

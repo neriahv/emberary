@@ -3,22 +3,17 @@
 
 import { newToken, SESSION_DAYS, tokenHash } from '../auth.js'
 
-const ACCOUNT_COLUMNS = 'id, display_name AS "displayName", email'
+const ACCOUNT_COLUMNS = 'id, display_name AS "displayName", email, avatar'
 
 // A new reader with an account. Returns the account, or null if that email
 // already has one.
 export async function createReader(db, { email, displayName, passwordHash }) {
-  try {
-    const result = await db.query(
-      `INSERT INTO readers (display_name, email, password_hash) VALUES ($1, $2, $3)
-       RETURNING ${ACCOUNT_COLUMNS}`,
-      [displayName, email, passwordHash]
-    )
-    return result.rows[0]
-  } catch (error) {
-    if (error.code === '23505') return null // the email is taken
-    throw error
-  }
+  const result = await db.query(
+    `INSERT INTO readers (display_name, email, password_hash) VALUES ($1, $2, $3)
+     ON CONFLICT (lower(email)) DO NOTHING RETURNING ${ACCOUNT_COLUMNS}`,
+    [displayName, email, passwordHash]
+  )
+  return result.rows[0] ?? null
 }
 
 export async function findByEmail(db, email) {
@@ -47,22 +42,14 @@ export async function createSession(db, readerId) {
   return token
 }
 
-
-// Finds the signed-in reader and their reading preferences.
+// The account a session token belongs to, if the session is still good.
 export async function readerForToken(db, token) {
   const result = await db.query(
-    `SELECT
-       r.id,
-       r.display_name AS "displayName",
-       r.email,
-       r.timezone,
-       r.daily_page_goal AS "dailyPageGoal"
-     FROM sessions s
-     JOIN readers r ON r.id = s.reader_id
+    `SELECT r.id, r.display_name AS "displayName", r.email, r.avatar
+     FROM sessions s JOIN readers r ON r.id = s.reader_id
      WHERE s.token_hash = $1 AND s.expires_at > now()`,
     [tokenHash(token)]
   )
-
   return result.rows[0] ?? null
 }
 

@@ -6,6 +6,7 @@ import { checkTexture } from './textures.js'
 import * as lights from './lights.jsx'
 import { WINDOW_MODELS } from './windows.jsx'
 import * as kept from './collection.jsx'
+import { EMBER_MODELS } from './emberCollection.jsx'
 import * as wiz from './wizardry.jsx'
 import * as th from './themes.jsx'
 import { DecorShelf } from './structure.jsx'
@@ -894,6 +895,7 @@ const windowItem = ({ Model, half }) => ({ Model, radius: half[0], height: half[
 const seat = (y, hw, hd, z = 0.05) => [[0, y, z, hw, hd]]
 
 export const MODELS = {
+  ...EMBER_MODELS,
   'built-in-bookcase': bookcase('main'),
   'built-in-shelf': { Model: DecorShelf, radius: 0.55, height: 2.1, tops: [[0, 1.93, 0, 0.42, 0.15]] },
   ...Object.fromEntries(Object.entries(WINDOW_MODELS).map(([kind, def]) => [kind, windowItem(def)])),

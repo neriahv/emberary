@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { pool } from '../db/pool.js'
+import { settleAchievements } from '../repos/reading.js'
 import { createApp } from '../app.js'
 
 const url = new URL(process.env.DATABASE_URL)
@@ -65,7 +66,11 @@ let base
 // A stand-in for DNS, so the tests never touch the internet: example.com and
 // example.org take mail, nowhere.invalid does not exist, and anything else
 // does not answer, which lets a sign-up through.
-const DOMAINS = { 'example.com': 'ok', 'example.org': 'ok', 'nowhere.invalid': 'none' }
+const DOMAINS = {
+  'example.com': 'ok',
+  'example.org': 'ok',
+  'nowhere.invalid': 'none',
+}
 const fakeDomains = async (domain) => DOMAINS[domain] ?? 'unknown'
 
 before(async () => {
@@ -80,6 +85,15 @@ beforeEach(async () => {
   googleDown = false
   await pool.query(schema)
   await pool.query(seed)
+  // Seeded finished books qualify for the new one-time first-book badge.
+  const db = await pool.connect()
+  try {
+    await db.query('BEGIN')
+    await settleAchievements(db, 1, 'Asia/Manila')
+    await db.query('COMMIT')
+  } finally {
+    db.release()
+  }
   // The seeded reader, signed in: a session made straight in the database,
   // so no password has to exist anywhere.
   await pool.query(
@@ -444,8 +458,8 @@ test('rejects an invalid profile', async () => {
 // ------------------------------------------------------------ ember
 
 // The seed reader: 10 welcome + 38 for pages + 75 for five finished books,
-// less 21 for the furniture already in the room.
-const SEED_BALANCE = 102
+// less 21 for furniture, plus 5 for the first-book achievement.
+const SEED_BALANCE = 107
 
 const balance = async () => (await call('GET', '/api/ember')).body.balance
 
@@ -457,7 +471,7 @@ test('the wallet shows the balance worked out from the reading history', async (
   assert.equal(body.pagesToday, 0)
   assert.equal(body.dailyPageGoal, 20)
   assert.match(body.today, /^\d{4}-\d{2}-\d{2}$/)
-  assert.equal(body.history[0].reason, 'purchase')
+  assert.equal(body.history[0].reason, 'achievement')
 })
 
 test('the daily check-in pays 3 Ember, once a day', async () => {
@@ -615,9 +629,11 @@ test('a second bookcase does not land on top of the first', async () => {
 
 test('checkout refuses what the reader cannot afford, and changes nothing', async () => {
   const cart = Array(11).fill('bookcase-tall')
-  const { status, body } = await call('POST', '/api/shop/checkout', { items: cart })
+  const { status, body } = await call('POST', '/api/shop/checkout', {
+    items: cart,
+  })
   assert.equal(status, 409)
-  assert.match(body.error, /costs 110 Ember and you have 102/)
+  assert.match(body.error, /costs 110 Ember and you have 107/)
   assert.equal(await balance(), SEED_BALANCE)
   assert.equal((await call('GET', '/api/room')).body.items.length, 10)
 })

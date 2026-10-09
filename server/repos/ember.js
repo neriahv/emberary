@@ -6,6 +6,7 @@
 // "Asia/Manila", passed to PostgreSQL as a parameter.
 
 import { EMBER_RULES } from '../catalog.js'
+import { settleAchievements } from './reading.js'
 
 // A one-off reward that is already in the ledger inserts nothing. The WHERE
 // clause matches the partial unique index ember_ledger_once_idx.
@@ -38,7 +39,7 @@ async function record(db, readerId, amount, reason, ref) {
 
 // Everything the wallet shows: the balance, today's progress and the most
 // recent changes.
-export async function summary(db, readerId, timezone, goal) {
+export async function summary(db, readerId, timezone) {
   const day = await today(db, timezone)
   const [total, checkedIn, reading, history] = await Promise.all([
     balance(db, readerId),
@@ -59,7 +60,8 @@ export async function summary(db, readerId, timezone, goal) {
     today: day,
     checkedInToday: checkedIn.rowCount > 0,
     pagesToday,
-    dailyPageGoal: goal,
+    dailyPageGoal: (await db.query('SELECT daily_page_goal FROM readers WHERE id=$1', [readerId])).rows[0]
+      .daily_page_goal,
     rules: EMBER_RULES,
     history: history.rows,
   }
@@ -81,7 +83,7 @@ export async function checkIn(db, readerId, timezone) {
 //   - pages: 1 Ember per 50 pages reached, counted against what this book has
 //     already earned, so paging back and forth earns nothing new.
 //   - the daily goal: pages read today (forward only) reaching the goal.
-export async function rewardReading(db, readerId, bookId, before, after, timezone, goal) {
+export async function rewardReading(db, readerId, bookId, before, after, timezone) {
   const earned = []
 
   if (after.status === 'read' && before?.status !== 'read') {
@@ -106,25 +108,28 @@ export async function rewardReading(db, readerId, bookId, before, after, timezon
        RETURNING pages, day::text AS day`,
       [readerId, timezone, forward]
     )
-      const { pages, day: date } = day.rows[0]
-
-      // A changed goal earns its reward on the next reading that crosses
-      // the new target, not immediately when settings are saved.
-      // The ledger prevents the same daily reward from being earned twice.
-      if (pages - forward < goal && pages >= goal) {
-        const row = await record(
-          db,
-          readerId,
-          EMBER_RULES.dailyGoalReward,
-          'daily-goal',
-          date
-        )
-
-        if (row) earned.push(row)
-      }
-
+    const { pages, day: date } = day.rows[0]
+    const goal = (await db.query('SELECT daily_page_goal FROM readers WHERE id=$1', [readerId])).rows[0]
+      .daily_page_goal
+    if (pages - forward < goal && pages >= goal) {
+      const row = await record(db, readerId, EMBER_RULES.dailyGoalReward, 'daily-goal', date)
+      if (row) earned.push(row)
+    }
   }
 
+  if (forward > 0)
+    await db.query('INSERT INTO reading_events(reader_id,book_id,pages) VALUES ($1,$2,$3)', [
+      readerId,
+      bookId,
+      forward,
+    ])
+  if (after.rating !== null && after.rating !== before?.rating)
+    await db.query(
+      `INSERT INTO daily_activity(reader_id,day,rated) VALUES ($1,(now() AT TIME ZONE $2)::date,true)
+     ON CONFLICT(reader_id,day) DO UPDATE SET rated=true`,
+      [readerId, timezone]
+    )
+  earned.push(...(await settleAchievements(db, readerId, timezone)))
   return earned
 }
 

@@ -29,6 +29,9 @@ export const STATUSES = ['currently-reading', 'want-to-read', 'read', 'did-not-f
 
 const HEX_COLOUR = /^#[0-9a-f]{6}$/i
 
+// The avatar gallery's drawings (client/src/components/Avatar.jsx).
+export const AVATARS = ['flame', 'owl', 'fox', 'cat', 'bear', 'rabbit', 'leaf', 'book']
+
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
 
 export function validateStatus(status) {
@@ -113,7 +116,7 @@ export function validateEntryPatch(body, pages) {
 // invalid by omission.
 export function validateProfile(current, body) {
   const merged = { ...current }
-  for (const key of ['displayName', 'bio', 'yearlyGoal']) {
+  for (const key of ['displayName', 'bio', 'yearlyGoal', 'avatar']) {
     if (has(body, key)) merged[key] = body[key]
   }
 
@@ -128,12 +131,11 @@ export function validateProfile(current, body) {
     errors.push('yearly goal must be a whole number from 1 to 365')
   }
 
-  return { errors, value: { displayName, bio, yearlyGoal } }
+  const avatar = merged.avatar ?? 'flame'
+  if (!AVATARS.includes(avatar)) errors.push('choose an avatar from the gallery')
+  return { errors, value: { displayName, bio, yearlyGoal, avatar } }
 }
 
-
-
-// Validates the reader's settings after merging any changes.
 export function validateSettings(current, body) {
   const merged = { ...current }
 
@@ -383,16 +385,21 @@ export function validateShelfOrder(body) {
 // { email, password, displayName } to make an account. The email is kept in
 // lower case, so it matches however it is typed later. The password must meet
 // every one of PASSWORD_RULES (catalog.js), the same ones the form shows.
-export function validateSignup(body) {
+export function validateSignup(input) {
+  const text = (key) => (typeof input?.[key] === 'string' ? input[key] : '')
+  const value = {
+    email: text('email').trim().toLowerCase(),
+    password: text('password'),
+    displayName: text('displayName').trim(),
+  }
   const errors = []
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
-  const password = typeof body.password === 'string' ? body.password : ''
-  const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : ''
-  if (email.length > 254 || !EMAIL_PATTERN.test(email)) errors.push('email must be an email address')
-  const problems = passwordProblems(password, email)
-  if (problems.length > 0) errors.push(`password needs: ${problems.map((p) => p.toLowerCase()).join('; ')}`)
-  if (!displayName || displayName.length > 60) errors.push('display name must be 1 to 60 characters')
-  return { errors, value: { email, password, displayName } }
+  if (!EMAIL_PATTERN.test(value.email) || value.email.length > 254)
+    errors.push('email must be an email address')
+  const missing = passwordProblems(value.password, value.email)
+  if (missing.length) errors.push('password needs: ' + missing.map((label) => label.toLowerCase()).join('; '))
+  if (value.displayName.length < 1 || value.displayName.length > 60)
+    errors.push('display name must be 1 to 60 characters')
+  return { errors, value }
 }
 
 // { email, password } to sign in.

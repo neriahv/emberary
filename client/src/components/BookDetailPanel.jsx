@@ -1,3 +1,4 @@
+import BookNotes from './BookNotes.jsx'
 import BookCover from './BookCover.jsx'
 import BookEditForm from './BookEditForm.jsx'
 import ProgressBar from './ProgressBar.jsx'
@@ -47,6 +48,7 @@ export default function BookDetailPanel({ entry, onSaved, onRemoved, onClose }) 
       )}
 
       <BookEditForm entry={entry} onSaved={onSaved} onRemoved={onRemoved} />
+      <BookNotes book={book} />
     </section>
   )
 }
