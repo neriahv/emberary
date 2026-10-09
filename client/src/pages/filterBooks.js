@@ -1,6 +1,9 @@
 
-export function filterBooks(entries, { tab, search = '' }) {
-  // Filters books by reading status and searches titles or authors, ignoring case and extra spaces.
+ // Filters books by reading status, search text, genre, and rating.
+export function filterBooks(
+  entries,
+  { tab, search = '', genre = 'all', rating = 'any' }
+) {
   const needle = search.trim().toLowerCase()
 
   return entries.filter((entry) => {
@@ -11,6 +14,18 @@ export function filterBooks(entries, { tab, search = '' }) {
       entry.book.title.toLowerCase().includes(needle) ||
       entry.book.author.toLowerCase().includes(needle)
 
-    return matchesTab && matchesSearch
+    const matchesGenre = genre === 'all' || entry.book.genre === genre
+
+    let matchesRating
+
+    if (rating === 'any') {
+      matchesRating = true
+    } else if (rating === 'unrated') {
+      matchesRating = entry.rating === null
+    } else {
+      matchesRating = entry.rating !== null && entry.rating >= Number(rating)
+    }
+
+    return matchesTab && matchesSearch && matchesGenre && matchesRating
   })
 }
