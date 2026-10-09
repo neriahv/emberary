@@ -710,6 +710,63 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **What I would do next:** sort authors by surname, so Austen comes before
     Conan Doyle.
 
+**Settings, profile and account security**
+
+- **Files:** `server/repos/settings.js`, `validateSettings` in `server/validation.js`,
+  the settings and account routes in `server/readerTools.js`, `server/auth.js`,
+  `server/emailDomain.js`, `validateSignup`, `server/test/reader-tools.test.js`;
+  `SettingsPage.jsx`, `Theme.jsx`, `Avatar.jsx`, `SignInPage.jsx`
+- **Commits:**
+  - Settings: https://github.com/neriahv/emberary/commit/4af150511e9f1727da5f1c9fbe5ad325e852e282
+  - The rest: https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
+- **How it was made:** I wrote the settings feature step by step, with Claude Code
+  reviewing each stage. I wrote the profile pictures, password and email changes, the
+  rewrites and the server tests myself.
+- **What it does:**
+  - **Settings:** time zone, a daily page goal from 5 to 500, and a light, dark or
+    device theme. The goal and the reader's day follow their own settings.
+  - **Profile pictures:** eight drawn avatars, shown on the profile and in the header.
+  - **Password and email:** the current password is required and the sign-up rules
+    apply again. Other sessions are signed out.
+  - **Rewrites:** `auth.js`, `emailDomain.js`, `validateSignup` and the sign-in page,
+    with the same behaviour. The DNS check can now be tested without the internet.
+
+**Reading milestones and daily quests**
+
+- **Files:** `server/repos/reading.js`, the reading, quest and timer routes in
+  `server/readerTools.js`, `ReaderTools.jsx`
+- **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
+- **How it was made:** I wrote these features. An AI tool combined my files into one
+  folder; Claude Code then merged that folder into the project. It kept my 5–500 goal
+  rule, my `validateSettings` and my My Books behaviour, removed duplicated SQL, and ran
+  the checks: 125 server tests and 35 client tests passed, and the production build
+  completed.
+- **What it does:**
+  - **Streaks:** consecutive reading days are found with `day - row_number()`.
+  - **Achievements:** first book, 10 books and a 7-day streak each pay Ember once.
+  - **Daily quests:** three tasks a day; a unique ledger index stops a reward being
+    paid twice.
+  - **Reading timer:** the server measures the time, splits it at midnight, and caps a
+    forgotten timer at 12 hours.
+  - **Year in review:** books finished, pages, longest book, busiest month, favourite
+    genre.
+
+**Notes, lists, room layouts and client tests**
+
+- **Files:** `BookNotes.jsx`, `ListsPage.jsx`, `RoomSnapshots.jsx`,
+  `room/emberCollection.jsx`, `useRoomSaver.js`, the notes, list and snapshot routes in
+  `server/readerTools.js`, `client/src/test/`
+- **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
+- **How it was made:** I wrote these features and the client tests. They were combined
+  and merged the same way as the entry above.
+- **What it does:**
+  - **Notes and quotes** on any book, with an optional page number.
+  - **Book lists:** create, rename and delete, and add or remove books.
+  - **Room snapshots:** restoring never adds furniture or Ember; pieces that no longer
+    fit go to storage.
+  - **Ten new room items** in the shop.
+  - **35 client tests** with Vitest.
+
 ### The AI-written part I understand best
 
 **The frontend's mock/real API switch**
