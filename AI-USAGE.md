@@ -672,7 +672,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - Moving the filtering into its own function: https://github.com/neriahv/emberary/commit/ad578dc6360abbd8dcbda92be33e304b819d390f
   - Genre and rating filters: https://github.com/neriahv/emberary/commit/ce90e03d07b10a8549c23dc4a481cf80b8de6cf8
   - Sorting: https://github.com/neriahv/emberary/commit/e46683d642e2d20adb9f904517a9a9cccb85d273
-  - The dropdowns, the count, Clear filters and the empty messages: (add the link after committing)
+  - The dropdowns, the count, Clear filters and the empty messages: https://github.com/neriahv/emberary/commit/3ea520fff6f738a855acbab78c125f0e9def39a8
 - **How it was made:** I wrote this code myself. Claude Code gave me a spec
   and broke it into five steps, pointed me to the patterns already in the
   page (how the status tab is kept in the URL, and the `update()` helper),
