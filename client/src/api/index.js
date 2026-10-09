@@ -76,6 +76,10 @@ export const STATUS_LABELS = {
 }
 
 export const {
+  getMe,
+  signUp,
+  logIn,
+  logOut,
   listBooks,
   searchBooks,
   coverImageUrl,
@@ -92,6 +96,12 @@ export const {
   updateRoomItem,
   getEmber,
 } = implementation
+
+// A session that ended while the app was open (the API answered 401).
+export function onSignedOut(listener) {
+  window.addEventListener('emberary:signed-out', listener)
+  return () => window.removeEventListener('emberary:signed-out', listener)
+}
 
 // Anything that can change the Ember balance tells the page, so the wallet in
 // the header can refresh itself without every screen knowing it exists.

@@ -205,9 +205,9 @@ function validateEntryPatch(patch, book) {
       typeof spot.bookcase !== 'string' ||
       !/^(main|[0-9]{1,9})$/.test(spot.bookcase) ||
       !Number.isInteger(spot.row) || spot.row < 0 || spot.row > 9 ||
-      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -1.5 || spot.x > 1.5
+      typeof spot.x !== 'number' || !Number.isFinite(spot.x) || spot.x < -2.5 || spot.x > 2.5
     ) {
-      errors.push('shelfSpot must be { bookcase: "main" or a bookcase id, row: 0 to 9, x: -1.5 to 1.5 }, or null')
+      errors.push('shelfSpot must be { bookcase: "main" or the id of a bookcase or table, row: 0 to 9, x: -2.5 to 2.5 }, or null')
     }
   }
   if (errors.length > 0) throw new Error(errors.join('; '))
@@ -469,6 +469,55 @@ export async function getRecommendations(limit = 4) {
 }
 
 // ---------------------------------------------------------------- profile
+
+// ------------------------------------------------------------ accounts
+//
+// Demo mode has one reader, kept in this browser. Signing out shows the
+// sign-in page, and any email with a password of 8 characters or more signs
+// back in to the same demo library, so the screens can be tried without a
+// server.
+
+const SIGNED_OUT = 'emberary:demo-signed-out'
+
+function demoAccount(db, email) {
+  return { id: 1, displayName: db.profile.displayName, email: email ?? 'demo@emberary.app' }
+}
+
+export async function getMe() {
+  await delay()
+  if (localStorage.getItem(SIGNED_OUT)) {
+    const error = new Error('Sign in first')
+    error.status = 401
+    throw error
+  }
+  return demoAccount(read())
+}
+
+function checkAccount({ email, password }) {
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error('email must be an email address')
+  if (typeof password !== 'string' || password.length < 8) throw new Error('password must be 8 to 200 characters')
+}
+
+export async function logIn(credentials) {
+  await delay()
+  checkAccount(credentials)
+  localStorage.removeItem(SIGNED_OUT)
+  return demoAccount(read(), credentials.email.trim().toLowerCase())
+}
+
+export async function signUp(details) {
+  await delay()
+  checkAccount(details)
+  if (!details.displayName?.trim()) throw new Error('display name must be 1 to 60 characters')
+  localStorage.removeItem(SIGNED_OUT)
+  return demoAccount(read(), details.email.trim().toLowerCase())
+}
+
+export async function logOut() {
+  await delay()
+  localStorage.setItem(SIGNED_OUT, 'yes')
+  return null
+}
 
 export async function getProfile() {
   await delay()

@@ -27,16 +27,22 @@ export function createWebApp({ api, clientDir, username, password }) {
     response.status(200).json({ ok: true })
   })
 
-  app.use(rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 10,
-    skipSuccessfulRequests: true,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    requestWasSuccessful: (request, response) => response.statusCode !== 401,
-  }))
+  // Readers sign in with their own accounts (app.js), so the shared password
+  // gate is optional now: it is on only while BASIC_AUTH_USER and
+  // BASIC_AUTH_PASSWORD are set, for a site that should stay private while it
+  // is being built. One without the other still stops the server, loudly.
+  if (username || password) {
+    app.use(rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      skipSuccessfulRequests: true,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      requestWasSuccessful: (request, response) => response.statusCode !== 401,
+    }))
 
-  app.use(basicAuth({ username, password }))
+    app.use(basicAuth({ username, password }))
+  }
 
   app.use(express.static(clientDir))
 

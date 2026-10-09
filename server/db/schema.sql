@@ -24,6 +24,28 @@ CREATE TABLE IF NOT EXISTS readers (
   joined_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- A reader signs in with an email and a password; only a scrypt hash of the
+-- password is kept (server/auth.js). A reader made by the seed has neither
+-- until `npm run login:set` gives them one. Emails are unique whatever their
+-- case.
+ALTER TABLE readers
+  ADD COLUMN IF NOT EXISTS email         TEXT,
+  ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE readers DROP CONSTRAINT IF EXISTS readers_email_check;
+ALTER TABLE readers ADD CONSTRAINT readers_email_check
+  CHECK (email IS NULL OR (char_length(email) BETWEEN 3 AND 254 AND email LIKE '%_@_%'));
+CREATE UNIQUE INDEX IF NOT EXISTS readers_email_idx ON readers (lower(email));
+
+-- A signed-in browser. The cookie holds a random token; only its SHA-256 hash
+-- is kept here, so the table cannot be used to sign in as anyone.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT        PRIMARY KEY,
+  reader_id  INTEGER     NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_reader_idx ON sessions (reader_id);
+
 -- The shared catalogue, the same for every reader. The ids are short text
 -- ("b01") so they match the demo data and stay readable in URLs.
 CREATE TABLE IF NOT EXISTS books (
@@ -139,19 +161,24 @@ ALTER TABLE room_items
     'built-in-bookcase', 'built-in-shelf', 'bookcase-small', 'bookcase-tall', 'bookcase-wall',
     'bookcase-crate', 'bookcase-pastel', 'bookcase-birch', 'bookcase-arched', 'mint-bookcase',
     'wizard-bookcase', 'potion-cabinet', 'gothic-bookcase', 'shoji-bookcase', 'cottage-bookcase',
+    'library-stack', 'minimal-bookcase', 'lavender-bookcase', 'bubble-shelf', 'rocket-bookcase',
     'side-table', 'coffee-table', 'desk', 'dresser', 'reading-table',
     'tea-table', 'pastel-desk', 'stump-table', 'moon-table', 'wooden-desk',
-    'orrery-table', 'crystal-altar', 'stool', 'chair', 'cushion',
-    'armchair', 'rocking-chair', 'wingback', 'sofa', 'plaid-armchair',
-    'pink-chair', 'pouf', 'stump-stool', 'velvet-sofa', 'office-chair',
-    'egg-chair', 'petal-chair', 'avocado-swing', 'wizard-armchair', 'nouveau-chair',
-    'velvet-tub-chair', 'swan-chair', 'lantern', 'lamp', 'candelabra',
-    'sconce', 'chandelier', 'fireplace', 'pumpkin-lantern', 'wood-stove',
-    'fairy-lights', 'paper-lantern', 'mushroom-lamp', 'firefly-jar', 'orb-lamp',
-    'crystal-cluster', 'pink-desk-lamp', 'flower-lamp', 'bear-light', 'wood-mushroom',
-    'brass-lantern', 'iron-candelabra', 'rug', 'round-rug', 'runner-rug',
-    'leaf-rug', 'cloud-rug', 'moss-rug', 'moon-rug', 'arcane-rug',
-    'checker-rug', 'wave-rug', 'star-rug', 'plant', 'monstera',
+    'orrery-table', 'crystal-altar', 'librarian-desk', 'study-table', 'pebble-table',
+    'card-catalog', 'mint-cabinet', 'coffee-corner', 'stool', 'chair',
+    'cushion', 'armchair', 'rocking-chair', 'wingback', 'sofa',
+    'plaid-armchair', 'pink-chair', 'pouf', 'stump-stool', 'velvet-sofa',
+    'office-chair', 'egg-chair', 'petal-chair', 'avocado-swing', 'wizard-armchair',
+    'nouveau-chair', 'velvet-tub-chair', 'swan-chair', 'rust-sofa', 'boucle-chair',
+    'window-seat', 'canopy-nest', 'daisy-pillow', 'pleated-pouf', 'bean-bag',
+    'racer-chair', 'lantern', 'lamp', 'candelabra', 'sconce',
+    'chandelier', 'fireplace', 'pumpkin-lantern', 'wood-stove', 'fairy-lights',
+    'paper-lantern', 'mushroom-lamp', 'firefly-jar', 'orb-lamp', 'crystal-cluster',
+    'pink-desk-lamp', 'flower-lamp', 'bear-light', 'wood-mushroom', 'brass-lantern',
+    'iron-candelabra', 'lava-lamp', 'cube-lantern', 'star-garland', 'globe-pendant',
+    'rug', 'round-rug', 'runner-rug', 'leaf-rug', 'cloud-rug',
+    'moss-rug', 'moon-rug', 'arcane-rug', 'checker-rug', 'wave-rug',
+    'star-rug', 'puddle-rug', 'pool-rug', 'plant', 'monstera',
     'indoor-tree', 'pebble-planter', 'hanging-plant', 'maple-tree', 'tulip-vase',
     'glossy-tulip', 'white-tulips', 'sunflower-pot', 'succulent-pot', 'leafy-pot',
     'vase', 'globe', 'clock', 'book-stack', 'cat-bed',
@@ -161,7 +188,9 @@ ALTER TABLE room_items
     'desk-calendar', 'crystal-broom', 'wizard-hat', 'spellbook', 'potion-bottle',
     'floating-crystal', 'armillary', 'quill-ink', 'trinket-box', 'moon-mirror',
     'spell-chart', 'moon-chalkboard', 'standing-mirror', 'velvet-chest', 'iron-cauldron',
-    'stairs-straight', 'stairs-spiral'
+    'book-cart', 'book-tower', 'record-player', 'dino-plush', 'notice-board',
+    'library-sign', 'wavy-mirror', 'world-map', 'stairs-straight', 'stairs-spiral',
+    'stairs-cottage', 'stairs-floating', 'stairs-bookcase', 'stairs-stone', 'stairs-curved'
   )),
   -- Compared as REAL, like the columns. 2.2 stored as a REAL is 2.2000000477,
   -- which is not BETWEEN -2.2 AND 2.2 in exact numeric terms, so an item

@@ -11,6 +11,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import pg from 'pg'
 import { pool as owner } from '../db/pool.js'
 import { createApp } from '../app.js'
@@ -33,6 +34,10 @@ let base
 before(async () => {
   await owner.query(read('../db/schema.sql'))
   await owner.query(read('../db/seed.sql'))
+  await owner.query(
+    "INSERT INTO sessions (token_hash, reader_id, expires_at) VALUES ($1, 1, now() + interval '1 day')",
+    [createHash('sha256').update(SESSION).digest('hex')]
+  )
 
   // Start from a role with no permissions at all, every run.
   const exists = await owner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [ROLE])
@@ -59,10 +64,12 @@ after(async () => {
   await owner.end()
 })
 
+const SESSION = 'roles-test-session'
+
 async function call(method, path, body) {
   const response = await fetch(base + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Cookie: `emberary_session=${SESSION}` },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const text = await response.text()
@@ -99,6 +106,12 @@ test('the whole app works when it logs in as the app role', async () => {
   const stool = bought.body.items.find((item) => item.kind === 'stool')
   assert.equal((await call('PATCH', `/api/room/items/${stool.id}`, { x: 0.5, z: 1, rotation: 90, placed: false })).status, 200)
   assert.equal((await call('PATCH', '/api/room', { wallpaper: 'wallpaper-stripes', wallColor: '#c9b79c' })).status, 200)
+
+  // Signing up, in and out: a new reader, a session, and its end. Last,
+  // because signing out ends this test's own session too.
+  assert.equal((await call('POST', '/api/auth/signup', { email: 'role@example.com', password: 'role test pass', displayName: 'Role' })).status, 201)
+  assert.equal((await call('POST', '/api/auth/login', { email: 'role@example.com', password: 'role test pass' })).status, 200)
+  assert.equal((await call('POST', '/api/auth/logout')).status, 204)
 })
 
 // ------------------------------------------------- and nothing it does not

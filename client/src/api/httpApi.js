@@ -8,6 +8,9 @@ const BASE = import.meta.env.VITE_API_BASE_URL || ''
 async function request(path, options) {
   const response = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    // The session cookie goes with every request, including to an API on
+    // another address (VITE_API_BASE_URL).
+    credentials: 'include',
     ...options,
   })
 
@@ -20,13 +23,27 @@ async function request(path, options) {
     } catch {
       // The body was not JSON. The status line is all we have.
     }
-    throw new Error(message)
+    // A session that has ended while the app was open: the app shows the
+    // sign-in page again.
+    if (response.status === 401 && !path.startsWith('/api/auth/')) {
+      window.dispatchEvent(new Event('emberary:signed-out'))
+    }
+    const error = new Error(message)
+    error.status = response.status
+    throw error
   }
 
   return response.status === 204 ? null : response.json()
 }
 
 const json = (method, body) => ({ method, body: JSON.stringify(body) })
+
+// accounts
+export const getMe = () => request('/api/auth/me')
+export const signUp = ({ email, password, displayName }) =>
+  request('/api/auth/signup', json('POST', { email, password, displayName }))
+export const logIn = ({ email, password }) => request('/api/auth/login', json('POST', { email, password }))
+export const logOut = () => request('/api/auth/logout', { method: 'POST' })
 
 // catalogue
 export const listBooks = ({ query = '', genre = '' } = {}) =>

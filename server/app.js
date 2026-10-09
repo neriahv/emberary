@@ -1,12 +1,15 @@
 import express from 'express'
 import cors from 'cors'
+import { rateLimit } from 'express-rate-limit'
+import * as accounts from './repos/accounts.js'
+import { SESSION_COOKIE, checkPassword, decoyHash, hashPassword, readCookie, sessionCookie } from './auth.js'
 import * as books from './repos/books.js'
 import * as myBooks from './repos/myBooks.js'
 import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
-import { BLOCKS, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
+import { BLOCKS, EMBER_RULES, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
 import { bookKey, isGoogleId, volumeIdOf } from './bookFromGoogle.js'
 import { createGoogleBooks, GoogleBooksError } from './googleBooks.js'
 import {
@@ -18,12 +21,9 @@ import {
   validateRoomItem,
   validateBlockChange,
   validateShelfOrder,
+  validateSignup,
+  validateLogin,
 } from './validation.js'
-
-// Every reader-owned row carries a reader id, but until accounts exist the API
-// always acts as reader 1, whom schema.sql creates. When login arrives, this
-// becomes request.user.id and nothing below needs to change shape.
-const READER_ID = 1
 
 // Express 4 does not pass a rejected promise to the error handler by itself.
 // Without this, a failed query leaves the request hanging until it times out.
@@ -54,6 +54,9 @@ async function transaction(pool, work) {
 // timezone decides when "today" starts for the daily check-in and reading goal.
 // googleKey is the Google Books API key, and fetch is how the server reaches
 // Google; tests pass their own instead of going to the internet.
+// secureCookies sends the session cookie over HTTPS only (true in
+// production). authLimit is how many failed sign-ins or sign-ups one address
+// gets in 15 minutes.
 export function createApp(
   pool,
   {
@@ -61,6 +64,8 @@ export function createApp(
     timezone = 'Asia/Manila',
     googleKey = '',
     fetch: fetchImpl = globalThis.fetch,
+    secureCookies = false,
+    authLimit = 10,
   } = {}
 ) {
   const app = express()
@@ -76,7 +81,8 @@ export function createApp(
   // Name your origins. app.use(cors()) with no options sends
   // Access-Control-Allow-Origin: *, which lets any site on the internet call
   // this API from a visitor's browser.
-  app.use(cors({ origin: corsOrigins }))
+  // credentials: the session cookie may come with requests from these origins.
+  app.use(cors({ origin: corsOrigins, credentials: true }))
   app.use(express.json({ limit: '100kb' }))
 
   // Is the process alive?
@@ -94,6 +100,80 @@ export function createApp(
       console.error('readyz failed:', error.message)
       response.status(503).json({ ok: false, db: 'down' })
     }
+  })
+
+  // ------------------------------------------------------------ accounts
+
+  // Guessing passwords is slowed down: after authLimit failed tries from one
+  // address, sign-in and sign-up answer 429 for 15 minutes. Successful ones
+  // do not count.
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: authLimit,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Too many tries. Wait a few minutes and try again' },
+  })
+
+  const signIn = async (response, account, status) => {
+    const token = await accounts.createSession(pool, account.id)
+    response.set('Set-Cookie', sessionCookie(token, { secure: secureCookies }))
+    response.status(status).json(account)
+  }
+
+  // Body: { email, password, displayName }. A new reader starts with the
+  // welcome Ember, an empty shelf and a fresh room, and is signed in.
+  app.post('/api/auth/signup', authLimiter, route(async (request, response) => {
+    const { errors, value } = validateSignup(request.body ?? {})
+    if (errors.length > 0) return badRequest(response, errors)
+    const passwordHash = await hashPassword(value.password)
+    const account = await transaction(pool, async (db) => {
+      const created = await accounts.createReader(db, { email: value.email, displayName: value.displayName, passwordHash })
+      if (created) await ember.earn(db, created.id, EMBER_RULES.welcome, 'welcome', '')
+      return created
+    })
+    if (!account) return response.status(409).json({ error: 'That email already has an account. Sign in instead' })
+    await signIn(response, account, 201)
+  }))
+
+  // Body: { email, password }. The same answer whether the email or the
+  // password was wrong, so it says nothing about who has an account.
+  app.post('/api/auth/login', authLimiter, route(async (request, response) => {
+    const { errors, value } = validateLogin(request.body ?? {})
+    if (errors.length > 0) return badRequest(response, errors)
+    const found = await accounts.findByEmail(pool, value.email)
+    const matches = await checkPassword(value.password, found?.passwordHash ?? (await decoyHash()))
+    if (!found || !matches) return response.status(401).json({ error: 'That email and password do not match an account' })
+    await signIn(response, { id: found.id, displayName: found.displayName, email: found.email }, 200)
+  }))
+
+  app.post('/api/auth/logout', route(async (request, response) => {
+    const token = readCookie(request, SESSION_COOKIE)
+    if (token) await accounts.deleteSession(pool, token)
+    response.set('Set-Cookie', sessionCookie(null, { secure: secureCookies }))
+    response.status(204).end()
+  }))
+
+  // Who is signed in, or 401.
+  app.get('/api/auth/me', route(async (request, response) => {
+    const token = readCookie(request, SESSION_COOKIE)
+    const account = token && (await accounts.readerForToken(pool, token))
+    if (!account) return response.status(401).json({ error: 'Sign in first' })
+    response.json(account)
+  }))
+
+  // Everything else under /api needs a signed-in reader, and acts only on
+  // that reader's own books, room and Ember: the id comes from the session,
+  // never from the request.
+  app.use('/api', (request, response, next) => {
+    const token = readCookie(request, SESSION_COOKIE)
+    if (!token) return response.status(401).json({ error: 'Sign in first' })
+    accounts.readerForToken(pool, token).then((account) => {
+      if (!account) return response.status(401).json({ error: 'Your session has ended. Sign in again' })
+      request.readerId = account.id
+      next()
+    }, next)
   })
 
   // ------------------------------------------------------------ catalogue
@@ -175,11 +255,11 @@ export function createApp(
   // ------------------------------------------------------------ my books
 
   app.get('/api/my-books', route(async (request, response) => {
-    response.json(await myBooks.list(pool, READER_ID))
+    response.json(await myBooks.list(pool, request.readerId))
   }))
 
   app.get('/api/my-books/:bookId', route(async (request, response) => {
-    const entry = await myBooks.get(pool, READER_ID, request.params.bookId)
+    const entry = await myBooks.get(pool, request.readerId, request.params.bookId)
     if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
     response.json(entry)
   }))
@@ -210,9 +290,9 @@ export function createApp(
     // A book added as Read has been finished, and earns what finishing earns.
     const entry = await transaction(pool, async (db) => {
       if (fromGoogle) await books.insertIfMissing(db, fromGoogle)
-      const added = await myBooks.add(db, READER_ID, bookId, status)
+      const added = await myBooks.add(db, request.readerId, bookId, status)
       if (!added) return null
-      const rewards = await ember.rewardReading(db, READER_ID, bookId, null, added, timezone)
+      const rewards = await ember.rewardReading(db, request.readerId, bookId, null, added, timezone)
       return { ...added, rewards }
     })
     if (!entry) {
@@ -226,13 +306,13 @@ export function createApp(
   app.put('/api/my-books/order', route(async (request, response) => {
     const { errors, value } = validateShelfOrder(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
-    await myBooks.reorder(pool, READER_ID, value)
+    await myBooks.reorder(pool, request.readerId, value)
     response.status(204).end()
   }))
 
   // Body: any of { status, currentPage, rating, review, shelfPosition, shelfSpot }.
   app.patch('/api/my-books/:bookId', route(async (request, response) => {
-    const existing = await myBooks.get(pool, READER_ID, request.params.bookId)
+    const existing = await myBooks.get(pool, request.readerId, request.params.bookId)
     if (!existing) return response.status(404).json({ error: 'That book is not in your collection' })
 
     const { errors, value } = validateEntryPatch(request.body ?? {}, existing.book.pages)
@@ -242,7 +322,7 @@ export function createApp(
     // table the reader owns.
     const bookcase = value.shelfSpot?.bookcase
     if (bookcase && bookcase !== 'main') {
-      const item = await room.getItem(pool, READER_ID, Number(bookcase))
+      const item = await room.getItem(pool, request.readerId, Number(bookcase))
       if (!catalogEntry(item?.kind)?.holds) {
         return badRequest(response, ['That bookcase or table is not in your room'])
       }
@@ -251,10 +331,10 @@ export function createApp(
     // The reply carries the Ember this save earned, as `rewards` (often []).
     const bookId = request.params.bookId
     const entry = await transaction(pool, async (db) => {
-      const before = await myBooks.lock(db, READER_ID, bookId)
+      const before = await myBooks.lock(db, request.readerId, bookId)
       if (!before) return null
-      const after = await myBooks.update(db, READER_ID, bookId, value)
-      const rewards = await ember.rewardReading(db, READER_ID, bookId, before, after, timezone)
+      const after = await myBooks.update(db, request.readerId, bookId, value)
+      const rewards = await ember.rewardReading(db, request.readerId, bookId, before, after, timezone)
       return { ...after, rewards }
     })
     if (!entry) return response.status(404).json({ error: 'That book is not in your collection' })
@@ -262,7 +342,7 @@ export function createApp(
   }))
 
   app.delete('/api/my-books/:bookId', route(async (request, response) => {
-    const removed = await myBooks.remove(pool, READER_ID, request.params.bookId)
+    const removed = await myBooks.remove(pool, request.readerId, request.params.bookId)
     if (!removed) return response.status(404).json({ error: 'That book is not in your collection' })
     response.status(204).end()
   }))
@@ -270,7 +350,7 @@ export function createApp(
   // ------------------------------------------------------------ insights
 
   app.get('/api/stats', route(async (request, response) => {
-    response.json(await insights.readingStats(pool, READER_ID))
+    response.json(await insights.readingStats(pool, request.readerId))
   }))
 
   // GET /api/recommendations?limit=4. The limit is clamped rather than
@@ -278,39 +358,39 @@ export function createApp(
   app.get('/api/recommendations', route(async (request, response) => {
     const asked = Number.parseInt(request.query.limit, 10)
     const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 20) : 4
-    response.json(await insights.recommendations(pool, READER_ID, limit))
+    response.json(await insights.recommendations(pool, request.readerId, limit))
   }))
 
   // ------------------------------------------------------------ profile
 
   app.get('/api/profile', route(async (request, response) => {
-    const current = await profile.get(pool, READER_ID)
+    const current = await profile.get(pool, request.readerId)
     if (!current) return response.status(404).json({ error: 'Profile not found' })
     response.json(current)
   }))
 
   // Body: any of { displayName, bio, yearlyGoal }.
   app.patch('/api/profile', route(async (request, response) => {
-    const current = await profile.get(pool, READER_ID)
+    const current = await profile.get(pool, request.readerId)
     if (!current) return response.status(404).json({ error: 'Profile not found' })
 
     const { errors, value } = validateProfile(current, request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    response.json(await profile.update(pool, READER_ID, value))
+    response.json(await profile.update(pool, request.readerId, value))
   }))
 
   // ------------------------------------------------------------ ember
 
   // The wallet: balance, today's check-in and reading, and recent changes.
   app.get('/api/ember', route(async (request, response) => {
-    response.json(await ember.summary(pool, READER_ID, timezone))
+    response.json(await ember.summary(pool, request.readerId, timezone))
   }))
 
   app.post('/api/ember/check-in', route(async (request, response) => {
-    const reward = await ember.checkIn(pool, READER_ID, timezone)
+    const reward = await ember.checkIn(pool, request.readerId, timezone)
     if (!reward) return response.status(409).json({ error: 'You already checked in today' })
-    response.status(201).json({ reward, ...(await ember.summary(pool, READER_ID, timezone)) })
+    response.status(201).json({ reward, ...(await ember.summary(pool, request.readerId, timezone)) })
   }))
 
   // ------------------------------------------------------------ library room
@@ -318,7 +398,7 @@ export function createApp(
   // The room's colours, finishes and furniture. The books on its shelves are
   // GET /api/my-books: every book the reader has started, in shelfPosition order.
   app.get('/api/room', route(async (request, response) => {
-    response.json(await room.get(pool, READER_ID))
+    response.json(await room.get(pool, request.readerId))
   }))
 
   // Body: any of { wallColor, floorColor, shelfColor, upperFloorColor } and
@@ -328,16 +408,16 @@ export function createApp(
     const { errors, value } = validateRoom(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    const owned = await room.unlocks(pool, READER_ID)
+    const owned = await room.unlocks(pool, request.readerId)
     const locked = [...FINISH_TYPES, 'upperFloor'].map((key) => value[key]).find((id) => id && !owned.includes(id))
     if (locked) return response.status(409).json({ error: 'Buy that in the shop first' })
-    const current = await room.settings(pool, READER_ID)
+    const current = await room.settings(pool, request.readerId)
     if (value.loft === 'loft-gallery' && !hasLoft({ ...current, loft: value.loft })) {
       return response.status(409).json({ error: `Build the window wall ${LOFT.wallBlocks} blocks high for a loft` })
     }
 
 
-    response.json(await room.update(pool, READER_ID, value))
+    response.json(await room.update(pool, request.readerId, value))
   }))
 
   // Body: { items: [catalogue id, ...] }. Everything is bought, or nothing.
@@ -345,7 +425,7 @@ export function createApp(
     const { errors, value } = validateCheckout(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    const result = await transaction(pool, (db) => room.checkout(db, READER_ID, value))
+    const result = await transaction(pool, (db) => room.checkout(db, request.readerId, value))
     if (result.error === 'funds') {
       return response.status(409).json({
         error: `That costs ${result.cost} Ember and you have ${result.balance}`,
@@ -367,7 +447,7 @@ export function createApp(
     const { errors, value } = validateBlockChange(request.body ?? {})
     if (errors.length > 0) return badRequest(response, errors)
 
-    const result = await transaction(pool, (db) => room.changeRoomBlocks(db, READER_ID, value))
+    const result = await transaction(pool, (db) => room.changeRoomBlocks(db, request.readerId, value))
     const refusals = {
       max: `A room can have ${BLOCKS.maxFloor} floor blocks`,
       spot: {
@@ -400,27 +480,27 @@ export function createApp(
   // Nothing a reader bought is ever thrown away.
   app.patch('/api/room/items/:id', route(async (request, response) => {
     const id = itemId(request)
-    const current = id && (await room.getItem(pool, READER_ID, id))
+    const current = id && (await room.getItem(pool, request.readerId, id))
     if (!current) return response.status(404).json({ error: 'Room item not found' })
 
-    const settings = { ...(await room.settings(pool, READER_ID)), items: await room.listItems(pool, READER_ID) }
+    const settings = { ...(await room.settings(pool, request.readerId)), items: await room.listItems(pool, request.readerId) }
     const { errors, value } = validateRoomItem(request.body ?? {}, settings, current)
     if (errors.length > 0) return badRequest(response, errors)
 
     // Something small stands only on another of the reader's things that is
     // in the room.
     if (value.on) {
-      const under = await room.getItem(pool, READER_ID, value.on)
+      const under = await room.getItem(pool, request.readerId, value.on)
       if (!under?.placed) return badRequest(response, ['on must be the id of another item in the room, or null'])
     }
 
-    response.json(await room.updateItem(pool, READER_ID, id, value))
+    response.json(await room.updateItem(pool, request.readerId, id, value))
   }))
 
   // Sell an item back for half what it cost. Its books return to the shelves.
   app.post('/api/room/items/:id/sell', route(async (request, response) => {
     const id = itemId(request)
-    const result = id && (await transaction(pool, (db) => room.sell(db, READER_ID, id)))
+    const result = id && (await transaction(pool, (db) => room.sell(db, request.readerId, id)))
     if (!result) return response.status(404).json({ error: 'Room item not found' })
     response.json(result)
   }))

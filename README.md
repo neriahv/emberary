@@ -187,12 +187,25 @@ repository.
 ## The API
 
 JSON in, JSON out. Errors come back as `{ "error": "..." }` with a 400 (bad
-input), 404 (no such book or entry), 409 (already on your shelves) or 500.
-`client/src/api/httpApi.js` calls each of these under the same function name as
-the mock.
+input), 401 (not signed in), 404 (no such book or entry), 409 (already on your
+shelves) or 500. `client/src/api/httpApi.js` calls each of these under the
+same function name as the mock.
+
+Every reader has their own account. Signing in sets an `emberary_session`
+cookie (HttpOnly, SameSite=Lax, HTTPS-only in production) that lasts 30 days;
+every route below the account ones needs it, and acts only on the signed-in
+reader's own books, room and Ember. Passwords are kept as scrypt hashes and
+sessions as hashes of their token. Failed sign-ins and sign-ups are limited to
+10 per address every 15 minutes. To give an existing reader (such as the seeded
+one, with its books and room) a login:
+`LOGIN_PASSWORD='...' npm run login:set -- 1 you@example.com` in `server/`.
 
 | Method and path | What it does |
 | --- | --- |
+| `POST /api/auth/signup` | Make an account: `{ email, password, displayName }` (password 8 to 200 characters). Signs in, and starts the welcome Ember. 409 if the email has an account |
+| `POST /api/auth/login` | `{ email, password }`. 401, the same either way, if they do not match |
+| `POST /api/auth/logout` | End this session |
+| `GET /api/auth/me` | Who is signed in: `{ id, displayName, email }`, or 401 |
 | `GET /api/books?q=&genre=` | Search the catalogue by title or author, and filter by genre |
 | `GET /api/books/search?q=&genre=` | Search every book on Google Books. Results already in the catalogue come back as the catalogue's book. 502 if Google does not answer |
 | `GET /api/books/:id` | One catalogue book |
@@ -246,8 +259,8 @@ placeholder values.
 | --- | --- | --- |
 | `DATABASE_URL` | server | PostgreSQL connection string. Contains a password |
 | `CORS_ORIGINS` | server | comma-separated origins allowed to call the API |
-| `NODE_ENV` | server | `production` on your host; turns on the gate and serves the built client |
-| `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | server, host dashboard only | the access gate's login. The server will not start in production without both |
+| `NODE_ENV` | server | `production` on your host; serves the built client and sends the session cookie over HTTPS only |
+| `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | server, host dashboard only | optional: a shared password in front of the whole site, on top of each reader's own sign-in. Set both or neither |
 | `PORT` | server | **set by the host**, do not set it yourself |
 | `APP_TIMEZONE` | server, optional | when "today" starts for the daily check-in and reading goal; `Asia/Manila` if unset |
 | `GOOGLE_BOOKS_API_KEY` | server: host dashboard and `.env` | searching Google Books from Discover, and `npm run covers:fetch`. Restrict it to the Books API |
@@ -285,7 +298,7 @@ address means no CORS and one login for everything. The database is on Neon
 | Build command | `npm run build` (root `package.json`: builds the client, installs the server) |
 | Start command | `npm start` |
 | Health check path | `/healthz`, the one route outside the gate |
-| Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD`, `GOOGLE_BOOKS_API_KEY`, `VITE_USE_MOCK_API=false` |
+| Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `GOOGLE_BOOKS_API_KEY`, optionally `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD`, `VITE_USE_MOCK_API=false` |
 
 The database is set up from a laptop, connected as Neon's **owner** role:
 `schema.sql`, then `seed.sql` (first setup only: it starts with `TRUNCATE`), then

@@ -183,8 +183,11 @@ export default function LibraryRoomPage() {
   const [blockMode, setBlockMode] = useState(null)
   const [blockError, setBlockError] = useState(null)
   const [blockBusy, setBlockBusy] = useState(false)
-  // Each change the builder makes to an item, so it can be undone: the item's
-  // fields from just before.
+  // Everything the builder changes, so it can be undone (the item's ↶ button,
+  // or Ctrl+Z for the latest): { type: 'item', id, before } with the item's
+  // fields from just before; { type: 'room', before, at } with the colours and
+  // finishes from just before; { type: 'blocks', change } with the move that
+  // puts a block back. Buying and selling are not undone: they spend Ember.
   const history = useRef([])
   const [, setHistoryCount] = useState(0)
   const openTimer = useRef(null)
@@ -289,10 +292,44 @@ export default function LibraryRoomPage() {
     for (const [pid, p] of patches) saver.queue(pid, p)
   }
 
+  function remember(entry) {
+    history.current = [...history.current.slice(-79), entry]
+    setHistoryCount(history.current.length)
+  }
+
+  // A colour or finish chosen in the builder, remembered so it can be undone.
+  // Dragging through the colour picker is one change, not hundreds.
+  function buildRoomChange(patch) {
+    const keys = Object.keys(patch)
+    const last = history.current.at(-1)
+    const same = last?.type === 'room' && Date.now() - last.at < 1500 && keys.every((key) => key in last.before)
+    if (same) last.at = Date.now()
+    else remember({ type: 'room', at: Date.now(), before: Object.fromEntries(keys.map((key) => [key, room.data[key]])) })
+    changeRoom(patch)
+  }
+
+  // Undo the builder's latest change, whatever it was.
+  function undoLast() {
+    const entry = history.current.at(-1)
+    if (!entry) return
+    history.current = history.current.slice(0, -1)
+    setHistoryCount(history.current.length)
+    if (entry.type === 'room') changeRoom(entry.before)
+    else if (entry.type === 'blocks') sendBlocks(entry.change, false)
+    else if (room.data.items.some((i) => i.id === entry.id)) {
+      changeItem(entry.id, entry.before)
+      if (entry.before.placed === false) {
+        bringDown(entry.id)
+        if (selectedItemId === entry.id) setSelectedItemId(null)
+      }
+    }
+  }
+  const undoRef = useRef(undoLast)
+  undoRef.current = undoLast
+
   // Remember an item as it is now, before the builder changes it.
   function snapshot(item) {
-    history.current = [...history.current.slice(-49), { id: item.id, before: pick(item) }]
-    setHistoryCount(history.current.length)
+    remember({ type: 'item', id: item.id, before: pick(item) })
   }
 
   // Whatever stood on an item that left the room comes down, here as on the
@@ -313,7 +350,7 @@ export default function LibraryRoomPage() {
       books.setData((rows) =>
         rows.map((row) => (row.shelfSpot?.bookcase === String(item.id) ? { ...row, shelfSpot: null } : row))
       )
-      history.current = history.current.filter((entry) => entry.id !== item.id)
+      history.current = history.current.filter((entry) => entry.type !== 'item' || entry.id !== item.id)
       if (selectedItemId === item.id) setSelectedItemId(null)
     } catch (error) {
       saver.report('error', error)
@@ -322,9 +359,9 @@ export default function LibraryRoomPage() {
 
   // The toolbar over the selected item while building.
   const itemTools = {
-    canUndo: (item) => history.current.some((entry) => entry.id === item.id),
+    canUndo: (item) => history.current.some((entry) => entry.type === 'item' && entry.id === item.id),
     undo: (item) => {
-      const index = history.current.findLastIndex((entry) => entry.id === item.id)
+      const index = history.current.findLastIndex((entry) => entry.type === 'item' && entry.id === item.id)
       if (index < 0) return
       const { before } = history.current[index]
       history.current = history.current.filter((_, i) => i !== index)
@@ -459,6 +496,7 @@ export default function LibraryRoomPage() {
     }
     try {
       const saved = await updateRoomItem(item.id, { level: 0, ...spot, placed: true, on: null })
+      remember({ type: 'item', id: item.id, before: pick(item) })
       room.setData((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === item.id ? { ...i, ...saved } : i)) }))
       setMode('build')
       setCatalog(catalogOf(item.kind) ?? catalog)
@@ -477,12 +515,16 @@ export default function LibraryRoomPage() {
 
   // Send a change to the room's blocks. The server sends the whole room back,
   // furniture and all, since a change can move things that stood on a block.
-  async function sendBlocks(change) {
+  async function sendBlocks(change, undoable = true) {
     setBlockMode(null)
     setBlockBusy(true)
     try {
       const result = await changeRoomBlocks(change)
       room.setData(result.room)
+      if (undoable && change.type === 'move') {
+        const back = (spot) => (change.kind === 'wall' ? { side: spot.side, i: spot.i, j: spot.j } : { i: spot.i, j: spot.j })
+        remember({ type: 'blocks', change: { type: 'move', kind: change.kind, from: back(change.to), to: back(change.from) } })
+      }
     } catch (error) {
       setBlockError(error)
     } finally {
@@ -524,6 +566,21 @@ export default function LibraryRoomPage() {
     window.addEventListener('keydown', cancel)
     return () => window.removeEventListener('keydown', cancel)
   }, [blockMode])
+
+  // Ctrl+Z (or Cmd+Z) in the builder undoes the latest change, except while
+  // typing in a text box, which has its own undo.
+  useEffect(() => {
+    if (mode !== 'build') return
+    const undoKey = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') return
+      const target = event.target
+      if (target.isContentEditable || (target.tagName === 'INPUT' && target.type === 'text') || target.tagName === 'TEXTAREA') return
+      event.preventDefault()
+      undoRef.current()
+    }
+    window.addEventListener('keydown', undoKey)
+    return () => window.removeEventListener('keydown', undoKey)
+  }, [mode])
 
   const toggleLight = (item) => changeItem(item.id, { lit: item.lit === false })
 
@@ -831,7 +888,7 @@ export default function LibraryRoomPage() {
               catalog={catalog}
               storedItems={storedItems}
               onPlace={placeFromStorage}
-              onRoomChange={changeRoom}
+              onRoomChange={buildRoomChange}
               onShop={shopFor}
             />
           )}
@@ -869,7 +926,7 @@ export default function LibraryRoomPage() {
                 ? 'Drag it, or click where it goes · ✓ buys it there · 📦 buys it into storage · ✕ puts it back'
                 : 'Pick a catalogue along the top, then something to try in the room'
               : mode === 'build'
-                ? 'Click something to select it · drag it, or click where it goes · point at a wall or floor to move or sell it · small things sit on tables, seats and shelves · drag a book to any shelf or table'
+                ? 'Click something to select it · drag it, or click where it goes · Ctrl+Z undoes · point at a wall or floor to move or sell it · small things sit on tables, seats and shelves · drag a book to any shelf or table'
                 : 'What is not in the room waits here'}
           </p>
         </div>

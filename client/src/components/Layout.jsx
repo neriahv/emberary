@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { USING_MOCK_API } from '../api'
 import DemoNotice from './DemoNotice.jsx'
+import { useAuth } from './AuthGate.jsx'
 import EmberBadge from './EmberBadge.jsx'
 import Icon from './Icon.jsx'
 import mark from '../assets/emberary-mark.svg'
@@ -13,6 +14,32 @@ const LINKS = [
   { to: '/my-books', label: 'My Books', icon: 'books' },
   { to: '/profile', label: 'Profile', icon: 'profile' },
 ]
+
+// Who is signed in, and a way out.
+function Account() {
+  const { account, signOut } = useAuth()
+  const [leaving, setLeaving] = useState(false)
+  const initial = (account.displayName || account.email || '?').trim().charAt(0).toUpperCase()
+  return (
+    <div className="account">
+      <span className="account-avatar" title={`Signed in as ${account.email}`} aria-hidden="true">
+        {initial}
+      </span>
+      <span className="visually-hidden">Signed in as {account.email}.</span>
+      <button
+        type="button"
+        className="button-quiet button-small account-out"
+        disabled={leaving}
+        onClick={() => {
+          setLeaving(true)
+          signOut()
+        }}
+      >
+        {leaving ? 'Signing out...' : 'Sign out'}
+      </button>
+    </div>
+  )
+}
 
 export default function Layout() {
   const header = useRef(null)
@@ -55,6 +82,7 @@ export default function Layout() {
               ))}
             </ul>
           </nav>
+          <Account />
         </div>
       </header>
 

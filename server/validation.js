@@ -334,3 +334,28 @@ export function validateShelfOrder(body) {
   }
   return { errors: [], value: bookIds }
 }
+
+// ------------------------------------------------------------ accounts
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// { email, password, displayName } to make an account. The email is kept in
+// lower case, so it matches however it is typed later.
+export function validateSignup(body) {
+  const errors = []
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+  const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : ''
+  if (email.length > 254 || !EMAIL.test(email)) errors.push('email must be an email address')
+  if (password.length < 8 || password.length > 200) errors.push('password must be 8 to 200 characters')
+  if (!displayName || displayName.length > 60) errors.push('display name must be 1 to 60 characters')
+  return { errors, value: { email, password, displayName } }
+}
+
+// { email, password } to sign in.
+export function validateLogin(body) {
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+  const errors = email && password && email.length <= 254 && password.length <= 200 ? [] : ['send an email and a password']
+  return { errors, value: { email, password } }
+}

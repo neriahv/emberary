@@ -1467,6 +1467,105 @@ Object.assign(PICTURES, {
   },
 })
 
+Object.assign(PICTURES, {
+  // A cork notice board with pinned notes, a reading list and a poster.
+  'notice-board': () => {
+    const [el, ctx] = canvas(384, 256)
+    ctx.fillStyle = '#c99a62'
+    ctx.fillRect(0, 0, 384, 256)
+    for (let i = 0; i < 500; i++) {
+      ctx.fillStyle = `rgba(90,55,25,${0.1 + jitter(i) * 0.2})`
+      ctx.fillRect(jitter(i + 1) * 384, jitter(i + 2) * 256, 2, 2)
+    }
+    const note = (x, y, w, h, color, turn, lines) => {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(turn)
+      ctx.fillStyle = color
+      ctx.fillRect(-w / 2, -h / 2, w, h)
+      ctx.fillStyle = 'rgba(60,40,30,0.55)'
+      for (let k = 0; k < lines; k++) ctx.fillRect(-w / 2 + 8, -h / 2 + 14 + k * 10, w - 16 - (k % 2) * 14, 3)
+      ctx.fillStyle = '#d23c3c'
+      ctx.beginPath()
+      ctx.arc(0, -h / 2 + 6, 5, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+    note(70, 70, 90, 80, '#fff4a8', -0.08, 5)
+    note(190, 90, 100, 120, '#f6f1e6', 0.04, 9)
+    note(310, 70, 90, 80, '#bfe3f0', 0.1, 5)
+    note(90, 190, 110, 70, '#f7c6d6', 0.06, 4)
+    note(300, 190, 100, 80, '#c9e8b8', -0.06, 5)
+    ctx.fillStyle = '#2f5d6b'
+    ctx.font = 'bold 16px sans-serif'
+    ctx.fillText('READ!', 168, 64)
+    return makeTexture(el)
+  },
+  // The hanging sign's board: a name in gold on deep green.
+  'library-sign': () => {
+    const [el, ctx] = canvas(320, 192)
+    ctx.fillStyle = '#2f4a3a'
+    ctx.fillRect(0, 0, 320, 192)
+    ctx.strokeStyle = '#d9b56a'
+    ctx.lineWidth = 6
+    ctx.strokeRect(10, 10, 300, 172)
+    ctx.fillStyle = '#e8cf8a'
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 44px Georgia, serif'
+    ctx.fillText('LIBRARY', 160, 88)
+    ctx.font = 'italic 24px Georgia, serif'
+    ctx.fillText('books & tea', 160, 132)
+    ctx.fillStyle = '#d9b56a'
+    starPath(ctx, 60, 140, 10, 4, 5)
+    ctx.fill()
+    starPath(ctx, 260, 140, 10, 4, 5)
+    ctx.fill()
+    return makeTexture(el)
+  },
+  // A world map for a young explorer: soft continents on a blue sea, with a
+  // compass rose.
+  'world-map': () => {
+    const [el, ctx] = canvas(384, 256)
+    ctx.fillStyle = '#9cc8e0'
+    ctx.fillRect(0, 0, 384, 256)
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+    ctx.lineWidth = 1
+    for (let x = 0; x < 384; x += 32) {
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, 256)
+      ctx.stroke()
+    }
+    for (let y = 0; y < 256; y += 32) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(384, y)
+      ctx.stroke()
+    }
+    const land = (points, color) => {
+      ctx.fillStyle = color
+      ctx.beginPath()
+      points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+      ctx.closePath()
+      ctx.fill()
+    }
+    land([[40, 50], [110, 40], [130, 80], [100, 110], [80, 120], [60, 100], [45, 80]], '#a8d58a')
+    land([[95, 130], [125, 135], [120, 190], [105, 220], [92, 180]], '#c9d98a')
+    land([[175, 50], [215, 45], [225, 70], [195, 85], [178, 75]], '#e8c98a')
+    land([[180, 95], [225, 95], [235, 140], [210, 190], [190, 160], [178, 120]], '#e8b07a')
+    land([[230, 45], [330, 40], [345, 80], [300, 110], [255, 100], [235, 75]], '#b8d88a')
+    land([[300, 160], [345, 155], [350, 190], [310, 195]], '#e8c98a')
+    ctx.fillStyle = '#ffffff'
+    starPath(ctx, 350, 225, 18, 4, 4)
+    ctx.fill()
+    ctx.fillStyle = '#d23c3c'
+    ctx.beginPath()
+    ctx.arc(205, 62, 5, 0, Math.PI * 2)
+    ctx.fill()
+    return makeTexture(el)
+  },
+})
+
 // One of the pictures above, drawn the first time it is needed.
 export function pictureTexture(id) {
   return cached(`picture|${id}`, PICTURES[id])

@@ -33,7 +33,7 @@ function fitUV(geometry) {
 
 // A rectangle whose edges bulge out in scallops (or waves): `step` apart and
 // `amp` deep.
-function scallopedOutline(width, depth, step, amp) {
+export function scallopedOutline(width, depth, step, amp) {
   const points = []
   const edge = (x0, y0, x1, y1, nx, ny) => {
     const count = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / step))
@@ -56,7 +56,7 @@ function scallopedOutline(width, depth, step, amp) {
 }
 
 // A rug of that outline lying on the floor, in a colour or a picture.
-function ShapedRug({ outline, y = 0.008, color = '#ffffff', map }) {
+export function ShapedRug({ outline, y = 0.008, color = '#ffffff', map }) {
   const geometry = useMemo(() => fitUV(new ShapeGeometry(outline, 4)), [outline])
   return (
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]} receiveShadow>

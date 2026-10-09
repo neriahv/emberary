@@ -7,6 +7,7 @@ import * as lights from './lights.jsx'
 import { WINDOW_MODELS } from './windows.jsx'
 import * as kept from './collection.jsx'
 import * as wiz from './wizardry.jsx'
+import * as th from './themes.jsx'
 import { DecorShelf } from './structure.jsx'
 
 export { Shadowed }
@@ -367,11 +368,16 @@ export const BOOKCASES = {
   'gothic-bookcase': { width: 1.2, height: 2.4, depth: 0.38, shelves: 4, color: '#3c3f52', crown: 'gothic' },
   'shoji-bookcase': { width: 1.4, height: 1.9, depth: 0.36, shelves: 3, color: '#d8b98a', crown: 'shoji' },
   'cottage-bookcase': { width: 1.1, height: 1.5, depth: 0.4, shelves: 2, color: '#5b3a4e', crown: 'cottage' },
+  'library-stack': { width: 1.8, height: 2.0, depth: 0.5, shelves: 4, color: '#e8d2a8', crown: 'stack' },
+  'minimal-bookcase': { width: 1.2, height: 2.1, depth: 0.34, shelves: 4, color: '#f2efe9' },
+  'lavender-bookcase': { width: 1.6, height: 2.2, depth: 0.36, shelves: 5, color: '#c9b6e4', crown: 'cornice' },
+  'bubble-shelf': { width: 1.0, height: 1.5, depth: 0.34, shelves: 3, color: '#a9c4e8', crown: 'bubble' },
+  'rocket-bookcase': { width: 0.9, height: 2.0, depth: 0.36, shelves: 4, color: '#3d6fb8', crown: 'rocket' },
 }
 
 // How far above its top a bookcase's crown reaches, so its picture is framed
 // whole.
-const CROWN_RISE = { arch: (w) => w / 2, wizard: (w) => w / 2, cottage: () => 0.55, gothic: () => 0.5, potions: () => 0.28, shoji: () => 0.12 }
+const CROWN_RISE = { stack: () => 0.08, bubble: () => 0.1, rocket: () => 0.6, arch: (w) => w / 2, wizard: (w) => w / 2, cottage: () => 0.55, gothic: () => 0.5, potions: () => 0.28, shoji: () => 0.12 }
 
 // A bookcase made wider or taller by the reader (sx, sy): wider shelves, and
 // as many shelves as the new height has room for, books being the size they
@@ -537,6 +543,39 @@ function Crown({ spec, color }) {
           <Box key={side} s={[run + 0.08, 0.05, depth + 0.14]} position={[(side * (width + 0.1)) / 4, top + rise / 2 + 0.03, 0]} rotation={[0, 0, -side * slope]} c="#3a2433" r={0.7} />
         ))}
         <Ball s={[0.05, 4, 2]} position={[0, top + 0.2, depth / 2 + 0.02]} c="#d9b56a" e="#ffd27a" ei={0.4} m={0.5} r={0.3} />
+      </>
+    )
+  }
+  if (crown === 'stack') {
+    // A free-standing library stack: thick end panels and a cap over the top.
+    return (
+      <>
+        {[-1, 1].map((side) => (
+          <Box key={side} s={[0.06, height + 0.06, depth + 0.04]} position={[side * (width / 2 + 0.03), (height + 0.06) / 2, 0]} c="#d6bd92" r={0.6} />
+        ))}
+        <Box s={[width + 0.14, 0.05, depth + 0.06]} position={[0, top + 0.02, 0]} c="#d6bd92" r={0.6} />
+      </>
+    )
+  }
+  if (crown === 'bubble') {
+    // Soft round columns at each side, like a cloud's edges.
+    return [-1, 1].map((side) => (
+      <group key={side} position={[side * (width / 2), 0, 0]}>
+        <Cyl s={[0.07, 0.07, height + 0.04, 16]} position={[0, (height + 0.04) / 2, 0]} c={color} r={0.5} />
+        <Ball s={[0.08, 14, 10]} position={[0, height + 0.06, 0]} c={color} r={0.5} />
+      </group>
+    ))
+  }
+  if (crown === 'rocket') {
+    // A red nose cone with a porthole, and fins at the bottom.
+    return (
+      <>
+        <Cone s={[width / 2 + 0.04, 0.6, 24]} position={[0, top + 0.3, 0]} c="#d9483b" r={0.5} />
+        <Torus s={[0.07, 0.015, 8, 20]} position={[0, top + 0.18, width * 0.36]} rotation={[-0.6, 0, 0]} c="#e8e4dc" m={0.5} r={0.3} />
+        <Ball s={[0.065, 14, 10]} scale={[1, 1, 0.4]} position={[0, top + 0.18, width * 0.35]} rotation={[-0.6, 0, 0]} c="#9fd0e8" e="#6fb8e0" ei={0.3} r={0.2} />
+        {[-1, 1].map((side) => (
+          <Box key={side} s={[0.12, 0.5, depth * 0.6]} position={[side * (width / 2 + 0.07), 0.25, 0]} rotation={[0, 0, side * 0.3]} c="#d9483b" r={0.5} />
+        ))}
       </>
     )
   }
@@ -871,6 +910,11 @@ export const MODELS = {
   'gothic-bookcase': bookcase('gothic-bookcase'),
   'shoji-bookcase': bookcase('shoji-bookcase'),
   'cottage-bookcase': bookcase('cottage-bookcase'),
+  'library-stack': bookcase('library-stack'),
+  'minimal-bookcase': bookcase('minimal-bookcase'),
+  'lavender-bookcase': bookcase('lavender-bookcase'),
+  'bubble-shelf': bookcase('bubble-shelf'),
+  'rocket-bookcase': bookcase('rocket-bookcase'),
 
   'side-table': { Model: SideTable, radius: 0.3, height: 0.72, surfaces: [[0, 0.585, 0, 0.3]], tops: seat(0.585, 0.19, 0.19, 0) },
   'coffee-table': { Model: CoffeeTable, radius: 0.6, height: 0.5, surfaces: [[-0.22, 0.445, 0.05, 0.15], [0.08, 0.445, 0.06, -0.2]], tops: seat(0.445, 0.47, 0.24, 0) },
@@ -883,6 +927,12 @@ export const MODELS = {
   'moon-table': { Model: more.MoonTable, radius: 0.4, height: 0.7, surfaces: [[0.04, 0.62, 0.02, -0.3]], tops: seat(0.62, 0.22, 0.22, 0) },
   'orrery-table': { Model: wiz.OrreryTable, radius: 0.55, height: 1.4, interact: 'Set the planets turning' },
   'crystal-altar': { Model: wiz.CrystalAltar, radius: 0.5, height: 1.05, light: true },
+  'librarian-desk': { Model: th.LibrarianDesk, radius: 0.85, height: 1.55, surfaces: [[0.3, 1.03, 0.12, 0.2]], tops: seat(1.03, 0.75, 0.3, 0) },
+  'study-table': { Model: th.StudyTable, radius: 1.25, height: 1.0, surfaces: [[-0.4, 0.78, 0, 0.2], [0.4, 0.78, 0.1, -0.3]], tops: seat(0.78, 0.88, 0.43, 0) },
+  'pebble-table': { Model: th.PebbleTable, radius: 0.55, height: 0.45, surfaces: [[0.1, 0.42, 0, 0.3]], tops: seat(0.42, 0.33, 0.33, 0) },
+  'card-catalog': { Model: th.CardCatalog, radius: 0.6, height: 1.05, surfaces: [[0.2, 1.02, 0, 0.2]], tops: seat(1.02, 0.5, 0.25, 0) },
+  'mint-cabinet': { Model: th.MintCabinet, radius: 0.45, height: 0.65, surfaces: [[0.15, 0.605, 0.02, 0.3]], tops: seat(0.605, 0.38, 0.19, 0) },
+  'coffee-corner': { Model: th.CoffeeCorner, radius: 0.7, height: 1.35, surfaces: [[0.3, 0.95, -0.1, 0]], tops: seat(0.95, 0.62, 0.27, 0) },
   'wooden-desk': { Model: kept.WoodenDesk, radius: 0.7, height: 0.8, surfaces: [[-0.25, 0.77, 0.06, 0.1], [0.22, 0.77, 0.08, -0.2]], tops: seat(0.77, 0.53, 0.3, 0) },
 
   stool: { Model: Stool, radius: 0.24, height: 0.48, tops: seat(0.475, 0.12, 0.12, 0) },
@@ -904,6 +954,14 @@ export const MODELS = {
   'nouveau-chair': { Model: wiz.NouveauChair, radius: 0.36, height: 1.3, tops: seat(0.55, 0.18, 0.16, 0.02) },
   'velvet-tub-chair': { Model: wiz.VelvetTubChair, radius: 0.45, height: 1.0, surfaces: [[0, 0.5, 0.06, 0.2]], tops: seat(0.5, 0.2, 0.18, 0.04) },
   'swan-chair': { Model: wiz.SwanChair, radius: 0.4, height: 1.3, tops: seat(0.55, 0.18, 0.16, 0.03) },
+  'rust-sofa': { Model: th.RustSofa, radius: 1.05, height: 0.85, surfaces: [[-0.45, 0.46, 0.1, 0.2], [0.45, 0.46, 0.1, -0.2]], tops: seat(0.46, 0.85, 0.25, 0.08) },
+  'boucle-chair': { Model: th.BoucleChair, radius: 0.45, height: 0.85, surfaces: [[0, 0.52, 0.06, 0.2]], tops: seat(0.52, 0.22, 0.2, 0.04) },
+  'window-seat': { Model: th.WindowSeat, radius: 0.85, height: 0.85, surfaces: [[0.25, 0.55, 0.05, 0.4]], tops: seat(0.55, 0.72, 0.22, 0.01) },
+  'canopy-nest': { Model: th.CanopyNest, radius: 0.8, height: 2.8, light: true, surfaces: [[0.3, 0.25, 0.1, 0.3]], tops: seat(0.25, 0.6, 0.42, 0) },
+  'daisy-pillow': { Model: th.DaisyPillow, radius: 0.3, height: 0.12, tops: seat(0.11, 0.12, 0.12, 0) },
+  'pleated-pouf': { Model: th.PleatedPouf, radius: 0.32, height: 0.5, tops: seat(0.48, 0.15, 0.15, 0) },
+  'bean-bag': { Model: th.BeanBag, radius: 0.45, height: 0.75, surfaces: [[0, 0.36, 0.12, 0.2]], tops: seat(0.36, 0.2, 0.16, 0.1) },
+  'racer-chair': { Model: th.RacerChair, radius: 0.38, height: 1.45, tops: seat(0.56, 0.18, 0.18, 0.03) },
   'avocado-swing': { Model: kept.AvocadoSwing, radius: 0.55, height: 1.95, surfaces: [[0, 0.745, 0.26, 0]], tops: seat(0.745, 0.2, 0.1, 0.26) },
 
   lantern: { Model: Lantern, radius: 0.22, height: 0.5, light: true },
@@ -926,6 +984,10 @@ export const MODELS = {
   'wood-mushroom': { Model: kept.WoodMushroom, radius: 0.15, height: 0.32, light: true },
   'brass-lantern': { Model: wiz.BrassLantern, radius: 0.22, height: 2.1, light: true, wall: true },
   'iron-candelabra': { Model: wiz.IronCandelabra, radius: 0.3, height: 1.85, light: true },
+  'lava-lamp': { Model: th.LavaLamp, radius: 0.09, height: 0.38, light: true },
+  'cube-lantern': { Model: th.CubeLantern, radius: 0.1, height: 0.17, light: true },
+  'star-garland': { Model: th.StarGarland, radius: 0.9, height: 2.4, light: true, wall: true },
+  'globe-pendant': { Model: th.GlobePendant, radius: 0.25, height: 3.0, light: true, hang: true },
 
   rug: { Model: Rug, radius: 1.3, height: 0.02 },
   'round-rug': { Model: RoundRug, radius: 0.98, height: 0.02 },
@@ -938,6 +1000,8 @@ export const MODELS = {
   'checker-rug': { Model: wiz.CheckerRug, radius: 1.3, height: 0.02 },
   'wave-rug': { Model: wiz.WaveRug, radius: 1.3, height: 0.03 },
   'star-rug': { Model: wiz.StarRug, radius: 1.3, height: 0.02 },
+  'puddle-rug': { Model: th.PuddleRug, radius: 1.05, height: 0.02 },
+  'pool-rug': { Model: th.PoolRug, radius: 1.25, height: 0.02 },
 
   plant: { Model: Plant, radius: 0.3, height: 0.95 },
   monstera: { Model: more.Monstera, radius: 0.5, height: 1.2 },
@@ -987,9 +1051,22 @@ export const MODELS = {
   'standing-mirror': { Model: wiz.StandingMirror, radius: 0.45, height: 2.2 },
   'velvet-chest': { Model: wiz.VelvetChest, radius: 0.48, height: 0.75, tops: seat(0.74, 0.3, 0.12, 0) },
   'iron-cauldron': { Model: wiz.IronCauldron, radius: 0.42, height: 0.75, interact: 'Stir the potion' },
+  'book-cart': { Model: th.BookCart, radius: 0.5, height: 1.0 },
+  'book-tower': { Model: th.BookTower, radius: 0.25, height: 1.75 },
+  'record-player': { Model: th.RecordPlayer, radius: 0.18, height: 0.12 },
+  'dino-plush': { Model: th.DinoPlush, radius: 0.12, height: 0.3 },
+  'notice-board': { Model: th.NoticeBoard, radius: 0.5, height: 1.95, wall: true },
+  'library-sign': { Model: th.LibrarySign, radius: 0.4, height: 2.55, wall: true },
+  'wavy-mirror': { Model: th.WavyMirror, radius: 0.45, height: 1.75 },
+  'world-map': { Model: th.WorldMap, radius: 0.5, height: 1.95, wall: true },
 
   'stairs-straight': { Model: more.StairsStraight, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
   'stairs-spiral': { Model: more.StairsSpiral, radius: 0.85, height: LOFT.y + 0.9, landing: more.SPIRAL_LANDING },
+  'stairs-cottage': { Model: th.StairsCottage, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
+  'stairs-floating': { Model: th.StairsFloating, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
+  'stairs-bookcase': { Model: th.StairsBookcase, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
+  'stairs-stone': { Model: th.StairsStone, radius: 1.5, height: LOFT.y + 0.9, landing: [0, -1.45] },
+  'stairs-curved': { Model: th.StairsCurved, radius: 1.15, height: LOFT.y + 0.9, landing: th.CURVE_LANDING },
 }
 
 // Where small things can stand on an item, in its own space: a bookcase's top

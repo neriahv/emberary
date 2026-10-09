@@ -8,6 +8,7 @@
 import { test, before, beforeEach, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { pool } from '../db/pool.js'
 import { createApp } from '../app.js'
 
@@ -72,6 +73,12 @@ beforeEach(async () => {
   googleDown = false
   await pool.query(schema)
   await pool.query(seed)
+  // The seeded reader, signed in: a session made straight in the database,
+  // so no password has to exist anywhere.
+  await pool.query(
+    "INSERT INTO sessions (token_hash, reader_id, expires_at) VALUES ($1, 1, now() + interval '1 day')",
+    [createHash('sha256').update(SESSION).digest('hex')]
+  )
 })
 
 after(async () => {
@@ -79,15 +86,92 @@ after(async () => {
   await pool.end()
 })
 
-async function call(method, path, body) {
+const SESSION = 'test-session-for-the-seeded-reader'
+
+// A request as the signed-in seeded reader, or as whoever `cookie` says
+// (null: nobody).
+async function call(method, path, body, cookie = `emberary_session=${SESSION}`) {
   const response = await fetch(base + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const text = await response.text()
-  return { status: response.status, body: text ? JSON.parse(text) : null }
+  return { status: response.status, body: text ? JSON.parse(text) : null, setCookie: response.headers.get('set-cookie') }
 }
+
+// The session cookie a sign-in or sign-up answered with, to send back.
+const cookieFrom = (result) => result.setCookie?.split(';')[0]
+
+// ------------------------------------------------------------ accounts
+
+test('a new reader signs up, is signed in, and starts with their own empty library', async () => {
+  const signedUp = await call('POST', '/api/auth/signup', { email: ' New.Reader@Example.com ', password: 'a long password', displayName: 'New Reader' }, null)
+  assert.equal(signedUp.status, 201)
+  assert.equal(signedUp.body.email, 'new.reader@example.com')
+  assert.match(signedUp.setCookie, /^emberary_session=[^;]+; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000$/)
+  const cookie = cookieFrom(signedUp)
+
+  assert.deepEqual((await call('GET', '/api/auth/me', undefined, cookie)).body, signedUp.body)
+  assert.deepEqual((await call('GET', '/api/my-books', undefined, cookie)).body, [])
+  assert.equal((await call('GET', '/api/ember', undefined, cookie)).body.balance, 10)
+  const room = (await call('GET', '/api/room', undefined, cookie)).body
+  assert.ok(room.items.some((item) => item.kind === 'built-in-bookcase'), 'a fresh room')
+  assert.equal((await call('GET', '/api/profile', undefined, cookie)).body.displayName, 'New Reader')
+
+  // The seeded reader's things are not theirs to see or change.
+  assert.equal((await call('PATCH', '/api/room/items/5', { x: 0 }, cookie)).status, 404)
+  assert.ok((await call('GET', '/api/my-books')).body.length > 0, 'the seeded reader still has theirs')
+
+  const again = await call('POST', '/api/auth/signup', { email: 'new.reader@example.com', password: 'another one!', displayName: 'Copy' }, null)
+  assert.equal(again.status, 409)
+  const bad = await call('POST', '/api/auth/signup', { email: 'not-an-email', password: 'short', displayName: '' }, null)
+  assert.equal(bad.status, 400)
+  assert.match(bad.body.error, /email.*password.*display name/)
+})
+
+test('signing in needs the right email and password, and signing out ends the session', async () => {
+  await call('POST', '/api/auth/signup', { email: 'reader@example.com', password: 'correct horse', displayName: 'Reader' }, null)
+
+  const wrong = await call('POST', '/api/auth/login', { email: 'reader@example.com', password: 'wrong horse' }, null)
+  assert.equal(wrong.status, 401)
+  const nobody = await call('POST', '/api/auth/login', { email: 'nobody@example.com', password: 'correct horse' }, null)
+  assert.equal(nobody.status, 401)
+  assert.equal(nobody.body.error, wrong.body.error, 'the same answer either way')
+  assert.equal(wrong.setCookie, null)
+
+  const signedIn = await call('POST', '/api/auth/login', { email: 'READER@example.com', password: 'correct horse' }, null)
+  assert.equal(signedIn.status, 200)
+  const cookie = cookieFrom(signedIn)
+  assert.equal((await call('GET', '/api/auth/me', undefined, cookie)).body.email, 'reader@example.com')
+
+  const out = await call('POST', '/api/auth/logout', undefined, cookie)
+  assert.equal(out.status, 204)
+  assert.match(out.setCookie, /Max-Age=0/)
+  assert.equal((await call('GET', '/api/auth/me', undefined, cookie)).status, 401)
+  assert.equal((await call('GET', '/api/my-books', undefined, cookie)).status, 401)
+
+  // Passwords are kept only as hashes.
+  const row = (await pool.query("SELECT password_hash FROM readers WHERE email = 'reader@example.com'")).rows[0]
+  assert.match(row.password_hash, /^scrypt\$/)
+  assert.ok(!row.password_hash.includes('correct horse'))
+})
+
+test('without a session, every reader route answers 401 and changes nothing', async () => {
+  for (const [method, path, body] of [
+    ['GET', '/api/my-books'],
+    ['GET', '/api/books'],
+    ['GET', '/api/room'],
+    ['PATCH', '/api/room/items/5', { x: 0 }],
+    ['POST', '/api/shop/checkout', { items: ['stool'] }],
+    ['GET', '/api/ember'],
+    ['GET', '/api/no-such-route'],
+  ]) {
+    assert.equal((await call(method, path, body, null)).status, 401, `${method} ${path}`)
+    assert.equal((await call(method, path, body, 'emberary_session=made-up')).status, 401, `${method} ${path} with a made-up session`)
+  }
+  assert.equal(await balance(), SEED_BALANCE, 'nothing was bought')
+})
 
 // ------------------------------------------------------------ health
 
@@ -995,13 +1079,13 @@ test('a Google id Google does not know, or any other unknown id, is not found', 
 })
 
 test('a cover is passed through from Google for the Library Room', async () => {
-  const response = await fetch(`${base}/api/covers/b08`)
+  const response = await fetch(`${base}/api/covers/b08`, { headers: { Cookie: `emberary_session=${SESSION}` } })
   assert.equal(response.status, 200)
   assert.equal(response.headers.get('content-type'), 'image/jpeg')
   assert.equal((await response.arrayBuffer()).byteLength, 4)
   assert.equal(googleCalls.at(-1).hostname, 'books.google.com')
 
-  assert.equal((await fetch(`${base}/api/covers/no-such-book`)).status, 404)
+  assert.equal((await fetch(`${base}/api/covers/no-such-book`, { headers: { Cookie: `emberary_session=${SESSION}` } })).status, 404)
 })
 
 // ------------------------------------------------------------ shelf spots

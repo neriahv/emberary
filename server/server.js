@@ -1,4 +1,6 @@
-// Starts the API, with the protected React client in production.
+// Starts the API, with the React client in production. Readers sign in with
+// their own accounts; the shared Basic Auth gate is on only if its two
+// variables are set (see web.js).
 import { fileURLToPath } from 'node:url'
 import { pool } from './db/pool.js'
 import { createApp } from './app.js'
@@ -18,7 +20,10 @@ const timezone = process.env.APP_TIMEZONE || 'Asia/Manila'
 // Without one, Google still answers, but with a much smaller shared quota.
 const googleKey = process.env.GOOGLE_BOOKS_API_KEY || ''
 
-const api = createApp(pool, { corsOrigins, timezone, googleKey })
+// In production the session cookie only ever travels over HTTPS.
+const secureCookies = process.env.NODE_ENV === 'production'
+
+const api = createApp(pool, { corsOrigins, timezone, googleKey, secureCookies })
 
 const app = process.env.NODE_ENV === 'production'
   ? createWebApp({
