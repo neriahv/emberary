@@ -5,14 +5,15 @@
 A personal reading space for leisure readers to discover, organize and track
 their books, with a 3D Library Room where their collection sits on real shelves.
 
-**Live app:** https://emberary.onrender.com (behind a password, see below)
-**Public demo:** https://neriahv.github.io/emberary/ (no login; runs in your browser)
+**Live app:** https://emberary.onrender.com (sign in, or create an account)
+**Public demo:** https://neriahv.github.io/emberary/ (runs in your browser; any email opens it)
 **Health check:** https://emberary.onrender.com/healthz
-**Demo video:** to come
+**Demo video:** https://drive.google.com/drive/folders/1mt27P3wbFPt6sftJIJmXrUEw5F9ChAdP?usp=sharing
 
 The live app is the real thing: React, the Express API and a PostgreSQL
-database, all deployed. It sits behind HTTP Basic Authentication, so your
-browser asks for a username and password; the grader's login is in my private
+database, all deployed. Every reader has their own account: create one on the
+sign-in page and you start with an empty shelf, a fresh Library Room and some
+Ember to build with. The grader's login to my own library is in my private
 course workspace, never in this repository. The first visit after 15 minutes
 idle takes about 30 seconds while the free server wakes up.
 
@@ -25,9 +26,12 @@ try it, and everything stays in their own browser.
 
 Week 1 built the complete front end, running in demo mode. Week 2 added the
 Express API and PostgreSQL database behind it (see [The API](#the-api)). Week 3
-added the Library Room shop and Ember, then deployed the whole app behind an
-access gate.
+added the Library Room shop and Ember, then deployed the whole app. Week 4 made
+the Library Room a game, "Build your dream library", and gave every reader
+their own account.
 
+- **Accounts.** Sign up with your name, email and a password, and sign in on
+  any device. Your books, room and Ember are yours alone
 - **Home.** A dashboard with your Currently Reading books and their progress,
   library stats, and rows of covers for recently updated books and
   recommendations
@@ -37,19 +41,33 @@ access gate.
 - **My Books.** Your collection sorted into Currently Reading, Want to Read, Read
   and Did Not Finish. Change a book's status, update your page, rate it, review
   it, or remove it
-- **Library Room.** A 3D diorama of a reading room, filling the window below the
-  navigation bar: a round window, and every book you have started (reading,
-  read, or set aside) standing on the shelves, each spine cut from the book's
-  real cover (or, in demo mode, drawn in one of five designs in its colours),
-  with its title, so you can find it at a glance. Click a book and it slides off the shelf and
+- **Library Room.** Build your dream library: a 3D diorama of a reading room,
+  filling the window below the navigation bar, with every book you have started
+  (reading, read, or set aside) standing on its shelves. Each spine is cut from
+  the book's real cover (or, in demo mode, drawn in its colours) with its title,
+  so you can find it at a glance. Click a book and it slides off the shelf and
   opens into a two-page spread, the book on the left and your notes on the
-  right. **Edit room** opens a shop and lets you arrange the room: put a cart
-  together from bookshelves, wallpaper, floors, tables, chairs, lamps, rugs and
-  decorations, each shown as a picture of the real thing, and pay for it in
-  Ember. Drag furniture across the floor, turn it, or put it in storage, and
-  drag any book to any spot on any shelf. Look around freely: scroll to zoom
-  towards the pointer, drag to turn, right-drag (or two fingers) to move up,
-  down and sideways, and **Re-centre** to come back. Everything is saved
+  right. Three modes, down the right-hand side:
+  - **Shop.** Browse by picture categories along the top, with prices on the
+    left. Pick something and it appears in the room, see-through, where you
+    drag it (or click where it goes); buy it right there, or into storage. Walls,
+    floors and wall tops are tried on the room before you buy them. About 175
+    things in all: bookcases in many themes, tables, seats, lights, rugs,
+    plants, windows, seven staircases, and pieces for modern, minimalist, cute,
+    cosy and wizard libraries
+  - **Build.** Bring things out of storage, move, turn and size them, set small
+    things on tables, seats and shelves, and choose the walls' patterns, colours
+    and tops and the floors. Grow the room itself a block at a time: floor and
+    wall blocks, and, with a staircase and a tall enough wall, an upstairs floor
+    of its own design. Point at a wall or floor to move it or sell it back.
+    Ctrl+Z undoes
+  - **Storage.** What is not in the room, and the books waiting for a shelf.
+    Anything sells back for half its price
+
+  Lamps switch on and off, the globe spins and the cat wakes when clicked, and
+  the sky turns from day to dusk to night. Look around freely: scroll to zoom
+  towards the pointer, right-drag (or two fingers) to move the view, and
+  **Centre** to come back. Everything is saved
 - **Ember.** Emberary's currency, earned by reading: a daily check-in, reading
   20 pages in a day, every 50 pages of a book, and finishing a book. The wallet
   in the navigation bar shows the balance and how to earn more
@@ -66,8 +84,9 @@ React 18 and Vite, with React Router for navigation and React Three Fiber
 (three.js) for the Library Room. Express 4 and PostgreSQL (through `pg`, with
 parameterised queries only) are the back end, tested with Node's built-in test
 runner. The deployed app is one Express service on Render, serving the API and
-the client behind a password, with `helmet` security headers and a rate limit on
-failed logins; the database is on Neon. GitHub Pages keeps a public demo-mode
+the client from one address, with readers' own accounts (scrypt-hashed
+passwords and session cookies), `helmet` security headers and a rate limit on
+failed sign-ins; the database is on Neon. GitHub Pages keeps a public demo-mode
 preview.
 
 ## Demo mode
@@ -81,7 +100,7 @@ notice rather than on a silently broken build.
 
 | `VITE_USE_MOCK_API` | What happens |
 | --- | --- |
-| unset, or `true` | The client answers its own requests from `localStorage`. No server, no database, nothing shared between visitors. This is the public demo on GitHub Pages. |
+| unset, or `true` | The client answers its own requests from `localStorage`. No server, no database, nothing shared between visitors. Any email with a password of 8 or more characters signs in to the one demo library. This is the public demo on GitHub Pages. |
 | `false` | The client calls the Express API at `VITE_API_BASE_URL` (or its own address when that is empty, as on Render), which reads and writes real PostgreSQL. This is the live app. |
 
 Demo mode let me build the whole interface in Week 1 before the API existed.
@@ -117,6 +136,10 @@ real app runs on Render instead (see [Deploying](#deploying)).
     npm test                    # optional: resets the database, then tests every endpoint
     npm run dev                 # http://localhost:3000
 
+    #    the demo's reader has the books but no login yet: give it one, or
+    #    just create a new account on the sign-in page
+    LOGIN_PASSWORD='choose one' npm run login:set -- 1 you@example.com
+
     # 3. the client, in another terminal
     cd client
     npm install
@@ -128,7 +151,7 @@ Check the API on its own before you blame the client:
 
     curl http://localhost:3000/healthz     # is the process alive
     curl http://localhost:3000/readyz      # is the database reachable
-    curl http://localhost:3000/api/books   # the catalogue
+    curl http://localhost:3000/api/books   # 401: everything else needs you signed in
 
 `npm run db:local` downloads the official PostgreSQL binaries into
 `node_modules` (the `embedded-postgres` package) and keeps its data in
@@ -219,10 +242,12 @@ one, with its books and room) a login:
 | `GET /api/stats` | Counts by status, average rating, pages read, top genres and authors, books finished per month |
 | `GET /api/recommendations?limit=4` | Books you do not own, scored against what you read and rated |
 | `GET /api/profile` · `PATCH /api/profile` | `displayName`, `bio`, `yearlyGoal` |
-| `GET /api/room` | The Library Room: colours, `wallpaper`, `floor`, the finishes you own (`unlocks`) and every item, placed or stored |
-| `PATCH /api/room` | Change any of `wallColor`, `floorColor`, `shelfColor`, and a `wallpaper` or `floor` you own |
-| `PATCH /api/room/items/:id` | Move, turn, store or place an item: any of `x`, `z`, `rotation`, `placed` |
-| `POST /api/shop/checkout` | Buy a cart, `{ items: [catalogue id, ...] }`, all or nothing. 409 if you cannot afford it |
+| `GET /api/room` | The Library Room: its `blocks`, colours and finishes, the finishes you own (`unlocks`) and every item, placed or stored |
+| `PATCH /api/room` | Change any of `wallColor`, `floorColor`, `shelfColor`, `upperFloorColor`, and a `wallpaper`, `floor`, `wallShape` or `upperFloor` you own |
+| `POST /api/room/blocks` | Build: `{ type: "add" \| "move" \| "remove", kind: "floor" \| "wall" \| "upper", at }` (or `from` and `to` to move). A block is paid for when it is put down and gives half back when taken away; 409 says why one cannot go somewhere |
+| `PATCH /api/room/items/:id` | Move, turn, size, switch, store or place an item: any of `x`, `z`, `y`, `rotation`, `level` (1 is upstairs), `placed`, `lit`, `size`, `sx`, `sy`, `on` (what a small thing stands on) |
+| `POST /api/room/items/:id/sell` | Sell an item back for half its price, rounded down |
+| `POST /api/shop/checkout` | Buy `{ items: [catalogue id, ...] }`, all or nothing: furniture goes into storage, finishes are unlocked. 409 if you cannot afford it |
 | `GET /api/ember` | Your balance, today's check-in and pages, the earning rules, and recent history |
 | `POST /api/ember/check-in` | The daily check-in. 409 if already claimed today |
 
@@ -233,11 +258,15 @@ on the Library Room shelves; one that joins them from Want to Read goes to the
 end, and moving between the other statuses keeps its place.
 
 What the shop sells, and its prices, are in `server/catalog.js` (kept identical
-to `client/src/api/catalog.js`, and a test checks they match). A reader owns at
-most 200 things and can put as many of them in the room as they like; the rest
-wait in storage, and nothing bought is ever deleted. The floor is 5 by 5 metres centred on 0: `x`
-runs from -2.2 (the window wall) to 2.2, and `z` from -2.2 (the bookcase wall) to
-2.2; `rotation` is whole degrees from 0 to 359.
+to `client/src/api/catalog.js`, and a test checks they match), and so are the
+building rules, so the shop, the server and demo mode always agree. A reader
+owns at most 200 things and can put as many of them in the room as they like;
+the rest wait in storage, and nothing sold is ever deleted, only marked sold.
+The room starts as one 5 by 5 metre floor block centred on 0 with a wall along
+its two back edges, and grows a block at a time, up to 12 floor blocks; walls
+go only on the back edges, so the room is never closed off from view. `x` and
+`z` are metres from the first block's middle; `rotation` is whole degrees from
+0 to 359.
 
 **Ember.** Every Ember earned or spent is a row in `ember_ledger`, and the balance
 is their sum. One-off rewards (the welcome gift, a daily check-in, a daily goal,
@@ -283,13 +312,15 @@ Never put a key, a password or a connection string in one.
 The repository must be **public** for Pages to serve it on a free account.
 
 The Pages site stays in demo mode on purpose: it is the public preview, and it
-never touches the database. The real app is not on Pages, because the access
-gate has to sit in front of the website and the API together, on one address.
+never touches the database. The real app is not on Pages, because the session
+cookie works most simply when the website and the API share one address.
 
 **The real app: Render and Neon.** One Render web service runs Express, which
-serves both the API and the built React client from the same address, behind an
-HTTP Basic Authentication gate (`server/basicAuth.js`, `server/web.js`). Same
-address means no CORS and one login for everything. The database is on Neon
+serves both the API and the built React client from the same address
+(`server/web.js`). Same address means no CORS, and the session cookie goes with
+every request. Readers sign in with their own accounts; the earlier HTTP Basic
+Authentication gate (`server/basicAuth.js`) is still there, but only switched
+on if both of its variables are set. The database is on Neon
 (PostgreSQL 18; the tests run locally on 17), in Singapore like the server.
 
 | Render setting | Value |
@@ -297,12 +328,15 @@ address means no CORS and one login for everything. The database is on Neon
 | Root directory | *(empty: the repository root)* |
 | Build command | `npm run build` (root `package.json`: builds the client, installs the server) |
 | Start command | `npm start` |
-| Health check path | `/healthz`, the one route outside the gate |
+| Health check path | `/healthz`, which answers without signing in |
 | Environment | `NODE_ENV=production`, `DATABASE_URL` (the app role), `GOOGLE_BOOKS_API_KEY`, optionally `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD`, `VITE_USE_MOCK_API=false` |
 
 The database is set up from a laptop, connected as Neon's **owner** role:
 `schema.sql`, then `seed.sql` (first setup only: it starts with `TRUNCATE`), then
-`roles.sql`. The deployed API connects as `emberary_app`, a role that can read
+`roles.sql`. To update a database that is already live, run `schema.sql` and
+`roles.sql` again (both are safe to repeat), never `seed.sql`. A reader made by
+the seed signs in once given a login with `npm run login:set` (see
+[Running it yourself](#running-it-yourself)). The deployed API connects as `emberary_app`, a role that can read
 and write the app's rows but cannot change tables, rewrite the catalogue, or
 edit Ember history (`server/test/roles.test.js` checks each of these).
 
@@ -313,13 +347,18 @@ edit Ember history (`server/test/roles.test.js` checks each of these).
         mockApi.js   the demo backend, stored in localStorage
         httpApi.js   the same functions, calling the Express API
         seed.json    demo books, reading history, profile and room
-      src/pages/     Home, Discover, Library Room, My Books, Profile
+      src/pages/     Home, Discover, Library Room, My Books, Profile, and the
+                     sign-in page
       src/components/  shared pieces: BookCard, BookCover, BookTile, BookEditForm...
-        room/        the 3D diorama (LibraryScene), its furniture and bookcases
-                     (models), canvas-drawn spines, wallpapers and floors
-                     (textures), the shop's pictures of each piece (thumbnails),
-                     the opening book (BookModal) and the shop and edit panel
-                     (RoomCustomizer)
+        AuthGate     shows the sign-in page until a reader is signed in
+        room/        the 3D diorama (LibraryScene) and the room's walls, floors
+                     and upstairs (structure); the furniture registry (models)
+                     and the pieces themselves (furniture, lights, collection,
+                     wizardry, themes, windows); canvas-drawn spines, patterns
+                     and pictures (textures); the shop's pictures (thumbnails),
+                     its category tabs (catalogs), the shelves of the shop,
+                     builder and storage (RoomCustomizer) and the opening book
+                     (BookModal)
         EmberBadge   the wallet in the navigation bar
       src/api/catalog.js  what the shop sells and what Ember is earned for
       src/hooks/     useAsync, the loading/error/ready state every screen uses;
@@ -328,21 +367,25 @@ edit Ember history (`server/test/roles.test.js` checks each of these).
     package.json     build and start commands for the host
     server/          Express API
       app.js         every route, built without listening so tests can run it
-      web.js         the deployed app: security headers, the gate, the API
-                     and the built client on one address
-      basicAuth.js   the access gate
+      web.js         the deployed app: security headers, the optional gate,
+                     the API and the built client on one address
+      auth.js        password hashing and the session cookie
+      basicAuth.js   the optional shared-password gate
       server.js      reads the environment and starts app.js (or web.js in
                      production)
       validation.js  the same input rules as mockApi.js
       catalog.js     the shop and the Ember rules (identical to the client's)
-      repos/         the SQL, one file per area: books, myBooks, insights,
-                     profile, room (and the shop's checkout), ember
+      repos/         the SQL, one file per area: accounts (and sessions),
+                     books, myBooks, insights, profile, room (and the shop's
+                     checkout), ember
       db/            pool, schema.sql, seed.sql, roles.sql (the deployed
                      API's permissions) and a runner for them; local.js
-                     (npm run db:local), build-seed.js and fetch-covers.js
-                     (npm run covers:fetch)
-      test/          endpoint tests against a real PostgreSQL, plus the gate,
-                     the deployed app and the database role
+                     (npm run db:local), build-seed.js, fetch-covers.js
+                     (npm run covers:fetch) and set-login.js (npm run
+                     login:set)
+      test/          endpoint tests against a real PostgreSQL, accounts
+                     included, plus the gate, the deployed app and the
+                     database role
     compose.yml      only if you self-host
     docs/            planning documents and weekly reports
 
@@ -355,24 +398,27 @@ calls the Express API, which reads and writes PostgreSQL, and the screens do not
 change. The Library Room page loads only when opened, because three.js is most of
 the app's size.
 
-In the API, each route validates its input (`validation.js`) and then calls a
+In the API, the account routes come first; every other `/api` route then
+needs a valid session, which tells it who the reader is. The reader's id comes
+only from the session, never from the request, so nobody can reach another
+reader's rows. Each route validates its input (`validation.js`) and then calls a
 repository function in `repos/`, which runs one parameterised query. Stats and
 recommendations are computed in SQL rather than in JavaScript.
 
-The database has eight tables: `books` (the shared catalogue), `readers`,
-`user_books` (one row per reader per book: status, page, rating, review, shelf
-position and when it was finished), `room_settings` (the room's colours,
-wallpaper and floor), `room_items` (each piece of furniture, with its position,
-rotation and whether it is placed or stored), `room_unlocks` (the wallpapers
-and floors bought), `ember_ledger` (every Ember earned or spent) and
-`reading_days` (pages read per day, for the daily goal). There are no accounts
-yet, so the API always acts as reader 1. Every reader-owned row already carries a
-`reader_id`, so adding accounts later will not need a migration of every table.
+The database has ten tables: `books` (the shared catalogue), `readers` (with
+each one's email and password hash), `sessions` (a hash of each signed-in
+browser's token), `user_books` (one row per reader per book: status, page,
+rating, review, shelf spot and when it was finished), `room_settings` (the
+room's colours and finishes), `room_blocks` (the floor, wall and upstairs
+blocks it is built of), `room_items` (each piece of furniture, with its
+position, size, level and whether it is placed, stored or sold),
+`room_unlocks` (the finishes bought), `ember_ledger` (every Ember earned or
+spent) and `reading_days` (pages read per day, for the daily goal).
 
 ## What I would do next
 
-- Record the demo video
-- Add accounts, so each reader's shelves are their own
+- Let a reader reset a forgotten password by email
+- Visit other readers' Library Rooms
 
 ## Author
 
@@ -383,9 +429,8 @@ CS - 401 - Computer Science.
 
 ![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
 
-Built with Claude Code (Opus 5.5) as the main assistant, and ChatGPT for
-rewording. AI wrote most of the interface, the 3D Library Room and the API's
-query layer. I wrote the routing, the server entry point, the access gate, the
+Built with Claude Code (Opus 5.5) as the main assistant. AI wrote most of the interface, the 3D Library Room, the API's
+query layer and the accounts. I wrote the routing, the server entry point, the access gate, the
 deployed app's middleware and the database role, and I did the deployment
 myself. The full account, entry by entry with commit links, is in
 [AI-USAGE.md](AI-USAGE.md).
