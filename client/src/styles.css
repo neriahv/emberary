@@ -2481,6 +2481,24 @@ body.room-open { overflow: hidden; }
 
 .friends-error { margin-bottom: var(--space-4); }
 
+/* How many, beside a section's heading: a small ember coin of a number. */
+.count-pill {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--pill);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--honey) 30%, var(--card)), var(--accent-soft));
+  border: 1.5px solid color-mix(in srgb, var(--honey) 45%, var(--line));
+  color: color-mix(in srgb, var(--accent) 70%, var(--fg));
+  font-weight: 800;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.section-head:has(.count-pill) { align-items: center; }
+
 .friends-demo-note { display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-5); }
 .friends-demo-note > .icon { flex: none; width: 1.6rem; height: 1.6rem; color: var(--accent); }
 .friends-demo-note strong { display: block; margin-bottom: var(--space-1); }

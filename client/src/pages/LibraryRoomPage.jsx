@@ -29,6 +29,7 @@ import { useAsync } from '../hooks/useAsync.js'
 import { useEmber } from '../hooks/useEmber.js'
 import { useRoomSaver } from '../hooks/useRoomSaver.js'
 import AsyncState from '../components/AsyncState.jsx'
+import { useAuth } from '../components/AuthGate.jsx'
 import { EmberCoin } from '../components/EmberBadge.jsx'
 import LibraryScene, { bookcasesIn, layoutBookcases, shelfOrder, tablesIn } from '../components/room/LibraryScene.jsx'
 import { BuildShelf, ShopShelf, StoragePanel, itemNames } from '../components/room/RoomCustomizer.jsx'
@@ -178,7 +179,11 @@ export default function LibraryRoomPage() {
   // Bumped by the Re-centre button to put the view back where it started.
   const [viewReset, setViewReset] = useState(0)
   const [time, setTime] = useState(() => remembered(TIME_KEY, 'day'))
-  const [welcome, setWelcome] = useState(() => remembered(WELCOME_KEY, '') !== 'yes')
+  // The welcome card shows once per reader: the first time it appears it is
+  // marked as seen, however it is then closed.
+  const { account } = useAuth()
+  const welcomeKey = `${WELCOME_KEY}:${account?.id ?? 'demo'}`
+  const [welcome, setWelcome] = useState(() => remembered(welcomeKey, '') !== 'yes')
   // Building with room blocks: { action: 'add' | 'move' | 'remove', kind,
   // from?, at? }, or null. While it is set, the room shows the reader's
   // choices and the panels step aside.
@@ -294,7 +299,7 @@ export default function LibraryRoomPage() {
     for (const [pid, p] of patches) saver.queue(pid, p)
   }
 
-  function remember(entry) {
+  function addHistory(entry) {
     history.current = [...history.current.slice(-79), entry]
     setHistoryCount(history.current.length)
   }
@@ -306,7 +311,7 @@ export default function LibraryRoomPage() {
     const last = history.current.at(-1)
     const same = last?.type === 'room' && Date.now() - last.at < 1500 && keys.every((key) => key in last.before)
     if (same) last.at = Date.now()
-    else remember({ type: 'room', at: Date.now(), before: Object.fromEntries(keys.map((key) => [key, room.data[key]])) })
+    else addHistory({ type: 'room', at: Date.now(), before: Object.fromEntries(keys.map((key) => [key, room.data[key]])) })
     changeRoom(patch)
   }
 
@@ -331,7 +336,7 @@ export default function LibraryRoomPage() {
 
   // Remember an item as it is now, before the builder changes it.
   function snapshot(item) {
-    remember({ type: 'item', id: item.id, before: pick(item) })
+    addHistory({ type: 'item', id: item.id, before: pick(item) })
   }
 
   // Whatever stood on an item that left the room comes down, here as on the
@@ -498,7 +503,7 @@ export default function LibraryRoomPage() {
     }
     try {
       const saved = await updateRoomItem(item.id, { level: 0, ...spot, placed: true, on: null })
-      remember({ type: 'item', id: item.id, before: pick(item) })
+      addHistory({ type: 'item', id: item.id, before: pick(item) })
       room.setData((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === item.id ? { ...i, ...saved } : i)) }))
       setMode('build')
       setCatalog(catalogOf(item.kind) ?? catalog)
@@ -525,7 +530,7 @@ export default function LibraryRoomPage() {
       room.setData(result.room)
       if (undoable && change.type === 'move') {
         const back = (spot) => (change.kind === 'wall' ? { side: spot.side, i: spot.i, j: spot.j } : { i: spot.i, j: spot.j })
-        remember({ type: 'blocks', change: { type: 'move', kind: change.kind, from: back(change.to), to: back(change.from) } })
+        addHistory({ type: 'blocks', change: { type: 'move', kind: change.kind, from: back(change.to), to: back(change.from) } })
       }
     } catch (error) {
       setBlockError(error)
@@ -626,10 +631,14 @@ export default function LibraryRoomPage() {
 
   function dismissWelcome() {
     setWelcome(false)
-    remember(WELCOME_KEY, 'yes')
+    remember(welcomeKey, 'yes')
   }
 
   const ready = books.status === 'ready' && room.status === 'ready'
+
+  useEffect(() => {
+    if (ready && welcome) remember(welcomeKey, 'yes')
+  }, [ready, welcome, welcomeKey])
   const loading = books.status !== 'ready' ? books : room
   const onShelves = openEntry && shelved.some((e) => e.bookId === openEntry.bookId)
   // Books with no room on any shelf wait in the storage room.

@@ -189,7 +189,11 @@ export default function FriendsPage() {
         <section className="card panel friends-main" aria-labelledby="my-friends-heading">
           <div className="section-head">
             <h2 id="my-friends-heading">Your friends</h2>
-            {friends.data && <span className="tab-count">{connections.length}</span>}
+            {friends.data && (
+              <span className="count-pill" aria-label={`${connections.length} ${connections.length === 1 ? 'friend' : 'friends'}`}>
+                {connections.length}
+              </span>
+            )}
           </div>
 
           {friends.data && connections.length === 0 && (
@@ -312,7 +316,9 @@ export default function FriendsPage() {
             <section className="card panel friends-sent" aria-labelledby="outgoing-heading">
               <div className="section-head">
                 <h2 id="outgoing-heading">Requests you sent</h2>
-                <span className="tab-count">{outgoing.length}</span>
+                <span className="count-pill" aria-label={`${outgoing.length} sent`}>
+                  {outgoing.length}
+                </span>
               </div>
               <ul className="friend-rows">
                 {outgoing.map((reader) =>
