@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -99,17 +98,31 @@ export default function FriendsPage() {
   const outgoing = friends.data?.outgoing ?? []
   const term = query.trim()
 
+  // One reader as a row: their avatar and name, a line about them, and the
+  // buttons for this list.
+  const readerRow = (reader, note, actions) => (
+    <li key={reader.id} className="friend-row">
+      <span className="friends-avatar" aria-hidden="true">
+        <Avatar name={reader.avatar} />
+      </span>
+      <span className="friend-row-text">
+        <strong>{reader.displayName}</strong>
+        <span>{note}</span>
+      </span>
+      <div className="friends-actions">{actions}</div>
+    </li>
+  )
+
   return (
     <>
       <div className="page-banner">
         <div>
-          <h1>Friends & libraries</h1>
+          <h1>Friends &amp; libraries</h1>
           <p className="lede">
-            Find fellow readers, exchange friend requests, and explore
-            each other's cozy reading spaces.
+            Find fellow readers, exchange friend requests, and wander through each
+            other's cozy reading rooms.
           </p>
         </div>
-
         <div className="friends-banner-art" aria-hidden="true">
           <Icon name="friends" />
         </div>
@@ -117,309 +130,208 @@ export default function FriendsPage() {
 
       {/* Keep action errors near the top so they're easy to notice. */}
       {error && (
-        <p className="error error-inline" role="alert">
+        <p className="error error-inline friends-error" role="alert">
           {error}
         </p>
       )}
 
-      {USING_MOCK_API ? (
+      {USING_MOCK_API && (
         <div className="card friends-demo-note">
-          <Icon name="friends" />
-
+          <Icon name="lock" />
           <div>
             <strong>Friendships need the live app.</strong>
             <p className="muted">
-              You can explore this page in demo mode, but finding readers,
-              sending requests, and visiting libraries require an account
-              connected to the live server.
+              Finding readers, sending requests and visiting libraries need a real
+              account on the live server. Demo mode is one reader in this browser.
             </p>
           </div>
         </div>
-      ) : (
-        <section
-          className="card panel friends-search"
-          aria-labelledby="friends-search-heading"
-        >
-          <div className="friends-section-head">
-            <div>
-              <h2 id="friends-search-heading">Find readers</h2>
-              <p className="muted">
-                Search by display name to connect with other readers.
-              </p>
-            </div>
-          </div>
+      )}
 
-          <div className="search-field list-find">
-            <Icon name="search" />
-
-            <label
-              htmlFor="friend-search"
-              className="visually-hidden"
-            >
-              Search readers by name
-            </label>
-
-            <input
-              id="friend-search"
-              type="search"
-              maxLength={100}
-              placeholder="Search readers by name..."
-              value={query}
-              onChange={(e) => {
-                const nextQuery = e.target.value
-
-                // Invalidate earlier searches and clear previous results.
-                ++searchVersion.current
-                setQuery(nextQuery)
-                setResults([])
-                setSearchError('')
-
-                // Display searching immediately during the debounce delay.
-                setSearching(nextQuery.trim().length >= 2)
-              }}
-            />
-          </div>
-
-          {term.length === 1 && (
-            <p className="muted friends-search-help">
-              Type at least 2 characters to search.
-            </p>
-          )}
-
-          {searching && (
-            <p
-              className="muted friends-search-help"
-              role="status"
-            >
-              Searching for readers...
-            </p>
-          )}
-
-          {searchError && (
-            <p className="error error-inline" role="alert">
-              {searchError}
-            </p>
-          )}
-
-          {term.length >= 2 &&
-            !searching &&
-            !searchError &&
-            results.length === 0 && (
-              <p className="empty">
-                No readers found. Try another name.
-              </p>
-            )}
-
-          {results.length > 0 && (
-            <ul className="list-add friends-reader-list">
-              {results.map((reader) => (
-                <li key={reader.id}>
-                  <span
-                    className="friends-avatar"
-                    aria-hidden="true"
-                  >
-                    <Avatar name={reader.avatar} />
-                  </span>
-
-                  <span className="list-add-text">
-                    <strong>{reader.displayName}</strong>
-                    <span>Emberary reader</span>
-                  </span>
-
+      {/* Requests to you come first: they are the only thing waiting on you. */}
+      {incoming.length > 0 && (
+        <section className="card friends-incoming" aria-labelledby="incoming-heading">
+          <h2 id="incoming-heading">
+            <Icon name="star" />
+            {incoming.length === 1 ? 'A reader wants to be friends' : `${incoming.length} readers want to be friends`}
+          </h2>
+          <ul className="friend-rows">
+            {incoming.map((reader) =>
+              readerRow(reader, 'Wants to visit your library, and share theirs', (
+                <>
                   <button
                     type="button"
                     className="button-small"
                     disabled={busy}
-                    onClick={() => addFriend(reader)}
+                    onClick={() => perform(() => acceptFriend(reader.id))}
                   >
-                    <Icon name="plus" />
-                    Add friend
+                    <Icon name="check" />
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="button-quiet button-small"
+                    disabled={busy}
+                    onClick={() => perform(() => removeFriend(reader.id))}
+                  >
+                    Decline
+                  </button>
+                </>
+              ))
+            )}
+          </ul>
+        </section>
+      )}
+
+      {!friends.data && <AsyncState {...friends} label="Loading friends" />}
+
+      <div className="friends-layout">
+        <section className="card panel friends-main" aria-labelledby="my-friends-heading">
+          <div className="section-head">
+            <h2 id="my-friends-heading">Your friends</h2>
+            {friends.data && <span className="tab-count">{connections.length}</span>}
+          </div>
+
+          {friends.data && connections.length === 0 && (
+            <div className="friends-empty">
+              <span className="friends-empty-art" aria-hidden="true">
+                <Icon name="room" />
+              </span>
+              <p>
+                {USING_MOCK_API
+                  ? 'Friends you make on the live app show up here, with a door into each of their libraries.'
+                  : 'No friends yet. Find a reader by name, and once they accept, their library opens to you.'}
+              </p>
+            </div>
+          )}
+
+          {connections.length > 0 && (
+            <ul className="friend-cards">
+              {connections.map((reader) => (
+                <li key={reader.id} className="friend-card">
+                  <span className="friend-card-avatar" aria-hidden="true">
+                    <Avatar name={reader.avatar} />
+                  </span>
+                  <strong className="friend-card-name">{reader.displayName}</strong>
+                  <Link className="button button-small friend-card-visit" to={`/friends/${reader.id}/room`}>
+                    <Icon name="room" />
+                    Visit library
+                  </Link>
+                  <button
+                    type="button"
+                    className="friend-card-remove"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Unfriend ${reader.displayName}? You will no longer be able to visit each other's libraries.`
+                        )
+                      ) {
+                        perform(() => removeFriend(reader.id))
+                      }
+                    }}
+                  >
+                    Unfriend
                   </button>
                 </li>
               ))}
             </ul>
           )}
         </section>
-      )}
 
-      {/* Only show the loading message on the initial load. */}
-      {!friends.data && (
-        <AsyncState {...friends} label="Loading friends" />
-      )}
+        <aside className="friends-side">
+          {!USING_MOCK_API && (
+            <section className="card panel friends-search" aria-labelledby="friends-search-heading">
+              <h2 id="friends-search-heading">Find readers</h2>
+              <div className="search-field">
+                <Icon name="search" />
+                <label htmlFor="friend-search" className="visually-hidden">
+                  Search readers by name
+                </label>
+                <input
+                  id="friend-search"
+                  type="search"
+                  maxLength={100}
+                  placeholder="Search by name…"
+                  value={query}
+                  onChange={(e) => {
+                    const nextQuery = e.target.value
 
-      {friends.data && (
-        <div className="friends-sections">
-          {/* Incoming requests */}
-          <section
-            className="card panel"
-            aria-labelledby="incoming-heading"
-          >
-            <div className="friends-section-head">
-              <h2 id="incoming-heading">Requests to you</h2>
-              <span className="tab-count">{incoming.length}</span>
-            </div>
+                    // Invalidate earlier searches and clear previous results.
+                    ++searchVersion.current
+                    setQuery(nextQuery)
+                    setResults([])
+                    setSearchError('')
 
-            {incoming.length === 0 ? (
-              <p className="empty">
-                No incoming requests right now.
-              </p>
-            ) : (
-              <ul className="list-add friends-reader-list">
-                {incoming.map((reader) => (
-                  <li key={reader.id}>
-                    <span
-                      className="friends-avatar"
-                      aria-hidden="true"
-                    >
-                      <Avatar name={reader.avatar} />
-                    </span>
+                    // Display searching immediately during the debounce delay.
+                    setSearching(nextQuery.trim().length >= 2)
+                  }}
+                />
+              </div>
 
-                    <span className="list-add-text">
-                      <strong>{reader.displayName}</strong>
-                      <span>Wants to connect with you</span>
-                    </span>
+              {term.length < 2 && (
+                <p className="friends-hint">
+                  {term.length === 1 ? 'Type one more letter.' : 'Only names and avatars are shown, never emails.'}
+                </p>
+              )}
+              {searching && (
+                <p className="friends-hint" role="status">
+                  Searching for readers…
+                </p>
+              )}
+              {searchError && (
+                <p className="error error-inline" role="alert">
+                  {searchError}
+                </p>
+              )}
+              {term.length >= 2 && !searching && !searchError && results.length === 0 && (
+                <p className="friends-hint">No readers by that name. Try another.</p>
+              )}
 
-                    <div className="friends-actions">
+              {results.length > 0 && (
+                <ul className="friend-rows">
+                  {results.map((reader) =>
+                    readerRow(reader, 'Emberary reader', (
                       <button
                         type="button"
                         className="button-small"
                         disabled={busy}
-                        onClick={() =>
-                          perform(() => acceptFriend(reader.id))
-                        }
+                        onClick={() => addFriend(reader)}
                       >
-                        <Icon name="check" />
-                        Accept
+                        <Icon name="plus" />
+                        Add friend
                       </button>
+                    ))
+                  )}
+                </ul>
+              )}
+            </section>
+          )}
 
-                      <button
-                        type="button"
-                        className="button-quiet button-small"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(() => removeFriend(reader.id))
-                        }
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Accepted friends */}
-          <section
-            className="card panel"
-            aria-labelledby="my-friends-heading"
-          >
-            <div className="friends-section-head">
-              <h2 id="my-friends-heading">Friends</h2>
-              <span className="tab-count">{connections.length}</span>
-            </div>
-
-            {connections.length === 0 ? (
-              <p className="empty">
-                {USING_MOCK_API
-                  ? 'No friends to display in demo mode. Friendships are available in the live app.'
-                  : 'No friends yet. Search for a reader above.'}
-              </p>
-            ) : (
-              <ul className="list-add friends-reader-list">
-                {connections.map((reader) => (
-                  <li key={reader.id}>
-                    <span
-                      className="friends-avatar"
-                      aria-hidden="true"
-                    >
-                      <Avatar name={reader.avatar} />
-                    </span>
-
-                    <span className="list-add-text">
-                      <strong>{reader.displayName}</strong>
-                      <span>Connected reader</span>
-                    </span>
-
-                    <div className="friends-actions">
-                      <Link
-                        className="button button-small"
-                        to={`/friends/${reader.id}/room`}
-                      >
-                        <Icon name="room" />
-                        Visit library
-                      </Link>
-
-                      <button
-                        type="button"
-                        className="button-danger button-small"
-                        disabled={busy}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Unfriend ${reader.displayName}? You will no longer be able to visit each other's libraries.`
-                            )
-                          ) {
-                            perform(() => removeFriend(reader.id))
-                          }
-                        }}
-                      >
-                        Unfriend
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Outgoing requests */}
-          <section
-            className="card panel"
-            aria-labelledby="outgoing-heading"
-          >
-            <div className="friends-section-head">
-              <h2 id="outgoing-heading">Requests you sent</h2>
-              <span className="tab-count">{outgoing.length}</span>
-            </div>
-
-            {outgoing.length === 0 ? (
-              <p className="empty">
-                No pending requests sent.
-              </p>
-            ) : (
-              <ul className="list-add friends-reader-list">
-                {outgoing.map((reader) => (
-                  <li key={reader.id}>
-                    <span
-                      className="friends-avatar"
-                      aria-hidden="true"
-                    >
-                      <Avatar name={reader.avatar} />
-                    </span>
-
-                    <span className="list-add-text">
-                      <strong>{reader.displayName}</strong>
-                      <span>Waiting for a response</span>
-                    </span>
-
+          {outgoing.length > 0 && (
+            <section className="card panel friends-sent" aria-labelledby="outgoing-heading">
+              <div className="section-head">
+                <h2 id="outgoing-heading">Requests you sent</h2>
+                <span className="tab-count">{outgoing.length}</span>
+              </div>
+              <ul className="friend-rows">
+                {outgoing.map((reader) =>
+                  readerRow(reader, 'Waiting for an answer', (
                     <button
                       type="button"
                       className="button-quiet button-small"
                       disabled={busy}
-                      onClick={() =>
-                        perform(() => removeFriend(reader.id))
-                      }
+                      onClick={() => perform(() => removeFriend(reader.id))}
                     >
                       Cancel
                     </button>
-                  </li>
-                ))}
+                  ))
+                )}
               </ul>
-            )}
-          </section>
-        </div>
-      )}
+            </section>
+          )}
+        </aside>
+      </div>
     </>
   )
 }

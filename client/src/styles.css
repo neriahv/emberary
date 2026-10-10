@@ -2468,208 +2468,176 @@ body.room-open { overflow: hidden; }
 /* ------------------------------------------------------------------ friends */
 
 .friends-banner-art {
-  width: 6.5rem;
-  height: 6.5rem;
   display: grid;
   place-items: center;
+  width: 6.5rem;
+  height: 6.5rem;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  background: radial-gradient(circle at 35% 30%, var(--card), color-mix(in srgb, var(--honey) 22%, var(--card)));
   color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
+.friends-banner-art .icon { width: 3.4rem; height: 3.4rem; stroke-width: 1.3; }
 
-.friends-banner-art .icon {
-  width: 3.5rem;
-  height: 3.5rem;
-  stroke-width: 1.2;
-}
+.friends-error { margin-bottom: var(--space-4); }
 
-.friends-demo-note {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
+.friends-demo-note { display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-5); }
+.friends-demo-note > .icon { flex: none; width: 1.6rem; height: 1.6rem; color: var(--accent); }
+.friends-demo-note strong { display: block; margin-bottom: var(--space-1); }
+.friends-demo-note p { margin: 0; font-size: var(--text-sm); }
 
-.friends-demo-note > .icon {
-  flex: none;
-  width: 1.8rem;
-  height: 1.8rem;
-  color: var(--accent);
-}
-
-.friends-demo-note strong {
-  display: block;
-  margin-bottom: var(--space-1);
-}
-
-.friends-demo-note p {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-.friends-search {
-  margin-bottom: var(--space-4);
-}
-
-.friends-section-head {
+/* A reader in a list: avatar, name and a note, then the buttons. */
+.friend-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.friend-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border-radius: var(--radius);
+  background: var(--surface-warm);
 }
-
-.friends-section-head h2 {
-  margin: 0;
-}
-
-.friends-section-head .muted {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-}
-
-.friends-search .search-field {
-  max-width: 35rem;
-}
-
-.friends-search-help {
-  margin: var(--space-2) 0;
-  font-size: var(--text-sm);
-}
-
-.friends-sections {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.friends-reader-list {
-  grid-template-columns: 1fr;
-}
-
-.friends-reader-list li {
-  min-width: 0;
-  padding: var(--space-3);
-}
-
+.friend-row-text { flex: 1 1 8rem; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.friend-row-text strong { font-family: var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-row-text span { font-size: 0.76rem; color: var(--muted); }
 .friends-avatar {
   display: grid;
   place-items: center;
-  width: 3rem;
-  height: 3rem;
+  width: 2.8rem;
+  height: 2.8rem;
   flex: none;
-  border-radius: 50%;
   overflow: hidden;
-  background: var(--accent-soft);
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
 }
+.friends-avatar svg, .friend-card-avatar svg { width: 100%; height: 100%; display: block; }
+.friends-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
+.friends-actions button { white-space: nowrap; }
 
-.friends-avatar svg {
-  width: 100%;
-  height: 100%;
+/* Requests to you: the one thing on the page waiting for an answer. */
+.friends-incoming {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-color: color-mix(in srgb, var(--honey) 55%, transparent);
+  background:
+    radial-gradient(22rem 10rem at 100% 0%, color-mix(in srgb, var(--honey) 22%, transparent), transparent 70%),
+    var(--card);
 }
+.friends-incoming h2 { display: flex; align-items: center; gap: var(--space-2); font-size: 1.1rem; }
+.friends-incoming h2 .icon { color: var(--honey); }
+.friends-incoming .friend-row { background: color-mix(in srgb, var(--honey) 12%, var(--card)); }
 
-.friends-reader-list .list-add-text strong {
-  font-size: 1rem;
+.friends-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(17rem, 1fr); gap: var(--space-5); align-items: start; }
+@media (max-width: 52rem) {
+  .friends-layout { grid-template-columns: minmax(0, 1fr); }
+  .friends-side { order: -1; }
 }
+.friends-side { display: flex; flex-direction: column; gap: var(--space-5); }
+@media (min-width: 52.01rem) { .friends-side { position: sticky; top: 6rem; } }
+.friends-search .search-field { margin-bottom: var(--space-2); }
+.friends-search .friend-rows { margin-top: var(--space-3); }
+.friends-hint { margin: 0; font-size: 0.8rem; color: var(--muted); }
 
-.friends-actions {
+/* Your friends, each a little card with a door into their library. */
+.friend-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+.friend-card {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-2);
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--honey) 12%, var(--card)), var(--surface-warm));
+  border: 1px solid var(--line-soft);
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+.friend-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.friend-card-avatar {
+  width: 4.6rem;
+  height: 4.6rem;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 3px solid var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.friend-card-name { width: 100%; font-family: var(--font-display); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-card-visit { width: 100%; }
+.friend-card-remove {
+  padding: 2px var(--space-2);
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.friend-card-remove:hover:not(:disabled) { color: var(--danger); filter: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { .friend-card, .friend-card:hover { transition: none; transform: none; } }
 
-.friends-actions .button,
-.friends-actions button {
-  white-space: nowrap;
+.friends-empty { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-5) var(--space-3); text-align: center; color: var(--muted); }
+.friends-empty p { margin: 0; max-width: 26rem; }
+.friends-empty-art {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--surface-warm);
+  color: var(--accent);
 }
-
-.friends-sections .empty {
-  margin: 0;
-}
+.friends-empty-art .icon { width: 2.2rem; height: 2.2rem; }
 
 @media (max-width: 44rem) {
-  .friends-banner-art {
-    width: 4rem;
-    height: 4rem;
-  }
-
-  .friends-banner-art .icon {
-    width: 2.4rem;
-    height: 2.4rem;
-  }
-
-  .friends-reader-list li {
-    flex-wrap: wrap;
-  }
-
-  .friends-actions {
-    width: 100%;
-    justify-content: flex-start;
-    padding-left: calc(3rem + var(--space-3));
-  }
+  .friends-banner-art { width: 4rem; height: 4rem; }
+  .friends-banner-art .icon { width: 2.2rem; height: 2.2rem; }
+  .friend-cards { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+  .friends-actions { width: 100%; justify-content: flex-end; }
 }
-
 
 /* ------------------------------------------------------------------ visiting libraries */
 
+/* The banner sits over the room like the rest of its HUD: warm paper, so
+   it reads against any wall colour, with the friend's avatar and a way out. */
 .visit-room-banner {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  max-width: min(85vw, 38rem);
-  padding: 0.7rem 1rem;
-  border-radius: 1rem;
-  background: var(--card);
-  box-shadow: 0 4px 20px #00000018;
+  gap: var(--space-3);
+  max-width: min(calc(100vw - var(--rail) - 3rem), 34rem);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
+  border-radius: var(--pill);
+  background: linear-gradient(180deg, #fff6e6, #fde3bf);
+  border: 2px solid #fff3d6;
+  color: #3a1f0e;
+  box-shadow: 0 3px 0 #e0a868, 0 6px 16px rgb(0 0 0 / 0.2);
 }
-
 .visit-room-avatar {
   flex: none;
   width: 2.8rem;
   height: 2.8rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #fffaf2;
+  border: 2px solid #fff3d6;
 }
-
-.visit-room-avatar svg {
-  width: 100%;
-  height: 100%;
-}
-
-.visit-room-banner > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
+.visit-room-avatar svg { width: 100%; height: 100%; display: block; }
+.visit-room-banner > div { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 5rem; line-height: 1.2; }
 .visit-room-banner .hud-title {
-  color: var(--ink);
-}
-
-.visit-room-subtitle {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.visit-room-banner > a {
-  margin-left: auto;
+  color: #3a1f0e;
+  font-size: 1.05rem;
+  text-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.visit-room-subtitle { font-size: 0.76rem; font-weight: 700; color: #7a4a2a; }
+.visit-room-banner > a { flex: none; margin-left: auto; }
 
 @media (max-width: 40rem) {
-  .visit-room-banner {
-    max-width: 75vw;
-    padding: 0.5rem;
-    gap: 0.5rem;
-  }
-
-  .visit-room-avatar {
-    width: 2rem;
-    height: 2rem;
-  }
-
-  .visit-room-subtitle {
-    display: none;
-  }
+  .visit-room-banner { gap: var(--space-2); padding: 4px var(--space-1) 4px 4px; }
+  .visit-room-avatar { width: 2.1rem; height: 2.1rem; }
+  /* The room hides its HUD titles on phones; this one is the point of the banner. */
+  .visit-room-banner .hud-title { display: block; font-size: 0.88rem; }
+  .visit-room-subtitle { display: none; }
 }

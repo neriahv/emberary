@@ -109,40 +109,27 @@ export default function BookModal({
         <div className="book-page book-page-right">
           <div className="page-scroll">
             <div className="page-details-narrow">{details()}</div>
-        {readOnly ? (
-          <>
-            <h3 className="page-heading">Their reading notes</h3>
-            <p className="muted">
-              You're viewing this book from a friend's library.
-            </p>
-
-            <FriendNotes friendId={friendId} bookId={entry.bookId} />
-          </>
-        ) : (
-          <>
-            <h3 className="page-heading">Your notes</h3>
-
-            <BookEditForm
-              key={entry.bookId}
-              entry={entry}
-              onSaved={onSaved}
-              onRemoved={handleRemoved}
-              heading={null}
-            />
-
-            <BookNotes book={book} />
-
-            {onShelves && (
-              <div className="page-shelf">
-                <p className="muted">
-                  Want it somewhere else? In <strong>Build &amp; decorate</strong>,
-                  drag it to any shelf, or lay it on a table.
-                </p>
-              </div>
+            {readOnly ? (
+              <>
+                <p className="muted">You're reading this from a friend's shelf.</p>
+                <FriendNotes friendId={friendId} bookId={entry.bookId} />
+              </>
+            ) : (
+              <>
+                <h3 className="page-heading">Your notes</h3>
+                <BookEditForm key={entry.bookId} entry={entry} onSaved={onSaved} onRemoved={handleRemoved} heading={null} />
+                <BookNotes book={book} />
+                {/* Gone if the book is changed to Want to Read here: it leaves the shelves. */}
+                {onShelves && (
+                  <div className="page-shelf">
+                    <p className="muted">
+                      Want it somewhere else? In <strong>Build &amp; decorate</strong>, drag it to any shelf, or lay
+                      it on a table.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-
           </div>
           <span className="page-number" aria-hidden="true">
             2

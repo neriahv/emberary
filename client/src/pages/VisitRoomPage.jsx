@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getFriendLibrary } from '../api'
+import { getFriendLibrary, upperCells } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
 import Avatar from '../components/Avatar.jsx'
 import LibraryScene, { shelfOrder } from '../components/room/LibraryScene.jsx'
 import BookModal from '../components/room/BookModal.jsx'
 import BookFinder from '../components/room/BookFinder.jsx'
-import { upperCells } from '../api'
 
 const PULL_MS = 420
 
@@ -206,7 +205,11 @@ export default function VisitRoomPage() {
         <div className="hud hud-bottom">
           {shelved.length > 0 ? (
             <>
-              <BookFinder entries={shelved} onPick={pickBook} />
+              <BookFinder
+                entries={shelved}
+                onPick={pickBook}
+                placeholder={`Search ${data.reader.displayName}'s ${shelved.length === 1 ? 'book' : 'books'}…`}
+              />
               <span className="hud-hint">
                 Click a book to read about it · drag to turn ·
                 right-drag to move · scroll to zoom

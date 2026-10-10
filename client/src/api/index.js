@@ -87,7 +87,7 @@ export const {
   removeFriend,
   getFriendLibrary,
   getFriendNotes,
-  
+
   getSettings,
   updateSettings,
   changePassword,

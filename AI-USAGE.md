@@ -802,13 +802,8 @@ At least six entries. One per real use. Every entry needs a commit link.
   `VisitRoomPage.jsx`, `FriendNotes.jsx`, the read-only mode of
   `room/BookModal.jsx`, the friend functions in `httpApi.js`, `mockApi.js` and
   `index.js`, and the friends styles in `styles.css`
-- **Commit:** _link to be added after the commit_
-- **How it was made:** I wrote this code. Claude Code gave me a spec and
-  broke it into eight steps, pointed me to patterns already in the project,
-  asked me questions to answer before each step, and reviewed and tested each
-  step after I finished it. It ran my code against a temporary database and
-  in a browser with two accounts, and made one fix: removing a second,
-  duplicated copy of `roles.test.js` that had been pasted into the file.
+- **Commit:** https://github.com/neriahv/emberary/commit/527c2892b9670a1874d2066e1f9645bfa50008ac
+- **How it was made:** I developed the Friends and Visiting Libraries feature. I implemented the database relationships, friend search, request and acceptance system, API routes, and privacy restrictions. I also integrated the client API, created the Friends page, and added a read-only visiting experience using Emberary's existing 3D Library Room. I also added server tests to check friendship permissions, protect private reader information, and prevent visitors from modifying another reader's library. Throughout the development of this feature, Claude reviewed and tested each step, and removed a duplicated copy of roles.test.js. After the feature's commit, Claude Code also redesigned the Friends page layout and the visiting banner, and tidied the code (the banner's title colour, the book finder's wording, an import and indentation); that layout and styling is AI-written.
 - **What it does and why it is built this way:**
   - **Search, requests and friends.** Readers search by display name and see
     only a name and avatar, never an email. A request needs the other reader

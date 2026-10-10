@@ -7,7 +7,7 @@ import Icon from '../Icon.jsx'
 // matching books on the shelves appear with their covers. Arrow keys move
 // through them, Enter opens one, Escape closes the list. The canvas cannot be
 // used with a keyboard or a screen reader, so this is also how they open books.
-export default function BookFinder({ entries, onPick }) {
+export default function BookFinder({ entries, onPick, placeholder }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -60,7 +60,7 @@ export default function BookFinder({ entries, onPick }) {
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={open && matches[current] ? `${listId}-${matches[current].bookId}` : undefined}
-          placeholder={`Search your ${entries.length} books…`}
+          placeholder={placeholder ?? `Search your ${entries.length} ${entries.length === 1 ? 'book' : 'books'}…`}
           autoComplete="off"
           value={query}
           onChange={(event) => {
