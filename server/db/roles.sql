@@ -15,6 +15,10 @@ GRANT SELECT, INSERT, DELETE ON sessions TO emberary_app;
 GRANT SELECT, INSERT, UPDATE, DELETE
 ON user_books TO emberary_app;
 
+-- Friend requests can be created, accepted, declined, cancelled or removed.
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON friendships TO emberary_app;
+
 GRANT SELECT, INSERT, UPDATE
 ON room_settings, room_items, reading_days TO emberary_app;
 -- A reader moves and takes away room blocks, so the app may delete them.

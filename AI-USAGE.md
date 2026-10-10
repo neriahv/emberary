@@ -403,6 +403,32 @@ At least six entries. One per real use. Every entry needs a commit link.
 - **Commit:** https://github.com/neriahv/emberary/commit/a121f689b47263de44c25e2096d226b73ac3342d
   (sign-up checks: https://github.com/neriahv/emberary/commit/39f6e31ef8941f783ab7b37373a534c88f8bae38)
 
+### 2026-10-10 - Final UI Design Pass (Week 4)
+
+- **Tool:** Claude Code (Opus 5.5)
+- **What I asked for:** A final design stage for the whole site: fix overflows
+  on desktop and phone, remove the plain text links crowding the header, and
+  make my new features look as finished and cosy as the rest of Emberary.
+- **What it gave back:**
+  - **Header:** Lists, Settings and Sign out moved into a menu under the
+    reader's avatar, so the bar fits on one line; a one-line demo banner.
+  - **Home:** daily quests and the reading timer side by side, with quest
+    icons and progress bars and a round timer face.
+  - **Profile:** streak tiles, achievement medals instead of emojis, a styled
+    year in review, and account security moved to the bottom.
+  - **Settings, Lists, notes and saved layouts:** setting rows with icons and
+    a picture theme picker; lists in a sidebar with book covers; quote cards;
+    saved layouts as a fourth Library Room mode instead of a box that covered
+    the Shop button.
+  - **Fixes:** the sign-in tab highlight, the logo colour in a chosen dark
+    theme, squashed reading cards and the wrapped "Daily +3" on phones.
+- **What I kept, what I changed, and why:** Kept all of it. This pass is
+  Claude Code's work, including its changes inside files I wrote
+  (`ReaderTools.jsx`, `SettingsPage.jsx`, `ListsPage.jsx`, `BookNotes.jsx`,
+  `RoomSnapshots.jsx`): the layout and styling of those pages are AI-written,
+  while the features' logic and server code are mine (section 3).
+- **Commit:** https://github.com/neriahv/emberary/commit/4b98e60525e507dd4ffc7fcf18b9a7045753efc7
+
 ## 2. Where the AI got it wrong
 
 ### Case 1 - A Database Constraint that Rejected its Own Boundary (Week 2)
@@ -766,6 +792,47 @@ At least six entries. One per real use. Every entry needs a commit link.
     fit go to storage.
   - **Ten new room items** in the shop.
   - **35 client tests** with Vitest.
+
+**Friends and visiting libraries**
+
+- **Files:** `server/repos/friends.js`, `server/friends.js`, the `friendships`
+  table in `server/db/schema.sql` and its grants in `server/db/roles.sql`,
+  `server/test/friends.test.js` and the friends part of
+  `server/test/roles.test.js`; on the client `FriendsPage.jsx`,
+  `VisitRoomPage.jsx`, `FriendNotes.jsx`, the read-only mode of
+  `room/BookModal.jsx`, the friend functions in `httpApi.js`, `mockApi.js` and
+  `index.js`, and the friends styles in `styles.css`
+- **Commit:** _link to be added after the commit_
+- **How it was made:** I wrote this code. Claude Code gave me a spec and
+  broke it into eight steps, pointed me to patterns already in the project,
+  asked me questions to answer before each step, and reviewed and tested each
+  step after I finished it. It ran my code against a temporary database and
+  in a browser with two accounts, and made one fix: removing a second,
+  duplicated copy of `roles.test.js` that had been pasted into the file.
+- **What it does and why it is built this way:**
+  - **Search, requests and friends.** Readers search by display name and see
+    only a name and avatar, never an email. A request needs the other reader
+    to accept it; either one can decline, cancel or unfriend.
+  - **One row per pair.** A unique index on `LEAST(...)` and `GREATEST(...)`
+    of the two ids means A→B and B→A cannot both exist. The constraints are
+    dropped and added again in `schema.sql`, so a change also reaches a
+    database where the table already exists.
+  - **Only the person asked can accept.** `accept` matches the request with
+    the ids in a fixed order, so the requester cannot accept their own.
+  - **404, not 403 or 401.** A stranger, a pending friend and an unfriended
+    reader all get the same 404, so nobody can tell which it is. A 401 would
+    also have signed the visitor out of the whole app, since the client treats
+    401 as an ended session.
+  - **Visiting is read-only.** The library route picks every field it sends
+    from fixed lists, so a new database column cannot leak. Visitors see the
+    room's design, placed furniture and the books on its shelves, with
+    ratings, reviews, notes and quotes; never Want to Read books, stored
+    furniture, Ember, settings or email. The room is the same 3D scene with
+    editing turned off, and the open book shows a read-only page.
+  - **Tests.** 13 server tests cover privacy from every side (stranger,
+    pending, accepted, unfriended), the fields shared, duplicates in both
+    directions, and that a visitor cannot change the owner's books. The role
+    test checks the limited database role can do all of it.
 
 ### The AI-written part I understand best
 

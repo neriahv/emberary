@@ -9,6 +9,7 @@ import * as insights from './repos/insights.js'
 import * as profile from './repos/profile.js'
 import * as settings from './repos/settings.js'
 import { registerReaderTools } from './readerTools.js'
+import { registerFriends } from './friends.js'
 import * as room from './repos/room.js'
 import * as ember from './repos/ember.js'
 import { BLOCKS, EMAIL_PATTERN, EMBER_RULES, FINISH_TYPES, LOFT, catalogEntry, hasLoft } from './catalog.js'
@@ -242,6 +243,13 @@ export function createApp(
     badRequest,
     checkEmailDomain,
     authLimiter,
+  })
+
+  // ------------------------------------------------------------ friends
+  registerFriends(app, {
+    pool,
+    route,
+    badRequest,
   })
 
   // ------------------------------------------------------------ catalogue

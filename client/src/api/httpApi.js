@@ -141,3 +141,25 @@ export const getSnapshots = () => request('/api/room/snapshots')
 export const saveSnapshot = (name) => request('/api/room/snapshots', json('POST', { name }))
 export const deleteSnapshot = (id) => request(`/api/room/snapshots/${id}`, { method: 'DELETE' })
 export const restoreSnapshot = (id) => request(`/api/room/snapshots/${id}/restore`, { method: 'POST' })
+
+// Friends and visiting libraries.
+export const searchReaders = (query) =>
+  request(`/api/readers/search?${new URLSearchParams({ q: query })}`)
+
+export const getFriends = () =>
+  request('/api/friends')
+
+export const sendFriendRequest = (id) =>
+  request(`/api/friends/${encodeURIComponent(id)}`, { method: 'POST' })
+
+export const acceptFriend = (id) =>
+  request(`/api/friends/${encodeURIComponent(id)}/accept`, { method: 'POST' })
+
+export const removeFriend = (id) =>
+  request(`/api/friends/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+export const getFriendLibrary = (id) =>
+  request(`/api/friends/${encodeURIComponent(id)}/library`)
+
+export const getFriendNotes = (id, bookId) =>
+  request(`/api/friends/${encodeURIComponent(id)}/books/${encodeURIComponent(bookId)}/notes`)

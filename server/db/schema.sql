@@ -77,6 +77,41 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS sessions_reader_idx ON sessions (reader_id);
 
+-- Friend requests and accepted friendships between readers.
+CREATE TABLE IF NOT EXISTS friendships (
+  requester_id INTEGER NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  addressee_id INTEGER NOT NULL REFERENCES readers (id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Drop and recreate the constraints so future changes
+-- also apply to databases where the table already exists.
+ALTER TABLE friendships
+  DROP CONSTRAINT IF EXISTS friendships_status_check;
+
+ALTER TABLE friendships
+  ADD CONSTRAINT friendships_status_check
+  CHECK (status IN ('pending', 'accepted'));
+
+ALTER TABLE friendships
+  DROP CONSTRAINT IF EXISTS friendships_no_self_check;
+
+ALTER TABLE friendships
+  ADD CONSTRAINT friendships_no_self_check
+  CHECK (requester_id <> addressee_id);
+
+-- Prevent duplicate friendships in either direction.
+CREATE UNIQUE INDEX IF NOT EXISTS friendships_reader_pair_idx
+  ON friendships (
+    LEAST(requester_id, addressee_id),
+    GREATEST(requester_id, addressee_id)
+  );
+
+-- Speed up incoming friend-request lookups.
+CREATE INDEX IF NOT EXISTS friendships_addressee_idx
+  ON friendships (addressee_id);
+
 -- The shared catalogue, the same for every reader. The ids are short text
 -- ("b01") so they match the demo data and stay readable in URLs.
 CREATE TABLE IF NOT EXISTS books (

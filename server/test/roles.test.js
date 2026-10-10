@@ -138,6 +138,47 @@ test('the whole app works when it logs in as the app role', async () => {
   assert.equal((await call('PATCH', `/api/room/items/${stool.id}`, { x: 0.5, z: 1, rotation: 90, placed: false })).status, 200)
   assert.equal((await call('PATCH', '/api/room', { wallpaper: 'wallpaper-stripes', wallColor: '#c9b79c' })).status, 200)
 
+  // Friends: verify the restricted role can create, read, accept and remove
+  // friendships, and visit another reader's library.
+  const friendAccount = await call('POST', '/api/auth/signup', {
+    email: 'role-friend@example.com',
+    password: 'Shelf-Keeper-7',
+    displayName: 'Role Friend',
+  })
+  assert.equal(friendAccount.status, 201, JSON.stringify(friendAccount.body))
+  const friendId = friendAccount.body.id
+
+  // INSERT and SELECT.
+  assert.equal((await call('POST', `/api/friends/${friendId}`)).status, 201)
+  const friendships = await call('GET', '/api/friends')
+  assert.equal(friendships.status, 200)
+  assert.ok(friendships.body.outgoing.some((reader) => reader.id === friendId))
+
+  // UPDATE through the restricted pool: the test session belongs to reader 1.
+  const updated = await app.query(
+    `UPDATE friendships
+     SET status = 'accepted'
+     WHERE requester_id = $1 AND addressee_id = $2 AND status = 'pending'`,
+    [1, friendId]
+  )
+  assert.equal(updated.rowCount, 1)
+
+  const accepted = await call('GET', '/api/friends')
+  assert.equal(accepted.status, 200)
+  assert.ok(accepted.body.friends.some((reader) => reader.id === friendId))
+
+  // The app role must also be able to read the friend's room and books.
+  const visit = await call('GET', `/api/friends/${friendId}/library`)
+  assert.equal(visit.status, 200, JSON.stringify(visit.body))
+  assert.equal(visit.body.reader.displayName, 'Role Friend')
+  assert.ok(visit.body.room)
+  assert.ok(Array.isArray(visit.body.books))
+  assert.ok(!JSON.stringify(visit.body).includes('"email"'))
+
+  // DELETE and verify immediate loss of visiting access.
+  assert.equal((await call('DELETE', `/api/friends/${friendId}`)).status, 204)
+  assert.equal((await call('GET', `/api/friends/${friendId}/library`)).status, 404)
+
   // Signing up, in and out: a new reader, a session, and its end. Last,
   // because signing out ends this test's own session too.
   assert.equal((await call('POST', '/api/auth/signup', { email: 'role@example.com', password: 'Shelf-Keeper-7', displayName: 'Role' })).status, 201)

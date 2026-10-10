@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import BookNotes from '../BookNotes.jsx'
+import FriendNotes from '../FriendNotes.jsx'
 import BookCover from '../BookCover.jsx'
 import BookEditForm from '../BookEditForm.jsx'
 import ProgressBar from '../ProgressBar.jsx'
@@ -18,7 +19,15 @@ const TIMING = { grow: 320, turn: 850 } // must match the CSS transitions
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-export default function BookModal({ entry, onShelves, onSaved, onRemoved, onClosed }) {
+export default function BookModal({
+  entry,
+  onShelves,
+  onSaved,
+  onRemoved,
+  onClosed,
+  readOnly = false,
+  friendId = null,
+}) {
   const dialog = useRef(null)
   // entering -> closed (grown, cover shut) -> open -> closing -> leaving
   const [phase, setPhase] = useState('entering')
@@ -100,18 +109,40 @@ export default function BookModal({ entry, onShelves, onSaved, onRemoved, onClos
         <div className="book-page book-page-right">
           <div className="page-scroll">
             <div className="page-details-narrow">{details()}</div>
+        {readOnly ? (
+          <>
+            <h3 className="page-heading">Their reading notes</h3>
+            <p className="muted">
+              You're viewing this book from a friend's library.
+            </p>
+
+            <FriendNotes friendId={friendId} bookId={entry.bookId} />
+          </>
+        ) : (
+          <>
             <h3 className="page-heading">Your notes</h3>
-            <BookEditForm key={entry.bookId} entry={entry} onSaved={onSaved} onRemoved={handleRemoved} heading={null} />
+
+            <BookEditForm
+              key={entry.bookId}
+              entry={entry}
+              onSaved={onSaved}
+              onRemoved={handleRemoved}
+              heading={null}
+            />
+
             <BookNotes book={book} />
-            {/* Gone if the book is changed to Want to Read here: it leaves the shelves. */}
+
             {onShelves && (
               <div className="page-shelf">
                 <p className="muted">
-                  Want it somewhere else? In <strong>Build &amp; decorate</strong>, drag it to any shelf, or lay
-                  it on a table.
+                  Want it somewhere else? In <strong>Build &amp; decorate</strong>,
+                  drag it to any shelf, or lay it on a table.
                 </p>
               </div>
             )}
+          </>
+        )}
+
           </div>
           <span className="page-number" aria-hidden="true">
             2

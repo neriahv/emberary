@@ -31,6 +31,7 @@ const PATHS = {
   star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9Z',
   lock: 'M6 11h12v9H6ZM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
   pencil: 'M15 5l4 4L9 19H5v-4ZM13 7l4 4',
+  friends: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20v-2a6.5 6.5 0 0 1 13 0v2ZM17 11a3.5 3.5 0 0 0 0-7M17 14a6 6 0 0 1 4.5 6',
 }
 
 export default function Icon({ name, label, className = '' }) {

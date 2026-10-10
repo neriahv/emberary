@@ -70,6 +70,10 @@ function Account() {
               <Icon name="list" />
               Book lists
             </NavLink>
+            <NavLink to="/friends" className="account-link">
+              <Icon name="friends" />
+              Friends
+            </NavLink>
             <NavLink to="/settings" className="account-link">
               <Icon name="settings" />
               Settings

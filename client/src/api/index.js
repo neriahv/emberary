@@ -79,6 +79,15 @@ export const STATUS_LABELS = {
 }
 
 export const {
+  // Friends and visiting libraries.
+  searchReaders,
+  getFriends,
+  sendFriendRequest,
+  acceptFriend,
+  removeFriend,
+  getFriendLibrary,
+  getFriendNotes,
+  
   getSettings,
   updateSettings,
   changePassword,

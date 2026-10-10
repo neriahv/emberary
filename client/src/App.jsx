@@ -7,11 +7,13 @@ import DiscoverPage from './pages/DiscoverPage.jsx'
 import MyBooksPage from './pages/MyBooksPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import ListsPage from './pages/ListsPage.jsx'
+import FriendsPage from './pages/FriendsPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 
 // three.js is several times the size of the rest of the app, so the Library
 // Room is split into its own chunk and only downloaded when someone opens it.
 const LibraryRoomPage = lazy(() => import('./pages/LibraryRoomPage.jsx'))
+const VisitRoomPage = lazy(() => import('./pages/VisitRoomPage.jsx'))
 
 // BASE_URL is "/" locally and "/<repo>/" on GitHub Pages (see vite.config.js),
 // so routes work in both places without hardcoding the repository name.
@@ -23,6 +25,14 @@ export default function App() {
       <BrowserRouter basename={basename}>
         <Routes>
           <Route element={<Layout />}>
+            <Route
+              path="friends/:id/room"
+              element={
+                <Suspense fallback={<p className="muted">Opening your friend's library...</p>}>
+                  <VisitRoomPage />
+                </Suspense>
+              }
+            />
             <Route index element={<HomePage />} />
             <Route path="discover" element={<DiscoverPage />} />
             <Route
@@ -36,6 +46,7 @@ export default function App() {
             <Route path="my-books" element={<MyBooksPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="lists" element={<ListsPage />} />
+            <Route path="friends" element={<FriendsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="*" element={<NotFound />} />
           </Route>

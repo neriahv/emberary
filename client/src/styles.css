@@ -2464,3 +2464,212 @@ body.room-open { overflow: hidden; }
   .account-chevron { display: none; }
   .account-button { padding: 3px; }
 }
+
+/* ------------------------------------------------------------------ friends */
+
+.friends-banner-art {
+  width: 6.5rem;
+  height: 6.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+
+.friends-banner-art .icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  stroke-width: 1.2;
+}
+
+.friends-demo-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.friends-demo-note > .icon {
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+  color: var(--accent);
+}
+
+.friends-demo-note strong {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.friends-demo-note p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.friends-search {
+  margin-bottom: var(--space-4);
+}
+
+.friends-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.friends-section-head h2 {
+  margin: 0;
+}
+
+.friends-section-head .muted {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+}
+
+.friends-search .search-field {
+  max-width: 35rem;
+}
+
+.friends-search-help {
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.friends-sections {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.friends-reader-list {
+  grid-template-columns: 1fr;
+}
+
+.friends-reader-list li {
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.friends-avatar {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent-soft);
+}
+
+.friends-avatar svg {
+  width: 100%;
+  height: 100%;
+}
+
+.friends-reader-list .list-add-text strong {
+  font-size: 1rem;
+}
+
+.friends-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.friends-actions .button,
+.friends-actions button {
+  white-space: nowrap;
+}
+
+.friends-sections .empty {
+  margin: 0;
+}
+
+@media (max-width: 44rem) {
+  .friends-banner-art {
+    width: 4rem;
+    height: 4rem;
+  }
+
+  .friends-banner-art .icon {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .friends-reader-list li {
+    flex-wrap: wrap;
+  }
+
+  .friends-actions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: calc(3rem + var(--space-3));
+  }
+}
+
+
+/* ------------------------------------------------------------------ visiting libraries */
+
+.visit-room-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(85vw, 38rem);
+  padding: 0.7rem 1rem;
+  border-radius: 1rem;
+  background: var(--card);
+  box-shadow: 0 4px 20px #00000018;
+}
+
+.visit-room-avatar {
+  flex: none;
+  width: 2.8rem;
+  height: 2.8rem;
+}
+
+.visit-room-avatar svg {
+  width: 100%;
+  height: 100%;
+}
+
+.visit-room-banner > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.visit-room-banner .hud-title {
+  color: var(--ink);
+}
+
+.visit-room-subtitle {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.visit-room-banner > a {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .visit-room-banner {
+    max-width: 75vw;
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .visit-room-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .visit-room-subtitle {
+    display: none;
+  }
+}

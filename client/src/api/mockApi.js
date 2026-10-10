@@ -1322,3 +1322,39 @@ export async function restoreSnapshot(id) {
   write(db)
   return { room: roomView(db), skipped }
 }
+
+// Friends require registered readers and a live server.
+// Demo mode keeps the Friends page accessible without pretending
+// that browser-local data represents real friendships.
+
+export async function getFriends() {
+  return {
+    friends: [],
+    incoming: [],
+    outgoing: [],
+  }
+}
+
+export async function searchReaders() {
+  throw new Error('Friends need the live app')
+}
+
+export async function sendFriendRequest() {
+  throw new Error('Friends need the live app')
+}
+
+export async function acceptFriend() {
+  throw new Error('Friends need the live app')
+}
+
+export async function removeFriend() {
+  throw new Error('Friends need the live app')
+}
+
+export async function getFriendLibrary() {
+  throw new Error('Friends need the live app')
+}
+
+export async function getFriendNotes() {
+  throw new Error('Friends need the live app')
+}
