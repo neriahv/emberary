@@ -18,10 +18,10 @@ export default function DemoNotice() {
 
   return (
     <div className="demo-notice" role="status">
-      <strong>Demo mode.</strong> Emberary is running on a{' '}
-      <strong>simulated backend</strong>: the books and changes you make are stored in
-      your own browser, shared with nobody, and gone when you clear your browsing data.
-      The real Express API and PostgreSQL database are built and go live once they are deployed.{' '}
+      <span className="demo-notice-tag">Demo mode</span>
+      <span className="demo-notice-text">
+        Everything you do here is kept in this browser only, on a simulated backend.
+      </span>
       <button type="button" className="button-link" onClick={handleReset} disabled={resetting}>
         {resetting ? 'Resetting...' : 'Reset demo data'}
       </button>

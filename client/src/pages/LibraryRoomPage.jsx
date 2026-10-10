@@ -90,6 +90,7 @@ const MODES = [
   { id: 'shop', icon: '🛒', label: 'Shop' },
   { id: 'build', icon: '🔨', label: 'Build' },
   { id: 'storage', icon: '📦', label: 'Storage' },
+  { id: 'layouts', icon: '🖼️', label: 'Layouts' },
 ]
 
 function remembered(key, fallback) {
@@ -646,15 +647,6 @@ export default function LibraryRoomPage() {
 
   return (
     <div className={`room-screen time-${time} mode-${mode}`}>
-      {ready && (
-        <RoomSnapshots
-          beforeSave={saver.flush}
-          onRestored={(saved) => {
-            room.setData(saved)
-            books.reload()
-          }}
-        />
-      )}
       <h1 className="visually-hidden">Library Room: build your dream library</h1>
 
       {ready ? (
@@ -913,6 +905,15 @@ export default function LibraryRoomPage() {
               onShop={shopFor}
             />
           )}
+          {mode === 'layouts' && (
+            <RoomSnapshots
+              beforeSave={saver.flush}
+              onRestored={(saved) => {
+                room.setData(saved)
+                books.reload()
+              }}
+            />
+          )}
           {mode === 'storage' && (
             <StoragePanel
               items={storedItems}
@@ -948,7 +949,9 @@ export default function LibraryRoomPage() {
                 : 'Pick a catalogue along the top, then something to try in the room'
               : mode === 'build'
                 ? 'Click something to select it · drag it, or click where it goes · Ctrl+Z undoes · point at a wall or floor to move or sell it · small things sit on tables, seats and shelves · drag a book to any shelf or table'
-                : 'What is not in the room waits here'}
+                : mode === 'layouts'
+                  ? 'Save how the room looks now, or bring back a look you saved'
+                  : 'What is not in the room waits here'}
           </p>
         </div>
       )}

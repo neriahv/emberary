@@ -1,8 +1,8 @@
-import { DailyQuests, ReadingTimer } from '../components/ReaderTools.jsx'
 import { Link } from 'react-router-dom'
 import { listMyBooks, getReadingStats, getRecommendations, getProfile } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
+import { DailyQuests, ReadingTimer } from '../components/ReaderTools.jsx'
 import BookCover from '../components/BookCover.jsx'
 import BookTile from '../components/BookTile.jsx'
 import Icon from '../components/Icon.jsx'
@@ -58,7 +58,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="feature-stack">
+      {/* Today: the quests to claim, and a timer for the reading itself. */}
+      <div className="today-row">
         <DailyQuests />
         <ReadingTimer />
       </div>

@@ -1,10 +1,10 @@
-import Avatar, { AVATARS } from '../components/Avatar.jsx'
-import { ReadingMilestones, AccountSecurity } from '../components/ReaderTools.jsx'
-import { useAuth } from '../components/AuthGate.jsx'
 import { useState } from 'react'
 import { getProfile, updateProfile, getReadingStats } from '../api'
 import { useAsync } from '../hooks/useAsync.js'
 import AsyncState from '../components/AsyncState.jsx'
+import Avatar, { AVATARS } from '../components/Avatar.jsx'
+import { useAuth } from '../components/AuthGate.jsx'
+import { ReadingMilestones, AccountSecurity } from '../components/ReaderTools.jsx'
 import StatCard from '../components/StatCard.jsx'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -60,7 +60,6 @@ export default function ProfilePage() {
         ))}
 
       <ReadingMilestones />
-      <AccountSecurity />
       <section className="section" aria-labelledby="insights-heading">
         <h2 id="insights-heading">Reading insights</h2>
         <AsyncState {...stats} label="Working out your insights" />
@@ -71,6 +70,7 @@ export default function ProfilePage() {
           <Insights stats={stats.data} goal={profile.data?.yearlyGoal} />
         )}
       </section>
+      <AccountSecurity />
     </>
   )
 }

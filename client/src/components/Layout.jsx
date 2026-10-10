@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { USING_MOCK_API } from '../api'
 import Avatar from './Avatar.jsx'
 import Theme from './Theme.jsx'
@@ -17,27 +17,78 @@ const LINKS = [
   { to: '/profile', label: 'Profile', icon: 'profile' },
 ]
 
-// Who is signed in, and a way out.
+// Who is signed in, behind their avatar: their lists, settings and a way out.
 function Account() {
   const { account, signOut } = useAuth()
+  const [open, setOpen] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const box = useRef(null)
+  const { pathname } = useLocation()
+
+  useEffect(() => setOpen(false), [pathname])
+
+  // Close on a click elsewhere or on Escape.
+  useEffect(() => {
+    if (!open) return
+    const outside = (event) => box.current && !box.current.contains(event.target) && setOpen(false)
+    const escape = (event) => event.key === 'Escape' && setOpen(false)
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [open])
+
   return (
-    <div className="account">
-      <span className="account-avatar" title={`Signed in as ${account.email}`} aria-hidden="true">
-        <Avatar name={account.avatar} />
-      </span>
-      <span className="visually-hidden">Signed in as {account.email}.</span>
+    <div className="account" ref={box}>
       <button
         type="button"
-        className="button-quiet button-small account-out"
-        disabled={leaving}
-        onClick={() => {
-          setLeaving(true)
-          signOut()
-        }}
+        className="account-button"
+        aria-expanded={open}
+        aria-label={`Your account: ${account.displayName || account.email}`}
+        onClick={() => setOpen(!open)}
       >
-        {leaving ? 'Signing out...' : 'Sign out'}
+        <span className="account-avatar" aria-hidden="true">
+          <Avatar name={account.avatar} />
+        </span>
+        <Icon name="chevron" className="account-chevron" />
       </button>
+      {open && (
+        <div className="account-menu">
+          <div className="account-who">
+            <span className="account-avatar account-avatar-lg" aria-hidden="true">
+              <Avatar name={account.avatar} />
+            </span>
+            <span>
+              <strong>{account.displayName}</strong>
+              <small>{account.email}</small>
+            </span>
+          </div>
+          <nav aria-label="Your account">
+            <NavLink to="/lists" className="account-link">
+              <Icon name="list" />
+              Book lists
+            </NavLink>
+            <NavLink to="/settings" className="account-link">
+              <Icon name="settings" />
+              Settings
+            </NavLink>
+            <button
+              type="button"
+              className="account-link account-out"
+              disabled={leaving}
+              onClick={() => {
+                setLeaving(true)
+                signOut()
+              }}
+            >
+              <Icon name="logout" />
+              {leaving ? 'Signing out...' : 'Sign out'}
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   )
 }
@@ -84,12 +135,6 @@ export default function Layout() {
               ))}
             </ul>
           </nav>
-          <NavLink to="/lists" className="utility-link">
-            Lists
-          </NavLink>
-          <NavLink to="/settings" className="utility-link">
-            Settings
-          </NavLink>
           <Account />
         </div>
       </header>
