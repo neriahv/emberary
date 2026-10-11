@@ -536,7 +536,7 @@
   the history rewrite against my own real GitHub account is not something the
   AI could do for me.
 
-**The Access Gate**
+**5th Entry: The Access Gate**
 
 - **File:** `server/basicAuth.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/c88cb8e6733777d14f32ece107cf876cd4d143a0
@@ -571,7 +571,7 @@
     have thrown. I put the `{ username, password, realm }` destructuring back.
     8 of 8 tests pass.
 
-**5th Entry: The Deployed App**
+**6th Entry: The Deployed App**
 
 - **Files:** `server/web.js`, `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/09ed7d0ab2d633f5ee2587b35ff86d55a4dcbfa5
@@ -612,7 +612,7 @@
     one, and with it the site, a `/my-books` deep link and the database all
     worked.
 
-**6th Entry: The database role**
+**7th Entry: The database role**
 
 - **File:** `server/db/roles.sql`
 - **Commit:** https://github.com/neriahv/emberary/commit/2f712bf97775ceeda71201a861760e9f98e11323
@@ -643,7 +643,7 @@
     Ember history, or delete readers or furniture. With these, the whole
     server suite passes, 74 of 74.
 
-**7th Entry: Deploying it and locking it down**
+**8th Entry: Deploying it and locking it down**
 
 - **Live app:** https://emberary.onrender.com (behind the gate)
 - **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
@@ -678,7 +678,7 @@
     are set, so GitHub Pages stays the public demo, and ran the secret search
     over the whole git history. Only placeholders came back.
 
-**8th Entry: Search, filter and sort on My Books**
+**9th Entry: Search, filter and sort on My Books**
 
 - **Files:** `client/src/pages/filterBooks.js` (all of it), and in
   `client/src/pages/MyBooksPage.jsx` the genre, rating and sort dropdowns,
@@ -727,7 +727,7 @@
   - **What I would do next:** sort authors by surname, so Austen comes before
     Conan Doyle.
 
-**9th Entry: Settings, profile and account security**
+**10th Entry: Settings, profile and account security**
 
 - **Files:** `server/repos/settings.js`, `validateSettings` in `server/validation.js`,
   the settings and account routes in `server/readerTools.js`, `server/auth.js`,
@@ -748,7 +748,7 @@
   - **Rewrites:** `auth.js`, `emailDomain.js`, `validateSignup` and the sign-in page,
     with the same behaviour. The DNS check can now be tested without the internet.
 
-**10th Entry: Reading milestones and daily quests**
+**11th Entry: Reading milestones and daily quests**
 
 - **Files:** `server/repos/reading.js`, the reading, quest and timer routes in
   `server/readerTools.js`, `ReaderTools.jsx`
@@ -777,7 +777,7 @@
     and favourite genre, all worked out from the reader's own records, so the
     summary always matches what is on their shelves.
 
-**11th Entry: Notes, lists, room layouts and client tests**
+**12th Entry: Notes, lists, room layouts and client tests**
 
 - **Files:** `BookNotes.jsx`, `ListsPage.jsx`, `RoomSnapshots.jsx`,
   `room/emberCollection.jsx`, `useRoomSaver.js`, the notes, list and snapshot routes in
@@ -807,7 +807,7 @@
     with the `test` and `test:watch` scripts so the pages can be checked without
     the server.
     
-**12th Entry: Friends and visiting libraries**
+**13th Entry: Friends and visiting libraries**
 
 - **Files:** `server/repos/friends.js`, `server/friends.js`, the `friendships`
   table in `server/db/schema.sql` and its grants in `server/db/roles.sql`,
