@@ -77,8 +77,8 @@ export function shelfOrder(entries) {
     .sort(
       (a, b) =>
         (a.shelfPosition ?? Infinity) - (b.shelfPosition ?? Infinity) ||
-        a.addedAt.localeCompare(b.addedAt) ||
-        a.bookId.localeCompare(b.bookId)
+        String(a.addedAt ?? '').localeCompare(String(b.addedAt ?? '')) ||
+        String(a.bookId).localeCompare(String(b.bookId))
     )
 }
 

@@ -42,6 +42,8 @@ const BOOK_FIELDS = [
 const ENTRY_FIELDS = [
   'bookId', 'status', 'currentPage', 'rating',
   'review', 'shelfPosition', 'shelfSpot',
+  // shelfOrder breaks ties on it, so the room crashes without it.
+  'addedAt',
 ]
 
 const notFound = (res) =>
