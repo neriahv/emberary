@@ -1,17 +1,8 @@
 # AI usage
 
-This project was built with AI assistance. This file is the record of it. It is
-graded as the finals badge, and it is worth 100 points.
-
-Start it in week 1 and keep it up as you go. The commit history of this file is
-part of the evidence: a file written all at once the night before the deadline
-looks exactly like what it is.
-
 ## 1. How I used AI
 
-At least six entries. One per real use. Every entry needs a commit link.
-
-### 2026-09-23 - Frontend Design (Week 1)
+### 1st Entry: 2026-09-23 - Frontend Design (Week 1)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** The whole Week 1 frontend — Home, Discover, My Books,
@@ -26,7 +17,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   pieces existed (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/bcb1ea090502f249e23dc7d89fe51136070bb0f3
 
-### 2026-09-27 - Library Room Rebuilt as a 3D Diorama (Week 2)
+### 2nd Entry: 2026-09-27 - Library Room Rebuilt as a 3D Diorama (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I gave a reference photo of an isometric reading-room
@@ -44,7 +35,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   overlapping the edit panel.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Backend Beyond Basic Express and the Database (Week 2)
+### 3rd Entry: 2026-09-27 - Backend Beyond Basic Express and the Database (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I can write a basic Express server and a database
@@ -60,7 +51,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   PostgreSQL installed, so the project runs from `node_modules` alone.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Real Book Covers from Google Books (Week 2)
+### 4th Entry: 2026-09-27 - Real Book Covers from Google Books (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A script to fetch each catalogue book's real cover
@@ -74,7 +65,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   try the next edition instead (see Case 2 below).
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
+### 5th Entry: 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Replace the yearly reading-goal progress bar on the
@@ -86,7 +77,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   site's look without extra rework.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Security Checklist Pass (Week 2)
+### 6th Entry: 2026-09-27 - Security Checklist Pass (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** To go through the course's security checklist against
@@ -101,7 +92,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 
-### 2026-09-30 - Library Room Shelves and Furniture Shop (Week 3)
+### 7th Entry: 2026-09-30 - Library Room Shelves and Furniture Shop (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Three changes to the Library Room. Remove the shelf
@@ -135,7 +126,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - Two bugs came up while testing, described in Cases 4 and 5 below.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
+### 8th Entry: 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A way to earn Ember for the shop by reading, using the
@@ -160,7 +151,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   include these cases, all pass.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-10-03 - Tests and Setup for Going Live (Week 3)
+### 9th Entry: 2026-10-03 - Tests and Setup for Going Live (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Help getting the app ready to deploy safely. Before
@@ -189,7 +180,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     without asking the AI to check it each time.
 - **Commit:** https://github.com/neriahv/emberary/commit/d59a306889bfde1f723afbdda7dd1e23c40b6a7b
 
-### 2026-10-04 - Finishing Touches: Look, Search and Room Controls (Week 3)
+### 10th Entry: 2026-10-04 - Finishing Touches: Look, Search and Room Controls (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5, then Sonnet 5.5)
 - **What I asked for:** A last round of polish on the finished app. I wanted
@@ -234,7 +225,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     each book stands on the shelves.
 - **Commit:** https://github.com/neriahv/emberary/commit/5fa70520dc9984be25ceb205eb7307d54475c241
 
-### 2026-10-06 - Build Your Dream Library (Week 4)
+### 11th Entry: 2026-10-06 - Build Your Dream Library (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I gave eight reference pictures of cozy isometric
@@ -284,7 +275,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     cost.
 - **Commit:** https://github.com/neriahv/emberary/commit/d609d9ec226a2096813e2529784fb362ba39c7bf
 
-### 2026-10-08 - Shop, Build and Storage Modes, and an Upstairs (Week 4)
+### 12th Entry: 2026-10-08 - Shop, Build and Storage Modes, and an Upstairs (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Over several rounds, with reference pictures each
@@ -345,7 +336,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     something in the room; the limit now starts at 0, with a test for it.
 - **Commit:** https://github.com/neriahv/emberary/commit/aa0ea60fc119b51abf2101dc5521ded82fc3a836
 
-### 2026-10-09 - Reader Accounts, Sign-up Checks and More Library Styles (Week 4)
+### 13th Entry: 2026-10-09 - Reader Accounts, Sign-up Checks and More Library Styles (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **How we split it:** About half and half. Claude Code wrote the code. My
@@ -403,7 +394,7 @@ At least six entries. One per real use. Every entry needs a commit link.
 - **Commit:** https://github.com/neriahv/emberary/commit/a121f689b47263de44c25e2096d226b73ac3342d
   (sign-up checks: https://github.com/neriahv/emberary/commit/39f6e31ef8941f783ab7b37373a534c88f8bae38)
 
-### 2026-10-10 - Final UI Design Pass (Week 4)
+### 14th Entry: 2026-10-10 - Final UI Design Pass (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A final design stage for the whole site: fix overflows
@@ -491,7 +482,7 @@ At least six entries. One per real use. Every entry needs a commit link.
 ## 3. Who wrote what
 
 ### Written by me
-**Linkage of pages and components**
+**1st Entry: Linkage of pages and components**
 
 - **File:** `client/src/App.jsx`
 - **Commit:** https://github.com/neriahv/emberary/commit/bcb1ea090502f249e23dc7d89fe51136070bb0f3
@@ -505,7 +496,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   in development and at `username.github.io/emberary/` once deployed, without
   hardcoding the repository name anywhere.
 
-**The basic Express server**
+**2nd Entry: The basic Express server**
 
 - **File:** `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
@@ -518,7 +509,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   (`server/app.js`) and the query logic (`server/repos/`) are the part I asked
   the AI for, described above.
 
-**Getting real covers into the app**
+**3rd Entry: Getting real covers into the app**
 
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 - **What it does and why it is built this way:** This one isn't source code I
@@ -530,7 +521,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   the covers were good enough to keep and to run `npm run db:reset` to load
   them.
 
-**The security checklist pass**
+**4th Entry: The security checklist pass**
 
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 - **What it does and why it is built this way:** I ran the checklist's items
@@ -580,7 +571,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     have thrown. I put the `{ username, password, realm }` destructuring back.
     8 of 8 tests pass.
 
-**The Deployed App**
+**5th Entry: The Deployed App**
 
 - **Files:** `server/web.js`, `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/09ed7d0ab2d633f5ee2587b35ff86d55a4dcbfa5
@@ -621,7 +612,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     one, and with it the site, a `/my-books` deep link and the database all
     worked.
 
-**The database role**
+**6th Entry: The database role**
 
 - **File:** `server/db/roles.sql`
 - **Commit:** https://github.com/neriahv/emberary/commit/2f712bf97775ceeda71201a861760e9f98e11323
@@ -652,7 +643,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     Ember history, or delete readers or furniture. With these, the whole
     server suite passes, 74 of 74.
 
-**Deploying it and locking it down**
+**7th Entry: Deploying it and locking it down**
 
 - **Live app:** https://emberary.onrender.com (behind the gate)
 - **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
@@ -687,7 +678,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     are set, so GitHub Pages stays the public demo, and ran the secret search
     over the whole git history. Only placeholders came back.
 
-**Search, filter and sort on My Books**
+**8th Entry: Search, filter and sort on My Books**
 
 - **Files:** `client/src/pages/filterBooks.js` (all of it), and in
   `client/src/pages/MyBooksPage.jsx` the genre, rating and sort dropdowns,
@@ -736,7 +727,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **What I would do next:** sort authors by surname, so Austen comes before
     Conan Doyle.
 
-**Settings, profile and account security**
+**9th Entry: Settings, profile and account security**
 
 - **Files:** `server/repos/settings.js`, `validateSettings` in `server/validation.js`,
   the settings and account routes in `server/readerTools.js`, `server/auth.js`,
@@ -757,7 +748,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **Rewrites:** `auth.js`, `emailDomain.js`, `validateSignup` and the sign-in page,
     with the same behaviour. The DNS check can now be tested without the internet.
 
-**Reading milestones and daily quests**
+**10th Entry: Reading milestones and daily quests**
 
 - **Files:** `server/repos/reading.js`, the reading, quest and timer routes in
   `server/readerTools.js`, `ReaderTools.jsx`
@@ -777,7 +768,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **Year in review:** books finished, pages, longest book, busiest month, favourite
     genre.
 
-**Notes, lists, room layouts and client tests**
+**11th Entry: Notes, lists, room layouts and client tests**
 
 - **Files:** `BookNotes.jsx`, `ListsPage.jsx`, `RoomSnapshots.jsx`,
   `room/emberCollection.jsx`, `useRoomSaver.js`, the notes, list and snapshot routes in
@@ -793,7 +784,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **Ten new room items** in the shop.
   - **35 client tests** with Vitest.
 
-**Friends and visiting libraries**
+**12th Entry: Friends and visiting libraries**
 
 - **Files:** `server/repos/friends.js`, `server/friends.js`, the `friendships`
   table in `server/db/schema.sql` and its grants in `server/db/roles.sql`,
