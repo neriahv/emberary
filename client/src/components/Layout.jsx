@@ -156,8 +156,10 @@ export default function Layout() {
         {/* Say what the live app keeps. Demo mode says it in DemoNotice instead. */}
         {!USING_MOCK_API && (
           <p className="privacy-note">
-            Emberary saves your shelves, reading activity, notes, lists, profile, settings, room layouts and
-            Ember history in its database. Nothing is shared or sold.
+            Emberary saves your name, email, a hash of your password (never the password itself), shelves,
+            reading activity, notes, lists, profile, settings, room layouts and Ember history in its database.
+            Friends you accept can see your Library Room, the books on its shelves with their ratings and
+            reviews, and your notes on them. Nothing else is shared, and nothing is sold.
           </p>
         )}
         {/* The covers are not ours: they are served by Google Books. */}
