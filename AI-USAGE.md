@@ -1,17 +1,8 @@
 # AI usage
 
-This project was built with AI assistance. This file is the record of it. It is
-graded as the finals badge, and it is worth 100 points.
-
-Start it in week 1 and keep it up as you go. The commit history of this file is
-part of the evidence: a file written all at once the night before the deadline
-looks exactly like what it is.
-
 ## 1. How I used AI
 
-At least six entries. One per real use. Every entry needs a commit link.
-
-### 2026-09-23 - Frontend Design (Week 1)
+### 1st Entry: 2026-09-23 - Frontend Design (Week 1)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** The whole Week 1 frontend — Home, Discover, My Books,
@@ -26,7 +17,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   pieces existed (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/bcb1ea090502f249e23dc7d89fe51136070bb0f3
 
-### 2026-09-27 - Library Room Rebuilt as a 3D Diorama (Week 2)
+### 2nd Entry: 2026-09-27 - Library Room Rebuilt as a 3D Diorama (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I gave a reference photo of an isometric reading-room
@@ -44,7 +35,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   overlapping the edit panel.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Backend Beyond Basic Express and the Database (Week 2)
+### 3rd Entry: 2026-09-27 - Backend Beyond Basic Express and the Database (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I can write a basic Express server and a database
@@ -57,10 +48,10 @@ At least six entries. One per real use. Every entry needs a commit link.
   endpoint tests run against a real local PostgreSQL.
 - **What I kept, what I changed, and why:** Kept the schema and query design.
   Asked for `npm run db:local` after finding I had neither Docker nor
-  PostgreSQL installed, so the project runs from `node_modules` alone.
+  PostgreSQL installed, so the project runs from `node_modules` alone. The schema's boundary check later failed on a real value (see Case 1 below).
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Real Book Covers from Google Books (Week 2)
+### 4th Entry: 2026-09-27 - Real Book Covers from Google Books (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A script to fetch each catalogue book's real cover
@@ -71,10 +62,10 @@ At least six entries. One per real use. Every entry needs a commit link.
 - **What I kept, what I changed, and why:** Kept the script; I created the key
   and ran it myself (see section 3). It found that four "covers" were actually
   scanned black-and-white title pages and added a check to reject those and
-  try the next edition instead (see Case 2 below).
+  try the next edition instead.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
+### 5th Entry: 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Replace the yearly reading-goal progress bar on the
@@ -86,7 +77,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   site's look without extra rework.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
-### 2026-09-27 - Security Checklist Pass (Week 2)
+### 6th Entry: 2026-09-27 - Security Checklist Pass (Week 2)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** To go through the course's security checklist against
@@ -101,7 +92,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   (see section 3).
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 
-### 2026-09-30 - Library Room Shelves and Furniture Shop (Week 3)
+### 7th Entry: 2026-09-30 - Library Room Shelves and Furniture Shop (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Three changes to the Library Room. Remove the shelf
@@ -132,10 +123,10 @@ At least six entries. One per real use. Every entry needs a commit link.
     grandfather clock 5.
   - Storage instead of delete was its suggestion. I kept it because otherwise
     removing something I had paid for would throw the Ember away.
-  - Two bugs came up while testing, described in Cases 4 and 5 below.
+  - A bug came up while testing the shop: opening Edit room blanked the page, described in Case 2 below.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
+### 8th Entry: 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A way to earn Ember for the shop by reading, using the
@@ -160,7 +151,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   include these cases, all pass.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
-### 2026-10-03 - Tests and Setup for Going Live (Week 3)
+### 9th Entry: 2026-10-03 - Tests and Setup for Going Live (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Help getting the app ready to deploy safely. Before
@@ -189,7 +180,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     without asking the AI to check it each time.
 - **Commit:** https://github.com/neriahv/emberary/commit/d59a306889bfde1f723afbdda7dd1e23c40b6a7b
 
-### 2026-10-04 - Finishing Touches: Look, Search and Room Controls (Week 3)
+### 10th Entry: 2026-10-04 - Finishing Touches: Look, Search and Room Controls (Week 3)
 
 - **Tool:** Claude Code (Opus 5.5, then Sonnet 5.5)
 - **What I asked for:** A last round of polish on the finished app. I wanted
@@ -234,7 +225,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     each book stands on the shelves.
 - **Commit:** https://github.com/neriahv/emberary/commit/5fa70520dc9984be25ceb205eb7307d54475c241
 
-### 2026-10-06 - Build Your Dream Library (Week 4)
+### 11th Entry: 2026-10-06 - Build Your Dream Library (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** I gave eight reference pictures of cozy isometric
@@ -284,7 +275,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     cost.
 - **Commit:** https://github.com/neriahv/emberary/commit/d609d9ec226a2096813e2529784fb362ba39c7bf
 
-### 2026-10-08 - Shop, Build and Storage Modes, and an Upstairs (Week 4)
+### 12th Entry: 2026-10-08 - Shop, Build and Storage Modes, and an Upstairs (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** Over several rounds, with reference pictures each
@@ -345,7 +336,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     something in the room; the limit now starts at 0, with a test for it.
 - **Commit:** https://github.com/neriahv/emberary/commit/aa0ea60fc119b51abf2101dc5521ded82fc3a836
 
-### 2026-10-09 - Reader Accounts, Sign-up Checks and More Library Styles (Week 4)
+### 13th Entry: 2026-10-09 - Reader Accounts, Sign-up Checks and More Library Styles (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **How we split it:** About half and half. Claude Code wrote the code. My
@@ -403,7 +394,7 @@ At least six entries. One per real use. Every entry needs a commit link.
 - **Commit:** https://github.com/neriahv/emberary/commit/a121f689b47263de44c25e2096d226b73ac3342d
   (sign-up checks: https://github.com/neriahv/emberary/commit/39f6e31ef8941f783ab7b37373a534c88f8bae38)
 
-### 2026-10-10 - Final UI Design Pass (Week 4)
+### 14th Entry: 2026-10-10 - Final UI Design Pass (Week 4)
 
 - **Tool:** Claude Code (Opus 5.5)
 - **What I asked for:** A final design stage for the whole site: fix overflows
@@ -491,7 +482,7 @@ At least six entries. One per real use. Every entry needs a commit link.
 ## 3. Who wrote what
 
 ### Written by me
-**Linkage of pages and components**
+**1st Entry: Linkage of pages and components**
 
 - **File:** `client/src/App.jsx`
 - **Commit:** https://github.com/neriahv/emberary/commit/bcb1ea090502f249e23dc7d89fe51136070bb0f3
@@ -505,7 +496,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   in development and at `username.github.io/emberary/` once deployed, without
   hardcoding the repository name anywhere.
 
-**The basic Express server**
+**2nd Entry: The basic Express server**
 
 - **File:** `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
@@ -518,7 +509,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   (`server/app.js`) and the query logic (`server/repos/`) are the part I asked
   the AI for, described above.
 
-**Getting real covers into the app**
+**3rd Entry: Getting real covers into the app**
 
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 - **What it does and why it is built this way:** This one isn't source code I
@@ -526,11 +517,11 @@ At least six entries. One per real use. Every entry needs a commit link.
   Google Cloud project and Books API key myself (enabled the Books API,
   restricted the key to it), put the key in my own `server/.env`, and ran
   `npm run covers:fetch` myself. I then checked the results — that's how the
-  four scanned-title-page covers in Case 2 above got caught — before deciding
+  four scanned-title-page covers got caught — before deciding
   the covers were good enough to keep and to run `npm run db:reset` to load
   them.
 
-**The security checklist pass**
+**4th Entry: The security checklist pass**
 
 - **Commit:** https://github.com/neriahv/emberary/commit/d3b75f1068b3a94373bff8b2b6d2b63818c382b6
 - **What it does and why it is built this way:** I ran the checklist's items
@@ -545,7 +536,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   the history rewrite against my own real GitHub account is not something the
   AI could do for me.
 
-**The Access Gate**
+**5th Entry: The Access Gate**
 
 - **File:** `server/basicAuth.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/c88cb8e6733777d14f32ece107cf876cd4d143a0
@@ -580,7 +571,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     have thrown. I put the `{ username, password, realm }` destructuring back.
     8 of 8 tests pass.
 
-**The Deployed App**
+**6th Entry: The Deployed App**
 
 - **Files:** `server/web.js`, `server/server.js`
 - **Commit:** https://github.com/neriahv/emberary/commit/09ed7d0ab2d633f5ee2587b35ff86d55a4dcbfa5
@@ -597,7 +588,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   3. **Rate limit:** runs before the gate so failed login attempts count:
      10 per 15 minutes. `requestWasSuccessful` says that only a 401 is a
      failure, and `skipSuccessfulRequests` then leaves everything else
-     uncounted, so a logged-in reader is never limited (see Case 4).
+     uncounted, so a logged-in reader is never limited.
   4. **The gate (`basicAuth`):** protects the client files and the API.
   5. **Static files:** serve the built React files before the SPA fallback.
   6. **SPA fallback:** sends `index.html` for client routes such as
@@ -621,7 +612,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     one, and with it the site, a `/my-books` deep link and the database all
     worked.
 
-**The database role**
+**7th Entry: The database role**
 
 - **File:** `server/db/roles.sql`
 - **Commit:** https://github.com/neriahv/emberary/commit/2f712bf97775ceeda71201a861760e9f98e11323
@@ -652,7 +643,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     Ember history, or delete readers or furniture. With these, the whole
     server suite passes, 74 of 74.
 
-**Deploying it and locking it down**
+**8th Entry: Deploying it and locking it down**
 
 - **Live app:** https://emberary.onrender.com (behind the gate)
 - **Commit:** https://github.com/neriahv/emberary/commit/ea7f756d34aa9b4733da3009ff6bea1afd3f8e54
@@ -687,7 +678,7 @@ At least six entries. One per real use. Every entry needs a commit link.
     are set, so GitHub Pages stays the public demo, and ran the secret search
     over the whole git history. Only placeholders came back.
 
-**Search, filter and sort on My Books**
+**9th Entry: Search, filter and sort on My Books**
 
 - **Files:** `client/src/pages/filterBooks.js` (all of it), and in
   `client/src/pages/MyBooksPage.jsx` the genre, rating and sort dropdowns,
@@ -736,7 +727,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **What I would do next:** sort authors by surname, so Austen comes before
     Conan Doyle.
 
-**Settings, profile and account security**
+**10th Entry: Settings, profile and account security**
 
 - **Files:** `server/repos/settings.js`, `validateSettings` in `server/validation.js`,
   the settings and account routes in `server/readerTools.js`, `server/auth.js`,
@@ -757,43 +748,66 @@ At least six entries. One per real use. Every entry needs a commit link.
   - **Rewrites:** `auth.js`, `emailDomain.js`, `validateSignup` and the sign-in page,
     with the same behaviour. The DNS check can now be tested without the internet.
 
-**Reading milestones and daily quests**
+**11th Entry: Reading milestones and daily quests**
 
 - **Files:** `server/repos/reading.js`, the reading, quest and timer routes in
   `server/readerTools.js`, `ReaderTools.jsx`
 - **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
-- **How it was made:** I wrote these features. An AI tool combined my files into one
-  folder; Claude Code then merged that folder into the project. It kept my 5–500 goal
+- **How it was made:** I wrote these features myself: the reading, quest and timer logic in server/repos/reading.js, the routes in server/readerTools.js, and ReaderTools.jsx. I wrote them [separately from the main project / in a different workspace], so ChatGPT was used only to gather my finished files into one folder so I could hand them over together. It did not write or change the code. Claude Code then merged that folder into the project. It kept my 5–500 goal
   rule, my `validateSettings` and my My Books behaviour, removed duplicated SQL, and ran
   the checks: 125 server tests and 35 client tests passed, and the production build
   completed.
 - **What it does:**
-  - **Streaks:** consecutive reading days are found with `day - row_number()`.
-  - **Achievements:** first book, 10 books and a 7-day streak each pay Ember once.
-  - **Daily quests:** three tasks a day; a unique ledger index stops a reward being
-    paid twice.
-  - **Reading timer:** the server measures the time, splits it at midnight, and caps a
-    forgotten timer at 12 hours.
-  - **Year in review:** books finished, pages, longest book, busiest month, favourite
-    genre.
+  - **Streaks:** A streak is a run of consecutive reading days. In SQL I number
+    the reader's reading days in order with `row_number()` and subtract that
+    number from each date.
+  - **Achievements:** First book, 10 books and a 7-day streak each pay Ember
+    once. The reward is recorded in the ledger, which the database role can add
+    to but never change, so an achievement cannot be paid a second time.
+  - **Daily quests:** Three tasks a day, each paying Ember when claimed. A
+    unique index on the ledger stops a reward being paid twice, even if the
+    claim button is pressed twice or the request is sent again. The database
+    enforces this, so I do not rely on the page to behave.
+  - **Reading timer:** The server measures the time, not the browser, so a
+    reader cannot invent minutes by changing a value in the request. If a
+    session runs past midnight it is split between the two days, so each day's
+    total and each streak stay correct. A timer left running is capped at
+    12 hours, so a forgotten timer cannot add a whole day of reading.
+  - **Year in review:** Books finished, pages read, longest book, busiest month
+    and favourite genre, all worked out from the reader's own records, so the
+    summary always matches what is on their shelves.
 
-**Notes, lists, room layouts and client tests**
+**12th Entry: Notes, lists, room layouts and client tests**
 
 - **Files:** `BookNotes.jsx`, `ListsPage.jsx`, `RoomSnapshots.jsx`,
   `room/emberCollection.jsx`, `useRoomSaver.js`, the notes, list and snapshot routes in
   `server/readerTools.js`, `client/src/test/`
 - **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
-- **How it was made:** I wrote these features and the client tests. They were combined
-  and merged the same way as the entry above.
+- **How it was made:** I wrote these features and the client tests myself:
+  the notes, lists and snapshot screens, their routes in `server/readerTools.js`,
+  the ten shop items and the 35 Vitest tests. They were built on a separate copy of the project, so they had to be joined to the main project afterwards. ChatGPT's only job was to gather my finished
+  files into one folder; it did not write or edit any of them. Claude Code
+  then merged that folder into the project in the same step as the entry above.
+  That merge is why this entry shares a commit with entries 9 and 10.
 - **What it does:**
-  - **Notes and quotes** on any book, with an optional page number.
-  - **Book lists:** create, rename and delete, and add or remove books.
-  - **Room snapshots:** restoring never adds furniture or Ember; pieces that no longer
-    fit go to storage.
-  - **Ten new room items** in the shop.
-  - **35 client tests** with Vitest.
-
-**Friends and visiting libraries**
+  - **Notes and quotes** on any book, with an optional page number. They live
+    under the book's own address (`/api/my-books/:id/notes`), so a note always
+    belongs to one book. The book id is passed through `encodeURIComponent` so
+    an unusual id cannot break the address.
+  - **Book lists:** create, rename and delete, and add or remove books. Adding
+    and removing is one function that sends `PUT` to add and `DELETE` to remove,
+    so the page needs only one call for the checkbox on each book.
+  - **Room snapshots:** a saved layout can be restored, but restoring never adds
+    furniture or Ember; pieces that no longer fit go to storage. Restoring is its
+    own request (`POST .../restore`) instead of an edit of the snapshot, so
+    loading a layout can never overwrite the saved one.
+  - **Ten new room items** in the shop, each with a price, and the small ones
+    marked so they can stand on tables and shelves.
+  - **35 client tests** with Vitest, jsdom and Testing Library, which I added
+    with the `test` and `test:watch` scripts so the pages can be checked without
+    the server.
+    
+**13th Entry: Friends and visiting libraries**
 
 - **Files:** `server/repos/friends.js`, `server/friends.js`, the `friendships`
   table in `server/db/schema.sql` and its grants in `server/db/roles.sql`,
@@ -864,7 +878,7 @@ At least six entries. One per real use. Every entry needs a commit link.
   layer separately from the basic Express server I wrote myself — they don't
   depend on each other's implementation, only on the same function names.
 
-  ### Other work I completed myself
+### Other work I completed myself
 
 These activities show my involvement but are not included as independently written source code.
 
