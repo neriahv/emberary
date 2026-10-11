@@ -753,20 +753,29 @@
 - **Files:** `server/repos/reading.js`, the reading, quest and timer routes in
   `server/readerTools.js`, `ReaderTools.jsx`
 - **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
-- **How it was made:** I wrote these features. An AI tool combined my files into one
-  folder; Claude Code then merged that folder into the project. It kept my 5–500 goal
+- **How it was made:** I wrote these features myself: the reading, quest and timer logic in server/repos/reading.js, the routes in server/readerTools.js, and ReaderTools.jsx. I wrote them [separately from the main project / in a different workspace], so ChatGPT was used only to gather my finished files into one folder so I could hand them over together. It did not write or change the code. Claude Code then merged that folder into the project. It kept my 5–500 goal
   rule, my `validateSettings` and my My Books behaviour, removed duplicated SQL, and ran
   the checks: 125 server tests and 35 client tests passed, and the production build
   completed.
 - **What it does:**
-  - **Streaks:** consecutive reading days are found with `day - row_number()`.
-  - **Achievements:** first book, 10 books and a 7-day streak each pay Ember once.
-  - **Daily quests:** three tasks a day; a unique ledger index stops a reward being
-    paid twice.
-  - **Reading timer:** the server measures the time, splits it at midnight, and caps a
-    forgotten timer at 12 hours.
-  - **Year in review:** books finished, pages, longest book, busiest month, favourite
-    genre.
+  - **Streaks:** A streak is a run of consecutive reading days. In SQL I number
+    the reader's reading days in order with `row_number()` and subtract that
+    number from each date.
+  - **Achievements:** First book, 10 books and a 7-day streak each pay Ember
+    once. The reward is recorded in the ledger, which the database role can add
+    to but never change, so an achievement cannot be paid a second time.
+  - **Daily quests:** Three tasks a day, each paying Ember when claimed. A
+    unique index on the ledger stops a reward being paid twice, even if the
+    claim button is pressed twice or the request is sent again. The database
+    enforces this, so I do not rely on the page to behave.
+  - **Reading timer:** The server measures the time, not the browser, so a
+    reader cannot invent minutes by changing a value in the request. If a
+    session runs past midnight it is split between the two days, so each day's
+    total and each streak stay correct. A timer left running is capped at
+    12 hours, so a forgotten timer cannot add a whole day of reading.
+  - **Year in review:** Books finished, pages read, longest book, busiest month
+    and favourite genre, all worked out from the reader's own records, so the
+    summary always matches what is on their shelves.
 
 **11th Entry: Notes, lists, room layouts and client tests**
 
@@ -774,16 +783,30 @@
   `room/emberCollection.jsx`, `useRoomSaver.js`, the notes, list and snapshot routes in
   `server/readerTools.js`, `client/src/test/`
 - **Commit:** https://github.com/neriahv/emberary/commit/f5006fc33529cac228fcf874b7da94039c8f7863
-- **How it was made:** I wrote these features and the client tests. They were combined
-  and merged the same way as the entry above.
+- **How it was made:** I wrote these features and the client tests myself:
+  the notes, lists and snapshot screens, their routes in `server/readerTools.js`,
+  the ten shop items and the 35 Vitest tests. They were built on a separate copy of the project, so they had to be joined to the main project afterwards. ChatGPT's only job was to gather my finished
+  files into one folder; it did not write or edit any of them. Claude Code
+  then merged that folder into the project in the same step as the entry above.
+  That merge is why this entry shares a commit with entries 9 and 10.
 - **What it does:**
-  - **Notes and quotes** on any book, with an optional page number.
-  - **Book lists:** create, rename and delete, and add or remove books.
-  - **Room snapshots:** restoring never adds furniture or Ember; pieces that no longer
-    fit go to storage.
-  - **Ten new room items** in the shop.
-  - **35 client tests** with Vitest.
-
+  - **Notes and quotes** on any book, with an optional page number. They live
+    under the book's own address (`/api/my-books/:id/notes`), so a note always
+    belongs to one book. The book id is passed through `encodeURIComponent` so
+    an unusual id cannot break the address.
+  - **Book lists:** create, rename and delete, and add or remove books. Adding
+    and removing is one function that sends `PUT` to add and `DELETE` to remove,
+    so the page needs only one call for the checkbox on each book.
+  - **Room snapshots:** a saved layout can be restored, but restoring never adds
+    furniture or Ember; pieces that no longer fit go to storage. Restoring is its
+    own request (`POST .../restore`) instead of an edit of the snapshot, so
+    loading a layout can never overwrite the saved one.
+  - **Ten new room items** in the shop, each with a price, and the small ones
+    marked so they can stand on tables and shelves.
+  - **35 client tests** with Vitest, jsdom and Testing Library, which I added
+    with the `test` and `test:watch` scripts so the pages can be checked without
+    the server.
+    
 **12th Entry: Friends and visiting libraries**
 
 - **Files:** `server/repos/friends.js`, `server/friends.js`, the `friendships`
