@@ -48,7 +48,7 @@
   endpoint tests run against a real local PostgreSQL.
 - **What I kept, what I changed, and why:** Kept the schema and query design.
   Asked for `npm run db:local` after finding I had neither Docker nor
-  PostgreSQL installed, so the project runs from `node_modules` alone.
+  PostgreSQL installed, so the project runs from `node_modules` alone. The schema's boundary check later failed on a real value (see Case 1 below).
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
 ### 4th Entry: 2026-09-27 - Real Book Covers from Google Books (Week 2)
@@ -62,7 +62,7 @@
 - **What I kept, what I changed, and why:** Kept the script; I created the key
   and ran it myself (see section 3). It found that four "covers" were actually
   scanned black-and-white title pages and added a check to reject those and
-  try the next edition instead (see Case 2 below).
+  try the next edition instead.
 - **Commit:** https://github.com/neriahv/emberary/commit/e1588a4d53e342a4e206dd1a0036f0a85e313c9d
 
 ### 5th Entry: 2026-09-27 - Profile Reading Goal as a Ring Chart (Week 2)
@@ -123,7 +123,7 @@
     grandfather clock 5.
   - Storage instead of delete was its suggestion. I kept it because otherwise
     removing something I had paid for would throw the Ember away.
-  - Two bugs came up while testing, described in Cases 4 and 5 below.
+  - A bug came up while testing the shop: opening Edit room blanked the page, described in Case 2 below.
 - **Commit:** https://github.com/neriahv/emberary/commit/2e85bd28d1335bb9f78f72b0d2ccd00e093ee43e
 
 ### 8th Entry: 2026-09-30 - Ember: Earning the Shop's Currency by Reading (Week 3)
@@ -517,7 +517,7 @@
   Google Cloud project and Books API key myself (enabled the Books API,
   restricted the key to it), put the key in my own `server/.env`, and ran
   `npm run covers:fetch` myself. I then checked the results — that's how the
-  four scanned-title-page covers in Case 2 above got caught — before deciding
+  four scanned-title-page covers got caught — before deciding
   the covers were good enough to keep and to run `npm run db:reset` to load
   them.
 
@@ -588,7 +588,7 @@
   3. **Rate limit:** runs before the gate so failed login attempts count:
      10 per 15 minutes. `requestWasSuccessful` says that only a 401 is a
      failure, and `skipSuccessfulRequests` then leaves everything else
-     uncounted, so a logged-in reader is never limited (see Case 4).
+     uncounted, so a logged-in reader is never limited.
   4. **The gate (`basicAuth`):** protects the client files and the API.
   5. **Static files:** serve the built React files before the SPA fallback.
   6. **SPA fallback:** sends `index.html` for client routes such as
@@ -855,7 +855,7 @@
   layer separately from the basic Express server I wrote myself — they don't
   depend on each other's implementation, only on the same function names.
 
-  ### Other work I completed myself
+### Other work I completed myself
 
 These activities show my involvement but are not included as independently written source code.
 
